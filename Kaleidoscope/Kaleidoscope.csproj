@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{11111111-2222-3333-4444-555555555555}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Kaleidoscope</RootNamespace>
+    <AssemblyName>Kaleidoscope</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <!-- 串口扫码枪（ScannerService） -->
+    <Reference Include="System.IO.Ports" />
+    <!-- 图片存储（ImageStore 用 Bitmap/Image） -->
+    <Reference Include="System.Drawing" />
+    <!-- WMI 串口识别（SerialPortHelper / 扫码枪自动识别，System.Management） -->
+    <Reference Include="System.Management" />
+    <!-- 本地引用的第三方库（libs 目录，离线可编译）：
+         NModbus：Modbus 主站/从站（CreateMaster / CreateSlaveNetwork / CreateRtuMaster）
+         NModbus.Serial：RTU 主站（factory.CreateRtuMaster(SerialPort)），气压表 RS485 用 -->
+    <Reference Include="NModbus">
+      <HintPath>libs\NModbus.dll</HintPath>
+      <!-- NuGet: NModbus 3.0.83（git 2023 fork，命名空间 NModbus，工厂方法 CreateMaster/CreateSlaveNetwork） -->
+    </Reference>
+    <Reference Include="NModbus.Serial">
+      <HintPath>libs\NModbus.Serial.dll</HintPath>
+      <!-- NuGet: NModbus.Serial 3.0.83（RTU 主站扩展，CreateRtuMaster 需引用本 dll） -->
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Utils\LogHelper.cs" />
+    <Compile Include="Utils\TcpKeepAlive.cs" />
+    <Compile Include="Utils\SerialPortHelper.cs" />
+    <Compile Include="Utils\IoMapBuilder.cs" />
+    <Compile Include="Models\PlcConfig.cs" />
+    <Compile Include="Models\CameraConfig.cs" />
+    <Compile Include="Models\ScanConfig.cs" />
+    <Compile Include="Models\ImageConfig.cs" />
+    <Compile Include="Models\BarometerConfig.cs" />
+    <Compile Include="Models\IoConfig.cs" />
+    <Compile Include="Models\FanConfig.cs" />
+    <Compile Include="Models\PlcMasterConfig.cs" />
+    <Compile Include="Models\BarometerData.cs" />
+    <Compile Include="Models\FanData.cs" />
+    <Compile Include="Models\IoStatus.cs" />
+    <Compile Include="Models\IoPointDefinition.cs" />
+    <Compile Include="Models\IoOutputChannelRemap.cs" />
+    <Compile Include="Models\DeviceHubConfig.cs" />
+    <Compile Include="Services\PlcService.cs" />
+    <Compile Include="Services\KeyenceIV4Camera.cs" />
+    <Compile Include="Services\ScannerService.cs" />
+    <Compile Include="Services\ScannerTcpService.cs" />
+    <Compile Include="Services\ImageStore.cs" />
+    <Compile Include="Services\IBarometerReader.cs" />
+    <Compile Include="Services\IIoController.cs" />
+    <Compile Include="Services\IFanController.cs" />
+    <Compile Include="Services\ModbusRtuBarometerReader.cs" />
+    <Compile Include="Services\ModbusTcpIoController.cs" />
+    <Compile Include="Services\FanControllerClient.cs" />
+    <Compile Include="Services\ModbusTcpMasterClient.cs" />
+    <Compile Include="Services\MockBarometerReader.cs" />
+    <Compile Include="Services\MockIoController.cs" />
+    <Compile Include="Services\MockFanController.cs" />
+    <Compile Include="Services\ConnectionMonitor.cs" />
+    <Compile Include="Services\DeviceHub.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

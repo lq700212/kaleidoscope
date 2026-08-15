@@ -5,16 +5,16 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using CommonLib.Models;
-using CommonLib.Services;
-using CommonLib.Utils;
+using Kaleidoscope.Models;
+using Kaleidoscope.Services;
+using Kaleidoscope.Utils;
 
-namespace CommonLibDemo
+namespace KaleidoscopeDemo
 {
     /// <summary>
-    /// CommonLib Demo 主窗体：现场前期"界面还没做"时，用它手动验证 通讯 + 存图 全链路。
+    /// Kaleidoscope Demo 主窗体：现场前期"界面还没做"时，用它手动验证 通讯 + 存图 全链路。
     ///
-    /// 【本窗体演示的就是 CommonLib 的标准接入方式（与 README/使用说明完全一致）】
+    /// 【本窗体演示的就是 Kaleidoscope 的标准接入方式（与 README/使用说明完全一致）】
     ///   var hub = new DeviceHub(config);  // ① 建
     ///   hub.Start();                      // ② 启
     ///   hub.ApplyConfig(newCfg);          // ③ 热更
@@ -24,7 +24,7 @@ namespace CommonLibDemo
     ///
     /// 【界面布局】
     /// ┌──────────────────────────────────────────────────────────────────────────┐
-    /// │ ▓ CommonLib 通讯/存图 测试台                                      [日志区] │
+    /// │ ▓ Kaleidoscope 通讯/存图 测试台                                      [日志区] │
     /// ├──────────────────────────────────────────────┬───────────────────────────┤
     /// │【配置】型号:┌cmbModel─────┐  [btnLoad 加载配置] │ 连接状态:               │
     /// │  PLC:┌txtPlcIp────────┐:┌txtPlcPort┐          │  ● PLC   ● 相机   ● 扫码枪│
@@ -57,7 +57,7 @@ namespace CommonLibDemo
     /// </summary>
     public partial class MainForm : Form
     {
-        // ────── CommonLib 核心：DeviceHub 门面（Demo 全程只持有它）──────
+        // ────── Kaleidoscope 核心：DeviceHub 门面（Demo 全程只持有它）──────
         private DeviceHub _hub;
 
         // Demo 自身配置（含 DeviceHubConfig 内嵌）
@@ -105,7 +105,7 @@ namespace CommonLibDemo
             RebuildHub();
 
             RefreshStates();        // 初始按当前连接状态上色
-            AppendLog("CommonLib 测试台已启动，复用 DeviceHub 统一管理全部连接。");
+            AppendLog("Kaleidoscope 测试台已启动，复用 DeviceHub 统一管理全部连接。");
             AppendLog($"PLC={_hub.Plc?.IpLabel ?? "未配置"}，相机数={_hub.Cameras.Count}，扫码枪数={_hub.Scanners.Count}");
         }
 
@@ -113,7 +113,7 @@ namespace CommonLibDemo
 
         private void BuildLayout()
         {
-            Text = "CommonLib 通讯/存图 测试台";
+            Text = "Kaleidoscope 通讯/存图 测试台";
             Font = new Font("Microsoft YaHei UI", 9F);
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1160, 820);
@@ -874,7 +874,7 @@ namespace CommonLibDemo
                     {
                         g.Clear(Color.White);
                         g.DrawRectangle(Pens.Black, 0, 0, 639, 479);
-                        g.DrawString("CommonLib 存图测试", new Font("Arial", 28, FontStyle.Bold), Brushes.DarkBlue, 60, 60);
+                        g.DrawString("Kaleidoscope 存图测试", new Font("Arial", 28, FontStyle.Bold), Brushes.DarkBlue, 60, 60);
                         g.DrawString("点位 1", new Font("Arial", 20), Brushes.Black, 60, 150);
                         g.DrawString("时间 " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), new Font("Arial", 16), Brushes.Gray, 60, 220);
                         g.DrawString("SN " + _currentSerial, new Font("Arial", 16), Brushes.Gray, 60, 280);
@@ -1003,7 +1003,7 @@ namespace CommonLibDemo
 
         /// <summary>弹窗提示。</summary>
         private void Msg(string text) =>
-            MessageBox.Show(text, "CommonLib 测试台", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(text, "Kaleidoscope 测试台", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
         /// <summary>跨线程安全更新 UI：当前在 UI 线程直接执行，否则丢给 UI 线程队列。</summary>
         private void SafeInvoke(Action action)

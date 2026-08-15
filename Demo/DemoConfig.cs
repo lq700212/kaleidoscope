@@ -2,21 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
-using CommonLib.Models;
+using Kaleidoscope.Models;
 
-namespace CommonLibDemo
+namespace KaleidoscopeDemo
 {
     /// <summary>
     /// Demo 程序的持久化配置（存 Config/demo.json，Newtonsoft.Json 序列化）。
     ///
     /// 【为什么 Demo 要自己的配置类，而不是直接用 DeviceHubConfig】
-    /// DeviceHubConfig 是 CommonLib 强类型入参（本类内部持有它），但 Demo 还要存几项
+    /// DeviceHubConfig 是 Kaleidoscope 强类型入参（本类内部持有它），但 Demo 还要存几项
     /// "仅 Demo 自己用"的界面记忆（如窗口坐标、上次选的相机/扫码枪下标），
     /// 混进 DeviceHubConfig 会污染库的配置语义。所以外层套一层 DemoConfig，
     /// 序列化时只关心自己这层 + 内嵌的 DeviceHubConfig（两层都 Newtonsoft 可序列化）。
     ///
     /// 【配置文件位置】程序目录下 Config/demo.json。首次运行不存在 → 用默认配置
-    /// （默认 PLC/相机/扫码枪参数来自各 Config 类的字段默认值 + CommonLib 默认相机），
+    /// （默认 PLC/相机/扫码枪参数来自各 Config 类的字段默认值 + Kaleidoscope 默认相机），
     /// 现场改 IP 后点"保存配置"落盘，下次启动自动加载。
     /// </summary>
     public class DemoConfig
@@ -24,7 +24,7 @@ namespace CommonLibDemo
         /// <summary>当前产品型号（默认 U171，PLC 建站成功会写进型号区）</summary>
         public string ProductModel { get; set; } = "U171";
 
-        /// <summary>设备层总配置（CommonLib 唯一入参，Demo 直接交给 DeviceHub）</summary>
+        /// <summary>设备层总配置（Kaleidoscope 唯一入参，Demo 直接交给 DeviceHub）</summary>
         public DeviceHubConfig Devices { get; set; } = new DeviceHubConfig();
 
         /// <summary>上次保存时主窗体位置（可选，简单记忆用）</summary>

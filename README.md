@@ -1,4 +1,4 @@
-# CommonLib — 设备通讯与图片存储通用库
+# Kaleidoscope — 设备通讯与图片存储通用库
 
 > 从 CommandCenter + AgingTestSystem 项目抽取封装的 **PLC（Modbus TCP 从站）+ 基恩士 IV4 相机 + 基恩士 SR 扫码枪 + 图片存储 + 气压表（Modbus RTU 主站）+ IO 耦合器（Modbus TCP 主站）+ 冷却送风机（Modbus TCP）** 七类底层服务。目标是：**换新客户、做新界面时，底层服务一行不改，只写 UI 和业务编排**。
 >
@@ -14,13 +14,13 @@
 ## 二、仓库结构
 
 ```
-CommonLib/                       # 仓库根（本文档 + 库工程 + Demo 测试台）
+Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo 测试台）
 ├── README.md / 使用说明.md      #  本速查 + 完整接入手册
 ├── docs/通讯接入.md              #  唯一协议文档（寄存器映射/坑点/排障，来自 AgingTestSystem）
 ├── AGENTS.md                    #  AI/维护约定（分层架构、热更、注释红线、构建命令）
 ├── CHANGELOG.md                 #  版本改动记录（自 V1.0.0 起记）
-├── CommonLib/                   # ★ 类库工程（.NET Framework 4.7.2）
-│   ├── CommonLib.csproj         #   类库项目（Reference HintPath 引 libs\NModbus.dll 等）
+├── Kaleidoscope/                   # ★ 类库工程（.NET Framework 4.7.2）
+│   ├── Kaleidoscope.csproj         #   类库项目（Reference HintPath 引 libs\NModbus.dll 等）
 │   ├── libs/NModbus.dll         #   第三方依赖（拷 dll 进 libs，离线可编译）
 │   │   └── NModbus.Serial.dll   #    Modbus RTU 串口传输（气压表用）
 │   ├── Models/                  #   纯配置模型（强类型，序列化由业务侧决定）
@@ -50,8 +50,8 @@ CommonLib/                       # 仓库根（本文档 + 库工程 + Demo 测�
 │       ├── TcpKeepAlive.cs      #     TCP KeepAlive 短间隔配置（拔网线/断电快速检测）
 │       ├── SerialPortHelper.cs  #     CH340 串口 WMI 自动识别（气压表 RS485→USB）
 │       └── IoMapBuilder.cs      #     IO 点位 → 三菱八进制物理地址映射（X000~X107/Y000~Y217）
-└── Demo/                        # WinForms 测试台（引用 CommonLib bin 输出）
-    ├── CommonLibDemo.csproj     #   构建后自动拷 CommonLib/NModbus/Newtonsoft.Json 到输出目录
+└── Demo/                        # WinForms 测试台（引用 Kaleidoscope bin 输出）
+    ├── KaleidoscopeDemo.csproj     #   构建后自动拷 Kaleidoscope/NModbus/Newtonsoft.Json 到输出目录
     ├── MainForm.cs              #   标准接入方式的最小界面模板（可直接抄接入骨架）
     ├── DemoConfig.cs            #   Newtonsoft.Json 持久化 Config/demo.json
     └── README.md                #   Demo 使用说明/验证清单/配置说明
@@ -63,9 +63,9 @@ CommonLib/                       # 仓库根（本文档 + 库工程 + Demo 测�
 PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。它本身就是"按标准接入方式
 写的最小界面"，新界面可直接抄它的接入骨架（`MainForm` 里 `DeviceHub` 四步调用）。
 
-- **构建**：在仓库根执行——先构建 CommonLib（`CommonLib/CommonLib.csproj`），再构建
-   `Demo/CommonLibDemo.csproj`（自动拷 CommonLib.dll/NModbus/Newtonsoft.Json 到输出目录）；
-   或直接跑 `Demo/bin/Debug/CommonLibDemo.exe`。
+- **构建**：在仓库根执行——先构建 Kaleidoscope（`Kaleidoscope/Kaleidoscope.csproj`），再构建
+   `Demo/KaleidoscopeDemo.csproj`（自动拷 Kaleidoscope.dll/NModbus/Newtonsoft.Json 到输出目录）；
+   或直接跑 `Demo/bin/Debug/KaleidoscopeDemo.exe`。
 - **使用**：见 [`Demo/README.md`](Demo/README.md)（验证清单/配置说明）。
 
 ## 三、快速接入（四步）

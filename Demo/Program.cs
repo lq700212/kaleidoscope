@@ -2,12 +2,12 @@ using System;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using CommonLib.Utils;
+using Kaleidoscope.Utils;
 
-namespace CommonLibDemo
+namespace KaleidoscopeDemo
 {
     /// <summary>
-    /// Demo 程序入口：把 CommonLib 的 LogHelper 接到本程序日志文件（Config/demo.log），
+    /// Demo 程序入口：把 Kaleidoscope 的 LogHelper 接到本程序日志文件（Config/demo.log），
     /// 然后启动主窗体。日志文件仅作排障备份，界面右上角还有实时日志框。
     /// </summary>
     internal static class Program
@@ -15,7 +15,7 @@ namespace CommonLibDemo
         [STAThread]
         private static void Main()
         {
-            // 注入日志出口：CommonLib 服务层的所有日志都走这里（文件 + 控制台兜底）
+            // 注入日志出口：Kaleidoscope 服务层的所有日志都走这里（文件 + 控制台兜底）
             try
             {
                 string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config", "demo.log");

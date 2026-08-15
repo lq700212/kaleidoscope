@@ -1,8 +1,8 @@
-# CommonLib Demo（通讯/存图测试台）
+# Kaleidoscope Demo（通讯/存图测试台）
 
-> 现场**界面还没做好**时，用这个 WinForms 小工具手动验证 CommonLib 全链路：
+> 现场**界面还没做好**时，用这个 WinForms 小工具手动验证 Kaleidoscope 全链路：
 > PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 气压表·IO 耦合器·送风机 / 存图归档。
-> 它本身就是"按 CommonLib 标准接入方式写的最小界面"，新界面可以直接照着抄接入骨架。
+> 它本身就是"按 Kaleidoscope 标准接入方式写的最小界面"，新界面可以直接照着抄接入骨架。
 > 不接真机时把 `devices.useMockCommunication` 设为 `true`，气压表/IO/送风机自动用 Mock
 > 随机数据模拟，UI 与业务照常跑通。
 
@@ -10,15 +10,15 @@
 
 > 以下命令均在**仓库根**（`E:\Project\CommonLib`）执行。
 
-1. **先构建 CommonLib**（Demo 引用它的 bin 输出）：
+1. **先构建 Kaleidoscope**（Demo 引用它的 bin 输出）：
    ```powershell
    & "D:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
-     CommonLib/CommonLib.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
+     Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
    ```
-2. **构建并运行 Demo**（构建后自动把 CommonLib.dll / NModbus.dll / Newtonsoft.Json.dll 拷到输出目录）：
+2. **构建并运行 Demo**（构建后自动把 Kaleidoscope.dll / NModbus.dll / Newtonsoft.Json.dll 拷到输出目录）：
    ```powershell
-   MSBuild 构建 Demo/CommonLibDemo.csproj
-   # 或直接跑：Demo\bin\Debug\CommonLibDemo.exe
+   MSBuild 构建 Demo/KaleidoscopeDemo.csproj
+   # 或直接跑：Demo\bin\Debug\KaleidoscopeDemo.exe
    ```
 
 > 首次启动无配置 → 用库默认值（PLC 监听 0.0.0.0:502、两台默认相机 19.87.6.213/.212、
@@ -55,7 +55,7 @@
 
 ## 五、配置文件说明
 
-`Config/demo.json`（Newtonsoft.Json 序列化，含 CommonLib 全部强类型配置）：
+`Config/demo.json`（Newtonsoft.Json 序列化，含 Kaleidoscope 全部强类型配置）：
 - `productModel`：当前型号（PLC 建站成功写入型号区）
 - `devices.plc`：从站监听 IP/端口 + 寄存器地址
 - `devices.cameras`：相机列表（IP/端口/FTP 目录/PLC 通道/点位程序表）

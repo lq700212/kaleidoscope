@@ -1,11 +1,45 @@
 # 版本改动记录
 
-> **本文件自 V1.0.0（CommonLib 库抽取之日）起记，只记录 CommonLib 仓库自身的改动。**
+> **本文件自 V1.0.0（Kaleidoscope 库抽取之日）起记，只记录 Kaleidoscope 仓库自身的改动。**
 > 更早的 V2.14.26 及以前版本均为 CommandCenter 原项目的历史记录（窗口徽标、点位配置、
-> 产品型号弹窗等界面功能，与 CommonLib 库代码无关），**不随库迁移**；其中通讯相关的
+> 产品型号弹窗等界面功能，与 Kaleidoscope 库代码无关），**不随库迁移**；其中通讯相关的
 > 血泪背景（PLC 从站释放 V2.14.23、相机判定即写 V2.13.7、PW 同程序号跳过 V2.14.19、
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
+
+## V1.2.2（2026-08-15）库改名 Kaleidoscope
+
+> 库名/程序集/命名空间/源码目录由 `CommonLib` 统一更名为 `Kaleidoscope`（万花筒）。
+> 改名是全量替换（`CommonLib` → `Kaleidoscope`），不涉及任何行为变化，但**属破坏性变更**：
+> 引用方需把 `using CommonLib.*` 改为 `using Kaleidoscope.*`、引用 `Kaleidoscope.dll`。
+
+### 改动范围
+
+- **目录/工程**：`CommonLib/` 目录 → `Kaleidoscope/`；`CommonLib.csproj` → `Kaleidoscope.csproj`，
+  `<RootNamespace>`/`<AssemblyName>` 改 `Kaleidoscope`，程序集输出 `Kaleidoscope.dll`。
+- **命名空间**：`CommonLib.Models` / `CommonLib.Services` / `CommonLib.Utils` →
+  `Kaleidoscope.Models` / `Kaleidoscope.Services` / `Kaleidoscope.Utils`，全部 .cs 的
+  `namespace`/`using` 同步替换（文件内容零逻辑改动，仅改名）。
+- **Demo**：`CommonLibDemo.csproj` → `KaleidoscopeDemo.csproj`，程序集 `KaleidoscopeDemo.exe`；
+  引用 `..\Kaleidoscope\bin\Debug\Kaleidoscope.dll`，构建后拷贝目标同步。
+- **文档**：`README.md` / `使用说明.md` / `AGENTS.md` / `Demo/README.md` / 本文档品牌名统一为
+  Kaleidoscope；`docs/通讯接入.md` 不含库名，未动。
+
+### 为什么这么改
+
+- 库定位为"换客户做新界面的通用设备通讯/图片存储库"，`CommonLib` 名字过泛且与具体业务
+  无关联；更名 `Kaleidoscope`（万花筒，寓意多设备、多协议、多场景的多样性）作为独立品牌。
+
+### 验证
+
+- 构建 `Kaleidoscope/Kaleidoscope.csproj` → `Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`（无 error）。
+- 构建 `Demo/KaleidoscopeDemo.csproj` → `KaleidoscopeDemo.exe`，输出目录含 `Kaleidoscope.dll`/
+  `NModbus.dll`/`NModbus.Serial.dll`/`Newtonsoft.Json.dll`。
+- 全库 `git grep CommonLib` 无残留。
+
+### 文档同步
+
+- 本版本（V1.2.2）；仓库结构/构建命令/命名空间约定等已在 README/使用说明/AGENTS.md 中随改名同步。
 
 ## V1.2.1（2026-08-15）通讯连接稳定性与鲁棒性加固
 
@@ -49,7 +83,7 @@
 
 ### 验证
 
-- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope 通过（`Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`，无 error）。
 - 未新增外部依赖（`ConcurrentDictionary`/`StreamWriter` 均 .NET Framework 4.7.2 内置）。
 
 ### 文档同步
@@ -95,7 +129,7 @@
 
 ### 验证
 
-- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope 通过（`Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`，无 error）。
 
 ### 文档同步
 
@@ -105,7 +139,7 @@
 
 ## V1.1.0（2026-08-15）新增 Aging 三设备通讯（气压表 Modbus RTU / IO 耦合器 Modbus TCP / 送风机 Modbus TCP + Mock）
 
-> 需求：把 AgingTestSystem（老化测试台）的通讯逻辑作为主干吸收进 CommonLib，目标是——
+> 需求：把 AgingTestSystem（老化测试台）的通讯逻辑作为主干吸收进 Kaleidoscope，目标是——
 > **换新客户做新界面时只写页面和业务编排，通讯接入代码一行不写**。DeviceHub 门面保留（薄壳），
 > 内部通讯服务换成 Aging 更健壮实现（接口化 + Mock 三件套 + 自动识别 + 心跳静默重连）。
 
@@ -120,7 +154,7 @@
     `IoStatus`（+`IoType`/`IoFunction`/`ElectricalType`）、`IoPointDefinition`（+`DeviceIoMapping`）、
     `IoOutputChannelRemap`（`ParseAll` 支持 `;`/`；` 与 `->`/`→`、0x 前缀、通道 0~31）；
   - `DeviceHubConfig` 新增 `Barometer`/`Io`/`Fan` 三段 + **`UseMockCommunication`** 开关。
-- **新增 Services 接口**（统一放 `CommonLib.Services`，强类型配置签名 + `OnError` + `IDisposable`）：
+- **新增 Services 接口**（统一放 `Kaleidoscope.Services`，强类型配置签名 + `OnError` + `IDisposable`）：
   `IBarometerReader`（读压力/写阈值）、`IIoController`（读 DI/写 DO）、`IFanController`（定值启动/停止/读状态）。
 - **新增 Services 实现（移植 Aging 健壮性）**：
   - `ModbusRtuBarometerReader`：CH340 WMI 自动识别 + `BarometerPort.cache` 端口记忆、
@@ -146,15 +180,15 @@
 
 ### 为什么这么改
 
-- Aging 的三类主站设备通讯（气压表/IO/送风机）比 CommonLib 现有实现更健壮：接口化、自动识别、
+- Aging 的三类主站设备通讯（气压表/IO/送风机）比 Kaleidoscope 现有实现更健壮：接口化、自动识别、
   Mock 可跑通 UI、心跳静默重连。按用户诉求"后续只写页面"，把这些能力并入 DeviceHub 门面，
   业务层只需 `hub.Barometer`/`hub.Io`/`hub.Fan` 三属性，接入代码量降为接近零。
 - 保留 DeviceHub 分层（业务层不建连接）与热更能力（新设备服务 Dispose 干净、支持重建）。
 
 ### 验证
 
-- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
-- MSBuild Debug/AnyCPU 构建 Demo 测试台通过（`CommonLibDemo -> ...\bin\Debug\CommonLibDemo.exe`）。
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope 通过（`Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`，无 error）。
+- MSBuild Debug/AnyCPU 构建 Demo 测试台通过（`KaleidoscopeDemo -> ...\bin\Debug\KaleidoscopeDemo.exe`）。
 
 ### 文档同步
 
@@ -163,17 +197,17 @@
 - `使用说明.md`：同步配置项与接入示例（详见该文件）。
 - `CHANGELOG.md`：本版本（V1.1.0）。
 
-## V1.0.0（2026-08-15）新增 CommonLib 通用设备通讯库（PLC/相机/扫码枪/图片存储抽取封装）
+## V1.0.0（2026-08-15）新增 Kaleidoscope 通用设备通讯库（PLC/相机/扫码枪/图片存储抽取封装）
 
 > 需求：把 CommandCenter 里四类底层通讯/存储服务（汇川 PLC Modbus TCP 从站、基恩士 IV4 相机、
-> 基恩士 SR 扫码枪、图片 FTP 归档与定期清理）抽取成独立类库 `CommonLib/`，目标是——
+> 基恩士 SR 扫码枪、图片 FTP 归档与定期清理）抽取成独立类库 `Kaleidoscope/`，目标是——
 > **换新客户、做新界面时底层服务一行不改，只写 UI 和业务编排**；且所有通讯必须支持热更
 > （与当前项目一致，改配置免重启）。
 
 ### 改动范围
 
-- **新增 `CommonLib/` 独立类库**（.NET Framework 4.7.2，LangVersion 7.3，不依赖 NuGet，离线可编译）：
-  - `CommonLib.csproj` + `libs/NModbus.dll`（本地引用）；
+- **新增 `Kaleidoscope/` 独立类库**（.NET Framework 4.7.2，LangVersion 7.3，不依赖 NuGet，离线可编译）：
+  - `Kaleidoscope.csproj` + `libs/NModbus.dll`（本地引用）；
   - `Models/`：`PlcConfig`、`CameraConfig`（含点位→程序号/型号分表模型 + `DefaultCameras()` 默认相机）、
     `ScanConfig`、`ImageConfig`、`DeviceHubConfig`（四类配置 + 型号的聚合载体，DeviceHub 唯一入参）；
   - `Services/`：`PlcService`、`KeyenceIV4Camera`、`IScanner`/`ScannerService`（串口）/
@@ -188,7 +222,7 @@
 - **抽取过程中的适配**（原代码只读，不动 CommandCenter）：
   - `IScanner` 接口新增 `Name` 属性（串口返回串口名、TCP 返回 IP:端口，供连接指示灯/日志标识）；
   - `CameraConfig` 补 `DefaultCameras()` 静态方法（现场默认两台相机，改现场 IP 只改这一处）；
-  - 命名空间统一为 `CommonLib.Models`/`CommonLib.Services`/`CommonLib.Utils`。
+  - 命名空间统一为 `Kaleidoscope.Models`/`Kaleidoscope.Services`/`Kaleidoscope.Utils`。
 - **新增 `README.md`**（接入四步 + 热更说明 + 通用红线）与 **`AGENTS.md`**
   （本库维护约定：分层架构、热更约束、**注释详实是第一红线**、通讯关键点、构建命令）。
 - **新增 `使用说明.md`**（完整接入手册：配置逐项说明表、四步接入骨架、业务层
@@ -201,7 +235,7 @@
   验证 ImageStore 归档链路）**、右侧连接状态灯 + 图片预览 + 日志。Demo 严格走 DeviceHub
   四步标准接入、后台线程 IO + SafeInvoke 回 UI，是"标准接入方式的最小界面模板"，
   新界面可直接抄它的 MainForm 接入骨架。`DemoConfig.cs` 用 Newtonsoft.Json 持久化
-  `Config/demo.json`（含 CommonLib 全部强类型配置）。
+  `Config/demo.json`（含 Kaleidoscope 全部强类型配置）。
 
 ### 为什么这么改
 
@@ -215,7 +249,7 @@
 
 ### 验证
 
-- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`）。
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope 通过（`Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`）。
 - 原 CommandCenter 工程未改动，仍按原样构建（两工程独立）。
 
 ### 文档同步

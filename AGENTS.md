@@ -1,6 +1,6 @@
-# AGENTS.md — CommonLib 设备通讯库
+# AGENTS.md — Kaleidoscope 设备通讯库
 
-> 本文件是 AI 助手在维护本库前的**强制前置阅读**。CommonLib 是从 CommandCenter 现场项目
+> 本文件是 AI 助手在维护本库前的**强制前置阅读**。Kaleidoscope 是从 CommandCenter 现场项目
 > 抽取的通用通讯/图片存储库，目标：**换新客户做新界面时底层服务一行不改**。
 > 优先级：本文件 > CommandCenter/AGENTS.md 中的通用红线 > 通用最佳实践。
 
@@ -39,7 +39,7 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 
 1. **文件编码 UTF-8**。写文件用 write 工具，中文内容写后自查 `[IO.File]::ReadAllText(path, UTF8).Contains("预期中文")`。
 2. **不提交运行时数据与机密**：`bin/`、`obj/`、日志一律 gitignore。
-3. **改动后必须构建验证**：MSBuild 编译 CommonLib.csproj，禁止提交编译不过的代码。
+3. **改动后必须构建验证**：MSBuild 编译 Kaleidoscope.csproj，禁止提交编译不过的代码。
 4. **不主动 commit/push**，除非用户明确要求；提交前先 `git status` + `git diff`。
 5. **UI 线程禁做网络 IO**：连接/读写一律服务后台线程；TCP 连接必须 `BeginConnect + WaitOne` 强制超时。
 6. **服务必须支持热更**：`Dispose` 干净（限时抢锁 + 锁外强断网）、惰性连接自动重连、状态集中在实例内无残留。`DeviceHub.ApplyConfig` 是热更唯一入口。
@@ -47,7 +47,7 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 ## 代码约定
 
 - 类/方法/属性 PascalCase；私有字段 `_camelCase`；接口前缀 `I`；事件 `PascalCase` 命名。
-- 命名空间：`CommonLib.Models`（配置）、`CommonLib.Services`（服务）、`CommonLib.Utils`（工具）。
+- 命名空间：`Kaleidoscope.Models`（配置）、`Kaleidoscope.Services`（服务）、`Kaleidoscope.Utils`（工具）。
 - **配置序列化约定**：串口停止位存字符串 `"1"/"15"/"2"`；校验位存枚举名 `None/Odd/Even/Mark/Space`；PLC 地址存 **DataStore 索引**（协议号 = 索引 + 40000）。读写两端大小写兼容。
 - 服务层事件一律**工作线程触发**，UI 订阅方自行 `Invoke`；库内不做 UI 线程跳转。
 - 日志只记边沿（连上/断开各一次），连续失败中间静默节流，防刷屏。
@@ -111,11 +111,11 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 ```powershell
 # 在仓库根（E:\Project\CommonLib）执行：
 & "D:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
-  CommonLib/CommonLib.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
+  Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
 ```
 
-- 成功标准：输出 `CommonLib -> ...\bin\Debug\CommonLib.dll` 且无 error。
-- Demo 测试台同理（引用 CommonLib bin 输出）：`Demo/CommonLibDemo.csproj` 构建后再跑 `Demo\bin\Debug\CommonLibDemo.exe`。
+- 成功标准：输出 `Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll` 且无 error。
+- Demo 测试台同理（引用 Kaleidoscope bin 输出）：`Demo/KaleidoscopeDemo.csproj` 构建后再跑 `Demo\bin\Debug\KaleidoscopeDemo.exe`。
 - 无单元测试框架；以构建通过 + Demo 冒烟测试为验证手段。
 
 ## 文档同步（铁律：每次任务主动完成，不许等提醒）
