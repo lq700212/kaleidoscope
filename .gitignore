@@ -1,0 +1,12 @@
+# 构建产物
+bin/
+obj/
+
+# IDE / 本地状态
+.vs/
+*.user
+
+# 运行时数据与日志
+*.log
+Demo/Config/
+Config/
