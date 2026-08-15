@@ -12,9 +12,10 @@
 ## 技术栈
 
 - .NET Framework **4.7.2**，C# `LangVersion=7.3`（WinForms 业务项目引用，勿引入 .NET Core 语法/API）
-- 通讯：**NModbus 3.0.83**（Modbus TCP 从站，汇川 PLC 主站）+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口
+- 通讯：**NModbus 3.0.83**（Modbus TCP 从站/主站，汇川 PLC）+ **NModbus.Serial 3.0.83**（Modbus RTU 主站，气压表）+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口 + IO 耦合器/送风机 Modbus TCP 主站
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
 - 序列化 Newtonsoft.Json **不引入**本库（配置反序列化是业务侧职责，本库只吃强类型对象）
+- System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
 
@@ -23,14 +24,15 @@
 
 | 依赖 | 现状 | .NET Core/.NET 5+ 情况 |
 | --- | --- | --- |
-| **NModbus 3.0.83** | 目标 **net46**（用 AssemblyName.GetAssemblyName 可查） | ⚠️ **唯一风险点**：老 netfx 库，.NET 5+ 引用可用（compat）但跨平台有隐患。**迁库时优先替换成 netstandard 版 NModbus（4.x）**，`libs/NModbus.dll` 换新 + csproj 保持 HintPath 引用即可，本库调用方式（`ModbusTcpSlaveNetwork`/`CreateSlaveNetwork`）不变。 |
+| **NModbus 3.0.83** | 目标 **net46**（用 AssemblyName.GetAssemblyName 可查） | ⚠️ **唯一风险点**：老 netfx 库，.NET 5+ 引用可用（compat）但跨平台有隐患。**迁库时优先替换成 netstandard 版 NModbus（4.x）**，`libs/NModbus.dll`/`libs/NModbus.Serial.dll` 换新 + csproj 保持 HintPath 引用即可，本库调用方式（`ModbusTcpSlaveNetwork`/`CreateSlaveNetwork`/`SerialPortAdapter`）不变。 |
 | System.IO.Ports（串口扫码枪） | csproj Reference | ✅ .NET Core 3.0+ 同名 API，Windows 可用；若跨平台需按目标框架条件引用 |
 | System.Drawing（ImageStore 位图） | csproj Reference | ✅ .NET Core 3.0+ 为 System.Drawing.Common，**.NET 6+ 仅 Windows**（现场即 Windows，无碍）；跨平台需用 ImageSharp 等替代 |
 | 其余（TcpClient/Timer/Task/FileSystemWatcher） | 标准 BCL | ✅ 全平台通用 |
 
 **迁移方案建议**：csproj 改 SDK 风格并多目标（如 `net472;net6.0-windows`），System.IO.Ports 与
 System.Drawing 按 `$(TargetFramework)` 条件引用；NModbus 换 netstandard 版。库内服务类
-（PlcService/KeyenceIV4Camera/ScannerXxx/ImageStore/ConnectionMonitor/DeviceHub）不涉及
+（PlcService/ModbusTcpMasterClient/KeyenceIV4Camera/ScannerXxx/ImageStore/ConnectionMonitor/DeviceHub/
+ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不涉及
 具体框架 API，迁移时**业务代码不需要改**。
 
 ## 铁律（违反即返工）
@@ -70,23 +72,39 @@ System.Drawing 按 `$(TargetFramework)` 条件引用；NModbus 换 netstandard �
 DeviceHub（门面：建/启/事件聚合/热更/释放 全链路编排）
    │  内部创建并持有全部服务实例
    ▼
-PlcService / KeyenceIV4Camera / IScanner(串口+TCP) / ImageStore / ConnectionMonitor
+PlcService / ModbusTcpMasterClient / KeyenceIV4Camera / IScanner(串口+TCP) / ImageStore / ConnectionMonitor
+IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) / IFanController(送风机 Modbus TCP)
 ```
 
 - **业务层禁止新建 TcpClient/串口/连接**：服务内部惰性建连 + 自动重连，业务层只调用服务公开方法、订阅事件。
-- **热更**：`DeviceHub.ApplyConfig(newConfig)` → 释放（监控→PLC→扫码枪→相机→图像存储）→ 重建 → 触发 `ServicesRebuilt`；上层在回调里重建自己的业务协调器。
+- **PLC 主站/从站两模式（V1.2.0）**：`DeviceHubConfig.PlcRole` 决定——`Slave`（默认）用
+  `hub.Plc`（`PlcService` 从站监听）、`Master` 用 `hub.PlcMaster`（`ModbusTcpMasterClient` 主动读写，
+  `Start()` 自动轮询 `PlcMasterConfig.PollItems`）。两模式连接状态都聚合为 `HubDeviceKind.Plc`；
+  `ConnectionMonitor` 构造两参数二选一（另一传 null），主站模式下 `Plc` 为 null，
+  从站模式 `PlcMaster` 为 null——改代码时勿忘判空。
+- **热更**：`DeviceHub.ApplyConfig(newConfig)` → 释放（监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储）→ 重建 → 触发 `ServicesRebuilt`；上层在回调里重建自己的业务协调器。
 - **ImageStore 归 DeviceHub 所有**：`DeviceHub.Dispose`/`ApplyConfig` 显式释放（FileSystemWatcher 句柄），其他对象不得代关。
-- 新增设备类型：先写服务类（独立后台线程 + 惰性连接 + Dispose 干净），再在 `DeviceHubConfig` 加配置段、`DeviceHub.BuildServices` 建实例、`SubscribeAggregateEvents` 聚合事件。
+- **新增设备类型**：先写服务类（独立后台线程 + 惰性连接 + Dispose 干净），再在 `DeviceHubConfig` 加配置段、`DeviceHub.BuildServices` 建实例、`SubscribeAggregateEvents` 聚合事件。
+- **Mock 三件套**：气压表/IO/送风机各自有 `MockXxx` 实现（随机数据模拟），`DeviceHubConfig.UseMockCommunication=true` 时全部用 Mock，不接设备跑通 UI/业务；接真机改回 false，业务代码不动。扫码枪/PLC/相机不受此开关影响。
 
 ## 已知通讯关键点（改之前先读对应文件注释）
 
 - **PLC 从站网络释放（V2.14.23 血泪）**：重建/Dispose 时除 `_cts.Cancel()`/`_listener.Stop()` 外**必须 `_network?.Dispose()`**（NModbus `ModbusTcpSlaveNetwork` 实现了 IDisposable，会停止 TcpListener 并关闭所有已连入的 master TCP 会话；只 Stop listener 会让 PLC 主站认为旧连接还活着、不重连新从站 → 通讯假死）。三处清理点统一补。
+- **PLC 主站（V1.2.0）**：`ModbusTcpMasterClient` 是通用 Modbus TCP 主站（可连 PLC/远程 IO/仪表），
+  范式对齐 `ModbusTcpIoController`——BeginConnect+WaitOne 强制超时、`_syncRoot` 锁串行化、读写失败
+  断连标记；读离散输入用 `IModbusMaster.ReadInputs`（NModbus 3.0.83 无 `ReadDiscreteInputs` 方法）；
+  轮询自愈：`PollTick` 每周期先 `EnsureConnected` 再读，断线会自动重连回传；`PlcMasterConfig`
+  寄存器地址一律填 Modbus 协议地址（0x0000 起），**不要**混用从站的 DataStore 索引约定。
 - **相机"判定即写"（V2.13.7）**：T2 判定一返回立即写 PLC 结果（1/2），不等 FTP 取图归档；通道释放必须等"PLC 已复位请求 **且** `_taskDone`"，否则下一拍请求进来开新 Task 造成同相机并发取图/删源混图。
 - **扫码枪 TCP 非连上即回**：连上后必须发触发指令（`ScanConfig.TriggerCommand`，默认 `LON`）才读码，连接/重连成功自动发一次；串口上电即读码、`SendTrigger` 为空操作。
 - **图片显示不等归档**：FTP 取图"jpeg 一到目录 → 后台解码缩略图 → 提前塞事件"与"归档复制+删源"解耦，UI 不等 iv4p 复制。
 - **PW 同程序号跳过（V2.14.19）**：相机 `SwitchProgram` 缓存上次成功程序号，目标一致直接 return，省 200~390ms；**连接重建必须在 `EnsureConnected` 成功处把缓存重置 -1**，否则相机恢复默认程序后缓存骗过跳过、错拍。
 - **存图清理防误删**：`RunCleanupOnce` 只扫存图根目录顶层；快速路径按日期目录名判定，通用路径递归查**所有文件**早于阈值才删；根目录是盘符（如 `E:\`）直接放弃并告警。
 - **图片一律后台解码 + 缩略图**：禁止在 UI 线程"读盘 + GDI+ 解码 + 全尺寸大图赋值"（基恩士原图 2592×1944 会卡死界面）。
+- **气压表 RTU（Aging 沉淀）**：压力读 0x04@0x0001 取 2 寄存器、单位 kPa、小数位固定用配置（0x0002 不可靠）；写阈值 0x06@0x0010，SetAllThresholds 必须 50ms 间隔逐台写（串口共享会互相干扰）；串口 CH340 用 WMI 双重校验（Caption 含 CH340 **且** PNPDeviceID 含 VID_1A86/PID_7523），命中后写 `BarometerPort.cache` 记忆端口，换台电脑自动找回。
+- **IO 耦合器 TCP（Aging 沉淀）**：DI 0x04@0x1000、DO 0x03/0x06@0x2000，**16 点/寄存器**；单点写输出必须"读-改-写"（读整字回读原值 → 按位或 → 写回），否则会覆盖同寄存器其它输出；`MapOutputChannel` 走备用通道映射（业务输出号 → 物理输出号）。
+- **送风机 TCP（Aging 沉淀）**：端口 **50000** 不是 502；0x0001 控制字（0x0003=定值启动/0x0002=定值停止），0x0002~0x0005 是 温度/湿度/温度设定/湿度设定（**除以 100** 才是真实值）；IP 记忆到 `FanLastIp.cache`，`FanIpCandidates` 自动探测兜底；服务内部 10s 重连节流，与监控器 5s 节流叠加。
+- **扫码枪自动识别（Aging 沉淀）**：`PortName` 留空 → WMI 按 `DeviceKeyword`（默认 "Xenon 1902"）查设备名定位串口；心跳 3s 双信号判定（WMI 搜索 + 系统串口列表）+ 每 4 次心跳"关-重搜-重开"兜底，拔枪几秒内变"未连接"、插回自动恢复。
 
 ## 构建命令
 

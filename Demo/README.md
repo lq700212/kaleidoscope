@@ -1,8 +1,10 @@
 # CommonLib Demo（通讯/存图测试台）
 
 > 现场**界面还没做好**时，用这个 WinForms 小工具手动验证 CommonLib 全链路：
-> PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。
+> PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 气压表·IO 耦合器·送风机 / 存图归档。
 > 它本身就是"按 CommonLib 标准接入方式写的最小界面"，新界面可以直接照着抄接入骨架。
+> 不接真机时把 `devices.useMockCommunication` 设为 `true`，气压表/IO/送风机自动用 Mock
+> 随机数据模拟，UI 与业务照常跑通。
 
 ## 一、怎么跑
 
@@ -57,7 +59,11 @@
 - `productModel`：当前型号（PLC 建站成功写入型号区）
 - `devices.plc`：从站监听 IP/端口 + 寄存器地址
 - `devices.cameras`：相机列表（IP/端口/FTP 目录/PLC 通道/点位程序表）
-- `devices.scanners`：扫码枪列表（TCP/串口参数 + 触发指令）
+- `devices.scanners`：扫码枪列表（TCP/串口参数 + 触发指令 + 自动识别关键词）
 - `devices.image`：存图根目录/目录层级/保留天数
+- `devices.barometer`：气压表（CH340 串口自动识别/波特率/压力地址/阈值，默认 72 台）
+- `devices.io`：IO 耦合器（IP 502/DI 0x1000/DO 0x2000/备用通道映射，默认 80 入 160 出）
+- `devices.fan`：送风机（IP 50000/自动识别候选/温湿度寄存器）
+- `devices.useMockCommunication`：`true` 用 Mock（不接设备），`false` 接真机
 
 现场换相机 IP 只改 `devices.cameras` 里的 `ipAddress`，或直接改界面上"配置"区后保存。

@@ -7,7 +7,7 @@ using CommonLib.Utils;
 namespace CommonLib.Services
 {
     /// <summary>设备种类（DeviceHub 聚合连接状态事件用）</summary>
-    public enum HubDeviceKind { Plc, Camera, Scanner }
+    public enum HubDeviceKind { Plc, Camera, Scanner, Barometer, Io, Fan }
 
     /// <summary>设备连接状态变化的聚合事件参数：新界面只要订阅一个事件就能更新所有设备指示灯。</summary>
     public class HubConnectionChangedEventArgs : EventArgs
@@ -23,7 +23,7 @@ namespace CommonLib.Services
     }
 
     /// <summary>
-    /// 设备聚合门面（DeviceHub）：把 PLC / 多相机 / 多扫码枪 / 图片存储 / 连接监控 五类底层服务
+    /// 设备聚合门面（DeviceHub）：把 PLC（主站/从站两模式）/ 多相机 / 多扫码枪 / 图片存储 / 连接监控
     /// 的【创建、启动、事件聚合、热更、释放】全链路编排收进这一个类，屏蔽底层细节。
     ///
     /// 【为什么要有这个门面】
@@ -31,11 +31,18 @@ namespace CommonLib.Services
     /// 全部手写在 MainForm 里，新客户接新界面就得重新抄一遍、还容易漏。DeviceHub 把它封装成
     /// 四个固定方法，新界面只需：
     ///   var hub = new DeviceHub(config);   // ① 建：传入配置即建好全部服务（惰性连接，不碰网络）
-    ///   hub.Start();                       // ② 启：扫码枪连接 + 心跳监控 + 存图清理
+    ///   hub.Start();                       // ② 启：扫码枪连接 + 心跳监控 + 存图清理 + PLC 主站轮询
     ///   hub.ApplyConfig(newCfg);           // ③ 热更：停旧服务 → 按新配置全量重建 → 触发重建事件
     ///   hub.Dispose();                     // ④ 关：按固定顺序释放全部服务
     /// 业务层（ProductionCoordinator 类角色）由新项目自己写，但可直接持有 hub.Plc / hub.Cameras /
     /// hub.Scanners / hub.ImageStore 这几个服务实例——DeviceHub 不关心业务，只负责"设备活着"。
+    ///
+    /// 【PLC 主站/从站两模式（V1.2.0）】
+    /// 同一台汇川 PLC 两种角色都能接，由 DeviceHubConfig.PlcRole 决定：
+    /// - PlcRole.Slave（默认）：hub.Plc 是 PlcService（从站，监听 502 等 PLC 主站来读写）；
+    /// - PlcRole.Master：hub.Plc 为 null、hub.PlcMaster 是 ModbusTcpMasterClient（主站，
+    ///   主动读写 PLC，Start() 自动启动后台轮询）。业务层用 hub.IsPlcMaster 判断取哪个，
+    ///   两种模式下连接状态都聚合成 HubDeviceKind.Plc 指示灯，热更/释放行为一致。
     ///
     /// 【线程模型】
     /// - DeviceHub 的公开方法（构造/Start/ApplyConfig/Dispose）应在上层 UI 线程调用；
@@ -45,17 +52,30 @@ namespace CommonLib.Services
     ///   符合"UI 线程禁做网络 IO"红线。
     ///
     /// 【热更语义（与原项目 ApplyRuntimeConfig 对齐）】
-    /// ApplyConfig 内部先按"监控→PLC→扫码枪→相机→图像存储"顺序释放旧服务（每步 try/catch，
-    /// 单步失败不中断后续），再用新配置重建并重新订阅聚合事件，最后触发 ServicesRebuilt 事件
-    /// 通知上层"设备层已换新，请重建你的业务编排并重新订阅"。ImageStore 归本门面所有，
-    /// 热更必须显式释放旧的（否则旧 FileSystemWatcher 句柄泄漏、事件发给废弃对象）。
+    /// ApplyConfig 内部先按"监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储"顺序释放旧服务
+    /// （每步 try/catch，单步失败不中断后续），再用新配置重建并重新订阅聚合事件，最后触发
+    /// ServicesRebuilt 事件通知上层"设备层已换新，请重建你的业务编排并重新订阅"。
+    /// ImageStore 归本门面所有，热更必须显式释放旧的（否则旧 FileSystemWatcher 句柄泄漏、
+    /// 事件发给废弃对象）。
     /// </summary>
     public class DeviceHub : IDisposable
     {
         // ============ 服务实例（新界面的业务层直接使用这些属性） ============
 
-        /// <summary>PLC Modbus TCP 从站服务（从站监听 502，PLC 作主站发起请求）</summary>
+        /// <summary>
+        /// PLC 服务（从站模式 PlcRole.Slave）：Modbus TCP 从站，监听 502 等 PLC 主站发起请求。
+        /// 主站模式（PlcRole.Master）下为 null，请用 <see cref="PlcMaster"/>。
+        /// </summary>
         public PlcService Plc { get; private set; }
+
+        /// <summary>
+        /// PLC 服务（主站模式 PlcRole.Master）：通用 Modbus TCP 主站，主动读写 PLC 寄存器，
+        /// Start() 自动启动后台轮询（见 PlcMasterConfig.PollItems）。从站模式下为 null。
+        /// </summary>
+        public ModbusTcpMasterClient PlcMaster { get; private set; }
+
+        /// <summary>当前 PLC 是否主站模式（true=用 PlcMaster；false=用 Plc 从站）。业务层据此取服务。</summary>
+        public bool IsPlcMaster => Config.PlcRole == PlcRole.Master;
 
         /// <summary>基恩士 IV4 相机服务列表（每台相机独立连接/触发/判图）</summary>
         public List<KeyenceIV4Camera> Cameras { get; private set; }
@@ -65,6 +85,24 @@ namespace CommonLib.Services
 
         /// <summary>图像存储服务（FTP 推图监听 + 双格式归档 + 定期清理）</summary>
         public ImageStore ImageStore { get; private set; }
+
+        /// <summary>
+        /// 气压表服务（Modbus RTU 主站，读压力/写设备阈值）。UseMockCommunication=true 时为 Mock。
+        /// 业务层定时调 ReadAllData() 采集，写设备阈值调 SetAllThresholds。
+        /// </summary>
+        public IBarometerReader Barometer { get; private set; }
+
+        /// <summary>
+        /// IO 耦合器服务（Modbus TCP 主站，读 DI/写 DO）。UseMockCommunication=true 时为 Mock。
+        /// 业务层定时调 ReadAllInputs()/ReadAllOutputs()，控制输出调 WriteOutput。
+        /// </summary>
+        public IIoController Io { get; private set; }
+
+        /// <summary>
+        /// 冷却送风机服务（Modbus TCP，定值启动/停止 + 读温度湿度）。UseMockCommunication=true 时为 Mock。
+        /// 业务层调 ReadStatus()/StartFixedValue()/Stop()。
+        /// </summary>
+        public IFanController Fan { get; private set; }
 
         /// <summary>连接健康监控器（后台心跳 + 断连自动重连 + 边沿日志）</summary>
         public ConnectionMonitor Monitor { get; private set; }
@@ -118,10 +156,15 @@ namespace CommonLib.Services
 
         /// <summary>
         /// 启动全部设备：扫码枪打开连接（失败内部持续重连）+ 连接监控心跳点火 + 存图定期清理。
-        /// 幂等：重复调用不会重复建服务（服务已在构造时建好），只是确保各后台任务已启动。
+        /// PLC 主站模式（PlcRole.Master）时在此启动后台自动轮询（见 ModbusTcpMasterClient.StartPolling，
+        /// 未配置轮询项则内部忽略）。幂等：重复调用不会重复建服务（服务已在构造时建好）。
         /// </summary>
         public void Start()
         {
+            // PLC 主站模式：启动后台自动轮询（从站模式 PlcMaster 为 null，无操作）
+            try { PlcMaster?.StartPolling(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub.Start：PLC 主站轮询启动异常 " + ex.Message); }
+
             // 扫码枪打开连接（TCP/串口各自内部持续重连，失败不影响主流程）
             foreach (var sc in Scanners)
             {
@@ -136,7 +179,8 @@ namespace CommonLib.Services
             try { ImageStore?.StartPeriodicCleanup(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub.Start：存图定期清理启动异常 " + ex.Message); }
 
-            LogHelper.Info("DeviceHub 已启动：扫码枪/心跳监控/存图清理全部就绪");
+            LogHelper.Info("DeviceHub 已启动：扫码枪/心跳监控/存图清理"
+                + (PlcMaster != null ? "/PLC 主站轮询" : "") + "全部就绪");
         }
 
         /// <summary>
@@ -180,12 +224,24 @@ namespace CommonLib.Services
         /// </summary>
         private void BuildServices()
         {
-            // ---------- PLC（Modbus TCP 从站）----------
-            Plc = new PlcService(Config.Plc);
-            // 把当前型号交给 PLC：从站建站成功后立即写进型号区（40007=序号+40008~40012=字符串），
-            // PLC 不触发扫码也能读到当前型号（见 PlcService.SetCurrentModel）。空串则跳过。
-            if (!string.IsNullOrWhiteSpace(Config.ProductModel))
-                Plc.SetCurrentModel(Config.ProductModel);
+            // ---------- PLC（主站/从站两模式，由 PlcRole 决定） ----------
+            if (Config.PlcRole == PlcRole.Master)
+            {
+                // 主站模式：上位机主动读写 PLC（通用 Modbus TCP 主站）。
+                // 惰性连接：不在此碰网络，由 Start() 的轮询/读写自动建连，Monitor 心跳兜底重连。
+                Plc = null;
+                PlcMaster = new ModbusTcpMasterClient();
+            }
+            else
+            {
+                // 从站模式（默认）：上位机监听 502 等 PLC 主站来读写（三拍握手，见 PlcService）。
+                Plc = new PlcService(Config.Plc);
+                PlcMaster = null;
+                // 把当前型号交给 PLC：从站建站成功后立即写进型号区（40007=序号+40008~40012=字符串），
+                // PLC 不触发扫码也能读到当前型号（见 PlcService.SetCurrentModel）。空串则跳过。
+                if (!string.IsNullOrWhiteSpace(Config.ProductModel))
+                    Plc.SetCurrentModel(Config.ProductModel);
+            }
 
             // ---------- 多相机 ----------
             // 配置列表为空时兜底用通用默认相机（见 CameraConfig.DefaultCameras），新项目应按
@@ -199,8 +255,9 @@ namespace CommonLib.Services
                 Cameras.Add(new KeyenceIV4Camera(c));
 
             // 把各相机结果寄存器地址注册给 PLC 服务——从站就绪时统一清 0（上电/断电重启后
-            // 结果寄存器不残留旧值，见 PlcService.ResetResultRegisters）。
-            Plc.SetCameraResultAddresses(camCfg);
+            // 结果寄存器不残留旧值，见 PlcService.ResetResultRegisters）。仅从站模式需要。
+            if (Plc != null)
+                Plc.SetCameraResultAddresses(camCfg);
 
             // ---------- 图像存储 ----------
             ImageStore = new ImageStore(Config.Image);
@@ -223,8 +280,31 @@ namespace CommonLib.Services
             foreach (var sc in Config.Scanners ?? new List<ScanConfig>())
                 Scanners.Add(BuildScanner(sc));
 
+            // ---------- 气压表 / IO 耦合器 / 送风机（Aging 型主站设备） ----------
+            // UseMockCommunication=true 时全部用 Mock（不接设备也能跑通 UI/业务）；
+            // false 时用真实通讯实现。连接是惰性的：不在构造时碰网络，由 Monitor 心跳
+            // 按节流在后台自动连接（见 ConnectionMonitor.Tick），失败静默持续重连。
+            if (Config.UseMockCommunication)
+            {
+                Barometer = new MockBarometerReader();
+                Io = new MockIoController();
+                Fan = new MockFanController();
+            }
+            else
+            {
+                Barometer = new ModbusRtuBarometerReader();
+                Io = new ModbusTcpIoController();
+                Fan = new FanControllerClient();
+            }
+
             // ---------- 连接健康监控 ----------
-            Monitor = new ConnectionMonitor(Plc, Cameras);
+            // 注入全部设备：PLC 从站/PLC 主站二选一（另一传 null）；相机必选；
+            // 气压表/IO/送风机可选（传 null 则不监控该类）。
+            Monitor = new ConnectionMonitor(Plc, Cameras,
+                PlcMaster, Config.PlcMaster,
+                Barometer, Config.Barometer,
+                Io, Config.Io,
+                Fan, Config.Fan);
 
             // 订阅聚合事件（在 BuildServices 末尾做，确保五个服务都建好）
             SubscribeAggregateEvents();
@@ -263,9 +343,21 @@ namespace CommonLib.Services
             }
 
             // ---------- PLC ----------
-            // 监听就绪/失败（ConnectionChanged）+ 主站连入/断开（MasterConnectionChanged）都归为连接状态
-            Plc.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
-            Plc.MasterConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC(主站)", c);
+            // 两种角色分开聚合，但都归为 HubDeviceKind.Plc（UI 同一个 PLC 灯位）：
+            // - 从站模式（PlcRole.Slave）：Plc 监听就绪/失败（ConnectionChanged）+
+            //   主站连入/断开（MasterConnectionChanged，即 PLC 主站连上/离开从站）；
+            // - 主站模式（PlcRole.Master）：Plc 为 null，订阅 PlcMaster.ConnectionChanged，
+            //   再由 Monitor.PlcMasterConnectionChanged 兜底边沿（其内部已节流重连，双保险不重复）。
+            if (Plc != null)
+            {
+                Plc.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
+                Plc.MasterConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC(主站)", c);
+            }
+            else
+            {
+                PlcMaster.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
+                Monitor.PlcMasterConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
+            }
 
             // ---------- 相机 ----------
             for (int i = 0; i < Cameras.Count; i++)
@@ -274,6 +366,13 @@ namespace CommonLib.Services
                 Cameras[i].ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Camera,
                     Cameras[idx].IpLabel, c);
             }
+
+            // ---------- 气压表 / IO 耦合器 / 送风机 ----------
+            // 三类设备没有 ConnectionChanged 事件（接口只暴露 IsConnected 属性），
+            // 边沿已由 ConnectionMonitor 内部检测并广播，这里订阅监控器事件转发到聚合出口。
+            Monitor.BarometerConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Barometer, "气压表", c);
+            Monitor.IoConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Io, "IO 耦合器", c);
+            Monitor.FanConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Fan, "冷却送风机", c);
         }
 
         /// <summary>内部统一触发聚合连接状态事件。</summary>
@@ -294,7 +393,8 @@ namespace CommonLib.Services
         }
 
         /// <summary>
-        /// 释放全部服务（ApplyConfig 与 Dispose 共用）：固定顺序 监控 → PLC → 扫码枪 → 相机 → 图像存储。
+        /// 释放全部服务（ApplyConfig 与 Dispose 共用）：固定顺序
+        /// 监控 → PLC → 气压表/IO 耦合器/送风机（主站设备） → 扫码枪 → 相机 → 图像存储。
         /// ImageStore 归本门面所有，必须显式释放（否则 FileSystemWatcher 句柄泄漏）。
         /// 每步 try/catch，单步失败不中断后续，保证进程能正常退出。
         /// </summary>
@@ -302,8 +402,19 @@ namespace CommonLib.Services
         {
             try { Monitor?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub：监控器释放异常 " + ex.Message); }
+            // PLC：从站或主站二选一，谁存在就释放谁（主站模式 Plc 为 null，PlcMaster 非 null）
             try { Plc?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub：PLC 释放异常 " + ex.Message); }
+            try { PlcMaster?.Dispose(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub：PLC 主站释放异常 " + ex.Message); }
+
+            // 三类主站设备：先断主站再放外围（扫码枪/相机），避免断开期间外围仍在读数据
+            try { Barometer?.Dispose(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub：气压表释放异常 " + ex.Message); }
+            try { Io?.Dispose(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub：IO 耦合器释放异常 " + ex.Message); }
+            try { Fan?.Dispose(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub：送风机释放异常 " + ex.Message); }
 
             foreach (var sc in Scanners ?? new List<IScanner>())
             {
@@ -322,7 +433,9 @@ namespace CommonLib.Services
             catch (Exception ex) { LogHelper.Warn("DeviceHub：图像存储释放异常 " + ex.Message); }
 
             // 清空引用，防止热更后旧实例被误用
-            Monitor = null; Plc = null; Scanners = null; Cameras = null; ImageStore = null;
+            Monitor = null; Plc = null; PlcMaster = null;
+            Barometer = null; Io = null; Fan = null;
+            Scanners = null; Cameras = null; ImageStore = null;
         }
     }
 }

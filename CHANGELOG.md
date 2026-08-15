@@ -7,6 +7,111 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.2.0（2026-08-15）PLC 主站/从站两模式（通用 Modbus TCP 主站 + 自动轮询）
+
+> 需求：有些项目上位机要作 **Modbus TCP 主站**主动读写 PLC（而非从站模式被动等 PLC 来读写）。
+> 新增 `ModbusTcpMasterClient`（通用主站）+ `PlcMasterConfig` + `DeviceHubConfig.PlcRole` 角色开关，
+> DeviceHub 按角色装配两套服务，业务层只认 `hub.Plc`（从站）或 `hub.PlcMaster`（主站）。
+
+### 改动范围
+
+- **新增 `Models/PlcMasterConfig.cs`**：主站连接与轮询配置（`IpAddress`/`Port`/`UnitId`/
+  `TimeoutMs`/`ReconnectIntervalMs`/`PollIntervalMs`/`PollItems`）；寄存器地址一律填
+  Modbus 协议地址（0x0000 起），与从站的 DataStore 索引约定区分。
+- **新增 `Services/ModbusTcpMasterClient.cs`**：通用 Modbus TCP 主站（范式对齐
+  `ModbusTcpIoController`：BeginConnect 手动超时 + `_syncRoot` 锁串行化 + 断连边沿标记），
+  新增自动轮询（`StartPolling`/`StopPolling`，`PollDataUpdated` 事件 + `GetLastPollData` 缓存）、
+  重连节流（`EnsureConnected` 内部自愈 + `ReconnectNow`）、通用读写 API（
+  `ReadHoldingRegisters`/`ReadInputRegisters`/`ReadCoils`/`ReadDiscreteInputs`/
+  `WriteSingleRegister`/`WriteMultipleRegisters`/`WriteSingleCoil`/`WriteMultipleCoils`）。
+- **`DeviceHubConfig` 新增 `PlcRole` 枚举（Slave/Master）** + `PlcMaster` 配置段；默认 `Slave` 兼容老项目。
+- **`DeviceHub` 扩展**：新增 `PlcMaster`/`IsPlcMaster` 属性；`BuildServices` 按 `PlcRole` 建
+  `PlcService`（从站）或 `ModbusTcpMasterClient`（主站，主站模式 `Plc` 为 null、跳过
+  `SetCurrentModel`/`SetCameraResultAddresses`）；`Start()` 自动启动主站轮询；
+  `DisposeServices` 释放 `PlcMaster`；聚合事件两模式都归 `HubDeviceKind.Plc`。
+- **`ConnectionMonitor` 扩展**：构造新增可选 `plcMaster`/`plcMasterConfig` 参数（从站/主站二选一，
+  `plc` 可 null）；Tick 内新增 PLC 主站边沿检测 + 5s 节流后台重连 +
+  `PlcMasterConnectionChanged` 边沿事件。
+- **csproj**：新增 `PlcMasterConfig.cs`、`ModbusTcpMasterClient.cs` 两个 Compile 项。
+- **适配 NModbus 3.0.83 API**：读离散输入用 `IModbusMaster.ReadInputs`（该版本无
+  `ReadDiscreteInputs` 方法，接口方法名见反射清单）。
+
+### 为什么这么改
+
+- 库内已有"上位机作从站"的 `PlcService`，缺"上位机作主站"角色。Modbus 同一协议两种角色，
+  底层都是 NModbus，补一个通用主站类 + 角色开关，DeviceHub 按 `PlcRole` 装配，业务层接入
+  代码量不变（只是属性换 `hub.PlcMaster`）。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
+
+### 文档同步
+
+- `README.md`：仓库结构补 `PlcMasterConfig.cs`/`ModbusTcpMasterClient.cs`；快速接入补
+  "PLC 主站/从站两模式"小节；对接要点 PLC 条补主站角色说明。
+- `CHANGELOG.md`：本版本（V1.2.0）。
+
+## V1.1.0（2026-08-15）新增 Aging 三设备通讯（气压表 Modbus RTU / IO 耦合器 Modbus TCP / 送风机 Modbus TCP + Mock）
+
+> 需求：把 AgingTestSystem（老化测试台）的通讯逻辑作为主干吸收进 CommonLib，目标是——
+> **换新客户做新界面时只写页面和业务编排，通讯接入代码一行不写**。DeviceHub 门面保留（薄壳），
+> 内部通讯服务换成 Aging 更健壮实现（接口化 + Mock 三件套 + 自动识别 + 心跳静默重连）。
+
+### 改动范围
+
+- **新增 Models（独立强类型配置，不引入 Aging 的 DeviceConfig）**：
+  - `BarometerConfig`（PortName 留空自动识别、BaudRate=19200、小数位=1、报警阈值 -95kPa）、
+    `IoConfig`（DI 0x1000/DO 0x2000、备用通道映射 `IoBackupChannelMappings`）、
+    `FanConfig`（端口 50000、IP 自动识别候选 `FanIpCandidates`）；
+  - 数据模型：`BarometerData`（+`DeviceStatus` 枚举）、`FanData`（+`FanRunState` 枚举
+    Unknown=-1/ProgramStopped/ProgramRunning/FixedValueStopped/FixedValueRunning）、
+    `IoStatus`（+`IoType`/`IoFunction`/`ElectricalType`）、`IoPointDefinition`（+`DeviceIoMapping`）、
+    `IoOutputChannelRemap`（`ParseAll` 支持 `;`/`；` 与 `->`/`→`、0x 前缀、通道 0~31）；
+  - `DeviceHubConfig` 新增 `Barometer`/`Io`/`Fan` 三段 + **`UseMockCommunication`** 开关。
+- **新增 Services 接口**（统一放 `CommonLib.Services`，强类型配置签名 + `OnError` + `IDisposable`）：
+  `IBarometerReader`（读压力/写阈值）、`IIoController`（读 DI/写 DO）、`IFanController`（定值启动/停止/读状态）。
+- **新增 Services 实现（移植 Aging 健壮性）**：
+  - `ModbusRtuBarometerReader`：CH340 WMI 自动识别 + `BarometerPort.cache` 端口记忆、
+    单台离线/整线断开区分、未连接返回全 null 数组、SetAllThresholds 50ms 间隔；
+  - `ModbusTcpIoController`：BeginConnect 手动超时、读-改-写单点输出、`MapOutputChannel` 备用通道映射、
+    额外暴露原始寄存器方法；
+  - `FanControllerClient`：`FanLastIp.cache` IP 记忆、10s 重连节流、`ReconnectNow`。
+- **新增 Mock 三件套**（`UseMockCommunication=true` 时用，不接设备跑通 UI）：
+  `MockBarometerReader`（85% 良好/15% 报警演示）、`MockIoController`（随机输入 + 翻转模拟）、
+  `MockFanController`（温度波动模拟）。
+- **新增 Utils**：`SerialPortHelper`（CH340 双重校验 WMI 识别 + 全串口枚举）、
+  `IoMapBuilder`（Build/GetDeviceMapping/ToOctal 三菱八进制映射）。
+- **扫码枪增强（ScannerService 重写，保留 IScanner 接口）**：WMI 按 `DeviceKeyword` 自动识别串口、
+  3s 心跳断连检测（双信号判定 + 周期"关-重搜-重开"兜底）、后台静默重连、边沿日志、`DebugLog` 开关；
+  去掉 WinForms/NativeWindow（纯库定位）。`ScanConfig` 新增 `DataBits`/`DeviceKeyword`/`DebugLog`，
+  `PortName` 默认 `""`（走自动识别）。
+- **ConnectionMonitor 扩展**：注入三类主站设备，Tick 内做状态边沿检测 + 节流（5s）后台重连，
+  新增 `BarometerConnectionChanged`/`IoConnectionChanged`/`FanConnectionChanged` 边沿事件。
+- **DeviceHub 扩展**：`HubDeviceKind` 增 Barometer/Io/Fan；公开 `Barometer`/`Io`/`Fan` 服务实例属性；
+  `BuildServices` 按 `UseMockCommunication` 建真实/Mock；释放顺序扩为 监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储；
+  聚合转发三类设备连接状态事件。
+- **csproj**：新增 19 个 Compile 项、`System.Management` 引用、`libs/NModbus.Serial.dll` HintPath 引用（RTU 串口传输）。
+
+### 为什么这么改
+
+- Aging 的三类主站设备通讯（气压表/IO/送风机）比 CommonLib 现有实现更健壮：接口化、自动识别、
+  Mock 可跑通 UI、心跳静默重连。按用户诉求"后续只写页面"，把这些能力并入 DeviceHub 门面，
+  业务层只需 `hub.Barometer`/`hub.Io`/`hub.Fan` 三属性，接入代码量降为接近零。
+- 保留 DeviceHub 分层（业务层不建连接）与热更能力（新设备服务 Dispose 干净、支持重建）。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
+- MSBuild Debug/AnyCPU 构建 Demo 测试台通过（`CommonLibDemo -> ...\bin\Debug\CommonLibDemo.exe`）。
+
+### 文档同步
+
+- `README.md`：仓库结构/接入步骤/停建顺序/对接要点补充三类新设备与 UseMockCommunication。
+- `AGENTS.md`：新增三类设备的"已知通讯关键点"与分层图说明。
+- `使用说明.md`：同步配置项与接入示例（详见该文件）。
+- `CHANGELOG.md`：本版本（V1.1.0）。
+
 ## V1.0.0（2026-08-15）新增 CommonLib 通用设备通讯库（PLC/相机/扫码枪/图片存储抽取封装）
 
 > 需求：把 CommandCenter 里四类底层通讯/存储服务（汇川 PLC Modbus TCP 从站、基恩士 IV4 相机、

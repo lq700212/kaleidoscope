@@ -17,8 +17,29 @@ namespace CommonLib.Models
         /// </summary>
         public string Mode { get; set; } = "Tcp";
 
-        /// <summary>串口名，如 COM3（仅 Mode=Serial 使用）</summary>
-        public string PortName { get; set; } = "COM3";
+        /// <summary>
+        /// 串口名，如 COM3（仅 Mode=Serial 使用）。
+        /// 留空（默认）则通过 WMI 按 <see cref="DeviceKeyword"/> 自动识别扫码枪串口（现场免配）；
+        /// 填了具体端口则固定用该端口（WMI 识别不到时兜底）。
+        /// </summary>
+        public string PortName { get; set; } = "";
+
+        /// <summary>串口数据位（仅 Mode=Serial 使用，默认 8）。</summary>
+        public int DataBits { get; set; } = 8;
+
+        /// <summary>
+        /// 扫码枪设备识别关键词（仅 Mode=Serial 使用，PortName 留空时用于 WMI 自动识别串口）。
+        /// 对应设备管理器里显示的设备名称中包含的关键字，如 Honeywell Xenon 1902（默认 "Xenon 1902"）。
+        /// 心跳断连检测也复用同一套 WMI 搜索确认物理设备还在。
+        /// </summary>
+        public string DeviceKeyword { get; set; } = "Xenon 1902";
+
+        /// <summary>
+        /// 心跳调试日志开关（仅 Mode=Serial 使用，默认 false）。
+        /// true 时每个心跳周期把端口搜索结果（GetPortNames / WMI 匹配 / 判定）打到日志，
+        /// 用于现场排查"扫码枪断连识别不到"问题。
+        /// </summary>
+        public bool DebugLog { get; set; } = false;
 
         /// <summary>波特率，扫码枪常见 115200 / 9600（仅 Mode=Serial 使用）</summary>
         public int BaudRate { get; set; } = 115200;
