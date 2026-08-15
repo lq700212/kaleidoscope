@@ -42,8 +42,8 @@ namespace CommonLib.Services
         /// <summary>Modbus 主站（负责组包/解包、发起请求）。</summary>
         private IModbusMaster _master;
 
-        /// <summary>连接状态。</summary>
-        private bool _isConnected;
+        /// <summary>连接状态。volatile：ConnectionMonitor 心跳线程在锁外读 IsConnected 决定是否重连。</summary>
+        private volatile bool _isConnected;
 
         public bool IsConnected => _isConnected;
 
@@ -51,13 +51,20 @@ namespace CommonLib.Services
 
         /// <summary>
         /// 连接层错误判定：读/写请求抛出"连接层异常"（Socket 异常/IO 异常/超时）说明耦合器已断开，
-        /// 把 _isConnected 置 false，让上层感知并自动重连（Modbus 异常响应不算断开）。
+        /// 把 _isConnected 置 false 并释放坏连接（Modbus 异常响应不算断开）。
+        /// 【断连即释放】这里顺手 Close 坏 TcpClient，不必等 Monitor 下一轮重连（≤5s）才关——
+        /// 坏 socket 多挂几秒会让后续读请求白等一个超时。本方法在 _syncRoot 锁内被调用（各读写方法
+        /// 的 catch 都在锁外完成 Modbus 调用后进入），释放与读写串行化，无并发风险。
         /// </summary>
         private void MarkDisconnectedOnFailure(Exception ex)
         {
             if (ex is SocketException || ex is System.IO.IOException || ex is TimeoutException)
             {
                 _isConnected = false;
+                try { if (_client != null) _client.Close(); } catch { }
+                try { _client?.Dispose(); } catch { }
+                _client = null;
+                _master = null;
             }
         }
 

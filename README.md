@@ -46,7 +46,7 @@ CommonLib/                       # 仓库根（本文档 + 库工程 + Demo 测�
 │   │   ├── ConnectionMonitor.cs #     心跳 + 断连自动重连 + 边沿日志（覆盖全部七类设备）
 │   │   └── DeviceHub.cs         #     ★ 门面：建/启/事件聚合/热更/释放 全链路封装
 │   └── Utils/
-│       ├── LogHelper.cs         #     可替换出口的日志（默认 Debug + 控制台，可注入文件/界面）
+│       ├── LogHelper.cs         #     可替换出口的日志（默认写 Logs 文件，可注入文件/界面）
 │       ├── TcpKeepAlive.cs      #     TCP KeepAlive 短间隔配置（拔网线/断电快速检测）
 │       ├── SerialPortHelper.cs  #     CH340 串口 WMI 自动识别（气压表 RS485→USB）
 │       └── IoMapBuilder.cs      #     IO 点位 → 三菱八进制物理地址映射（X000~X107/Y000~Y217）
@@ -119,7 +119,8 @@ hub.ApplyConfig(newConfig);
 
 内部自动：按固定顺序释放旧服务 → 用新配置全量重建 → 重新订阅聚合事件 →
 触发 `ServicesRebuilt`。你只需在 `ServicesRebuilt` 回调里**重建自己的业务协调器并重新订阅**（旧协调器
-握着已释放的服务引用，必须换新）。
+握着已释放的服务引用，必须换新）。若重建过程异常，库内会尽力释放半成品（防文件句柄泄漏）并
+记 ERROR 日志，但仍会触发 `ServicesRebuilt` 让上层感知设备层异常、自行决定是否提示重试。
 
 ### 停/建顺序（已内置，勿改）
 
@@ -141,12 +142,13 @@ hub.ApplyConfig(newConfig);
 - **扫码枪**：基恩士 SR 无协议 TCP，连上后需发触发指令（`ScanConfig.TriggerCommand`，默认 `LON`）才开始读码；串口枪（Mode=Serial）PortName 留空时按 `DeviceKeyword` 用 WMI 自动识别串口。
 - **气压表**（Modbus RTU 主站）：72 台真空负压表挂 RS485→USB（CH340），读压力（0x04 @ 0x0001，2 寄存器，kPa）、写报警阈值（0x06 @ 0x0010）；串口自动识别见 `Utils/SerialPortHelper.cs`。
 - **IO 耦合器**（Modbus TCP 主站）：读输入 DI（0x04 @ 0x1000）、写输出 DO（0x06 @ 0x2000），16 点/寄存器读-改-写，控制真空电磁阀/载台上电；物理地址与三菱八进制映射见 `Utils/IoMapBuilder.cs`。
-- **送风机**（Modbus TCP）：端口 50000，定值启动/停止 + 读温湿度（0x0001~0x0005 寄存器），IP 自动识别候选见 `FanConfig.FanIpCandidates`。
+- **送风机**（Modbus TCP）：端口 50000，定值启动/停止 + 读温湿度（0x0001~0x0005 寄存器），IP 自动识别候选见 `FanConfig.FanIpCandidates`；`ReconnectNow()` 为后台异步重连（UI 按钮直接调用不卡死），断线后新配置自动生效。
 - **存图清理**：`ImageConfig.KeepDays`（默认 30）控制保留天数，`StartPeriodicCleanup` 在 DeviceHub.Start 里自动启动。
 
 ## 七、日志出口
 
-`LogHelper.LogAction` 是全局可替换出口，默认写 Debug + 控制台。业务项目启动时注入文件/界面出口：
+`LogHelper.LogAction` 是全局可替换出口，默认写 `Logs/运行日志_日期.log`（常驻流 + 跨天滚动，
+UTF-8 无 BOM，`AutoFlush` 即时落盘，高频日志不反复开关文件）。业务项目启动时注入文件/界面出口：
 
 ```csharp
 LogHelper.LogAction = (level, msg) => File.AppendAllText(LogPath, $"[{DateTime.Now:HH:mm:ss}][{level}] {msg}\r\n", Encoding.UTF8);

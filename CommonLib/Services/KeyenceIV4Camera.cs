@@ -69,11 +69,14 @@ namespace CommonLib.Services
         /// <summary>已释放标记：Dispose 后任何后台重连动作立即放弃（volatile 跨线程可见）</summary>
         private volatile bool _disposed;
 
+        /// <summary>连接状态字段（volatile：ConnectionMonitor 心跳线程锁外读 IsConnected）。</summary>
+        private volatile bool _isConnected;
+
         /// <summary>连接状态变化事件</summary>
         public event EventHandler<bool> ConnectionChanged;
 
         /// <summary>当前是否已连接</summary>
-        public bool IsConnected { get; private set; }
+        public bool IsConnected => _isConnected;
 
         public KeyenceIV4Camera(CameraConfig cfg) => _cfg = cfg;
 
@@ -306,6 +309,15 @@ namespace CommonLib.Services
                     continue;                              // 前导空行/上一帧残留行尾：跳过
                 if (c == '\r' || c == '\n' || c == '\0') break;
                 sb.Append(c);
+            }
+            // 达到 1024 上限说明响应异常（正常指令响应都是短行）：连接上残留着未读完的字节，
+            // 继续复用会污染下一次读取（残留被当成下一帧响应 → "隔一次判定失败"类问题）。
+            // 宁可多花一次 TCP 握手重连，也不接受脏数据。
+            if (sb.Length >= 1024)
+            {
+                MarkDisconnected();
+                LogHelper.Warn($"相机响应超长（>{1024}字符）判定响应异常，断开连接 {_cfg.IpAddress}:{_cfg.CommandPort}");
+                return null;
             }
             string line = sb.ToString();
             if (line.Length > 0)
@@ -649,9 +661,9 @@ namespace CommonLib.Services
 
         private void SetConnected(bool value)
         {
-            if (IsConnected != value)
+            if (_isConnected != value)
             {
-                IsConnected = value;
+                _isConnected = value;
                 ConnectionChanged?.Invoke(this, value);
             }
         }

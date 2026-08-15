@@ -79,13 +79,19 @@ namespace CommonLib.Services
         public event EventHandler<bool> MasterConnectionChanged;
 
         /// <summary>当前是否已有 PLC 主站 TCP 会话连入（由后台轮询 Masters 维护，见 MasterPollTick）</summary>
-        public bool HasMasterConnected { get; private set; }
+        private volatile bool _hasMasterConnected;
+
+        /// <summary>当前是否已有 PLC 主站 TCP 会话连入（volatile：UI/监控线程锁外读）</summary>
+        public bool HasMasterConnected => _hasMasterConnected;
 
         /// <summary>轮询"主站是否连入"的后台定时器（1s；从站网络 Masters 列表随主站连接/断开变化）</summary>
         private System.Threading.Timer _masterPollTimer;
 
+        /// <summary>当前是否已就绪（从站监听已启动）。volatile：ConnectionMonitor 心跳线程锁外读。</summary>
+        private volatile bool _isConnected;
+
         /// <summary>当前是否已就绪（从站监听已启动）。语义等价于原来的"已连上 PLC"。</summary>
-        public bool IsConnected { get; private set; }
+        public bool IsConnected => _isConnected;
 
         public PlcService(PlcConfig cfg) => _cfg = cfg;
 
@@ -234,9 +240,9 @@ namespace CommonLib.Services
 
         private void SetConnected(bool value)
         {
-            if (IsConnected != value)
+            if (_isConnected != value)
             {
-                IsConnected = value;
+                _isConnected = value;
                 ConnectionChanged?.Invoke(this, value);
             }
         }
@@ -271,9 +277,9 @@ namespace CommonLib.Services
             }
             catch { /* 网络对象可能正被重建，下个周期再读 */ }
 
-            if (has != HasMasterConnected)
+            if (has != _hasMasterConnected)
             {
-                HasMasterConnected = has;
+                _hasMasterConnected = has;
                 MasterConnectionChanged?.Invoke(this, has);
                 LogHelper.Info(has
                     ? $"PLC 主站已连入从站（{IpLabel}），通讯建立"

@@ -7,6 +7,57 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.2.1（2026-08-15）通讯连接稳定性与鲁棒性加固
+
+> 对全库 11 个通讯/工具类做一次连接稳定性审计后的加固：修复 3 处真实竞态/卡顿点，
+> 统一连接状态 volatile 可见性，补齐"断连即释放坏连接 / 重连单飞 / 热更失败兜底 /
+> 超长响应丢弃连接"等防御，日志写入改常驻流。
+
+### 改动范围
+
+- **`ModbusTcpMasterClient`**：① `Connect` 的 `_config` 赋值移入锁内——消除轮询线程"新配置
+  + 旧连接"的竞态窗口；② 轮询结果缓存 `_lastPollData` 改 `ConcurrentDictionary`——`TryGetLastPollData`
+  不再借网络锁，UI 高频取数不被 2s 超时读卡住；③ `_isConnected` 改 volatile；④ 通讯失败
+  `MarkDisconnectedOnFailure` 断连标记的同时主动 Close 坏 TcpClient（不必等 Monitor 下轮重连）。
+- **`ModbusTcpIoController`**：`_isConnected` 改 volatile；`MarkDisconnectedOnFailure` 断连即释放坏连接。
+- **`ModbusRtuBarometerReader`**：`Connect`/`Disconnect` 加 `_syncRoot` 锁对齐全库——消除
+  `SetAllThresholds` 断线重连并发 `Disconnect` 干扰采集线程锁内 `ReadData` 的无锁竞态；
+  `_isConnected` 改 volatile。
+- **`FanControllerClient`**：`Connect` 重构为**锁外逐个候选建连 + 成功一次性锁内 commit**——设备
+  离线时不再把 `_syncRoot` 占住 候选数×FanTimeoutMs；`ReconnectNow()` 改后台异步执行（UI 按钮
+  不再卡死）；`ReadStatus`/`WriteCommand` 自愈重连移出锁；断连即释放坏连接；`_isConnected`/
+  `_activeIp`/`_activeIpLoadedFromDisk` 改 volatile。
+- **`ScannerService`**：心跳 `CheckConnectionAlive` 的 WMI 搜索/系统串口列表查询移出 `_lock`
+  （避免阻塞 `DataReceived` 收码）；`_wasConnected` 改 volatile；`Dispose` 去掉已过时的
+  `Thread.Abort` 兜底（改等待心跳线程自然退出 + 告警）。
+- **`KeyenceIV4Camera`**：`SendCommandAndReadLine` 响应超长（>1024 字符）时丢弃连接走重连——
+  防残留字节污染下一次读取；`IsConnected` 改 volatile 字段。
+- **`ConnectionMonitor`**：相机重连加**单飞标志**（`_cameraReconnecting`，防重连 Task 叠加成
+  连接风暴）；构造 `cameras` 判空防御。
+- **`DeviceHub`**：`ApplyConfig` 热更加失败兜底——`BuildServices` 异常时尽力释放半成品
+  （防 FileSystemWatcher 句柄泄漏）、记 ERROR、仍触发 `ServicesRebuilt` 让上层感知设备层异常。
+- **`PlcService`**：`IsConnected`/`HasMasterConnected` 改 volatile 字段（Monitor/UI 锁外读）。
+- **`ScannerTcpService`**：`_connected` 改 volatile。
+- **`Utils/LogHelper`**：写文件改**常驻 StreamWriter + 跨天滚动**（`AutoFlush=true` 即时落盘、
+  UTF-8 无 BOM），相机触发等高频日志不再每次 Open/Close 文件。
+
+### 为什么这么改
+
+- 审计发现的中等风险点集中在"锁粒度/阻塞热点"（送风机锁内多候选建连、串口扫码枪锁内 WMI、
+  主站缓存借网络锁）与"可见性/竞态"（`_config` 锁外赋值、连接状态非 volatile、气压表 Connect
+  无锁）。逐项对齐后，连接建立、数据读写、缓存读取各走各的锁，UI 线程不受设备离线拖累。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 CommonLib 通过（`CommonLib -> ...\bin\Debug\CommonLib.dll`，无 error）。
+- 未新增外部依赖（`ConcurrentDictionary`/`StreamWriter` 均 .NET Framework 4.7.2 内置）。
+
+### 文档同步
+
+- `README.md`：日志出口小节修正默认行为（写 Logs 文件，常驻流+跨天滚动）；热更小节补失败兜底；
+  送风机对接要点补 `ReconnectNow` 异步说明。
+- `CHANGELOG.md`：本版本（V1.2.1）。
+
 ## V1.2.0（2026-08-15）PLC 主站/从站两模式（通用 Modbus TCP 主站 + 自动轮询）
 
 > 需求：有些项目上位机要作 **Modbus TCP 主站**主动读写 PLC（而非从站模式被动等 PLC 来读写）。

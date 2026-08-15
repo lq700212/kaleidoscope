@@ -54,8 +54,8 @@ namespace CommonLib.Services
         /// <summary>Modbus 主站对象（通过 NModbus 创建，RTU 模式）。</summary>
         private IModbusMaster _master;
 
-        /// <summary>连接状态标志。</summary>
-        private bool _isConnected;
+        /// <summary>连接状态标志。volatile：ConnectionMonitor 心跳线程在锁外读 IsConnected 决定是否重连。</summary>
+        private volatile bool _isConnected;
 
         /// <summary>实际使用的串口名称（自动识别或配置指定的结果）。</summary>
         public string CurrentPortName { get; private set; }
@@ -76,7 +76,20 @@ namespace CommonLib.Services
         /// <summary>连接气压表：断开旧连 → 按"缓存端口→配置端口→CH340 识别"顺序逐个尝试第一个打开的。</summary>
         public bool Connect(BarometerConfig config)
         {
-            _config = config;
+            // 【加锁对齐】与 ModbusTcpIoController/FanControllerClient 一致：Connect/Disconnect/读写
+            // 全部在 _syncRoot 锁内串行化。原实现 Connect 不带锁——SetAllThresholds 断线重连时并发
+            // Disconnect 关串口会干扰采集线程锁内的 ReadData（抛 ObjectDisposedException，虽能自愈
+            // 但不干净）。串口 Open/建 RTU 主站是瞬时操作（无 TCP 超时阻塞），锁内安全。
+            lock (_syncRoot)
+            {
+                _config = config;
+                return ConnectInternal();
+            }
+        }
+
+        /// <summary>连接实际执行部分（必须在 _syncRoot 锁内调用；逐个候选串口尝试，各候选都是瞬时 Open）。</summary>
+        private bool ConnectInternal()
+        {
             try
             {
                 // 0) 先断开旧连接（避免重复 Open 串口导致 Access denied 或句柄泄漏）
@@ -87,7 +100,7 @@ namespace CommonLib.Services
                 //   ② 配置里填的端口 PortName（尊重手动配置）
                 //   ③ CH340 自动识别（气压表 RS485 适配器，现场免改配置）
                 // 逻辑一句话：连上就记住；记住的端口连不上，就重新去找。
-                List<string> candidates = BuildCandidatePorts(config);
+                List<string> candidates = BuildCandidatePorts(_config);
                 if (candidates.Count == 0)
                 {
                     OnError?.Invoke(this, "气压表连接参数错误：没有可用的串口，请检查 PortName 配置");
@@ -104,12 +117,12 @@ namespace CommonLib.Services
                         // ReadTimeout/WriteTimeout 防止串口调用长期卡死。
                         _serialPort = new SerialPort(portName)
                         {
-                            BaudRate = config.BaudRate,
-                            DataBits = config.DataBits,
-                            Parity = ParseParity(config.Parity),
-                            StopBits = ParseStopBits(config.StopBits),
-                            ReadTimeout = config.SerialReadTimeoutMs,
-                            WriteTimeout = config.SerialWriteTimeoutMs
+                            BaudRate = _config.BaudRate,
+                            DataBits = _config.DataBits,
+                            Parity = ParseParity(_config.Parity),
+                            StopBits = ParseStopBits(_config.StopBits),
+                            ReadTimeout = _config.SerialReadTimeoutMs,
+                            WriteTimeout = _config.SerialWriteTimeoutMs
                         };
 
                         _serialPort.Open();
@@ -121,8 +134,8 @@ namespace CommonLib.Services
                         // 通过 NModbus 创建 RTU 主站（会在串口上组装 RTU 帧并处理 CRC 校验）
                         var factory = new ModbusFactory();
                         _master = factory.CreateRtuMaster(_serialPort);
-                        _master.Transport.ReadTimeout = config.SerialReadTimeoutMs;
-                        _master.Transport.WriteTimeout = config.SerialWriteTimeoutMs;
+                        _master.Transport.ReadTimeout = _config.SerialReadTimeoutMs;
+                        _master.Transport.WriteTimeout = _config.SerialWriteTimeoutMs;
 
                         _isConnected = true;
                         return true;
@@ -255,27 +268,30 @@ namespace CommonLib.Services
         /// <summary>断开连接：先置状态 false（上层避免继续发请求），再释放串口与主站。</summary>
         public void Disconnect()
         {
-            _isConnected = false;
+            lock (_syncRoot)
+            {
+                _isConnected = false;
 
-            try
-            {
-                if (_serialPort != null)
+                try
                 {
-                    // Close/Dispose 可能"串口被拔插"抛异常，try/catch 吞掉
-                    if (_serialPort.IsOpen)
+                    if (_serialPort != null)
                     {
-                        _serialPort.Close();
+                        // Close/Dispose 可能"串口被拔插"抛异常，try/catch 吞掉
+                        if (_serialPort.IsOpen)
+                        {
+                            _serialPort.Close();
+                        }
+                        _serialPort.Dispose();
                     }
-                    _serialPort.Dispose();
                 }
-            }
-            catch
-            {
-            }
-            finally
-            {
-                _serialPort = null;
-                _master = null;
+                catch
+                {
+                }
+                finally
+                {
+                    _serialPort = null;
+                    _master = null;
+                }
             }
         }
 

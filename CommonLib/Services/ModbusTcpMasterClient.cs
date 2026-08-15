@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Threading;
@@ -53,10 +54,10 @@ namespace CommonLib.Services
         /// <summary>Modbus 主站（负责组包/解包、发起请求）。</summary>
         private IModbusMaster _master;
 
-        /// <summary>当前连接状态（true=已连接）。</summary>
-        private bool _isConnected;
+        /// <summary>当前连接状态（true=已连接）。volatile：Monitor 心跳线程/UI 线程可能在锁外读它（见类注释）。</summary>
+        private volatile bool _isConnected;
 
-        /// <summary>上次连接状态（边沿检测用，只在状态变化时发 ConnectionChanged）。</summary>
+        /// <summary>上次连接状态（边沿检测用，只在状态变化时发 ConnectionChanged；仅在锁内读写）。</summary>
         private bool _wasConnected;
 
         /// <summary>上次连接尝试时间（重连节流）。</summary>
@@ -65,8 +66,13 @@ namespace CommonLib.Services
         /// <summary>自动轮询定时器（StartPolling 启动，StopPolling/Dispose 停止）。</summary>
         private System.Threading.Timer _pollTimer;
 
-        /// <summary>最近一次轮询结果缓存：Name → 原始值数组（ushort[] 或 bool[]）。</summary>
-        private readonly Dictionary<string, object> _lastPollData = new Dictionary<string, object>();
+        /// <summary>
+        /// 最近一次轮询结果缓存：Name → 原始值数组（ushort[] 或 bool[]）。
+        /// 用 ConcurrentDictionary 而非普通 Dictionary + _syncRoot：轮询线程写、业务/UI 线程读，
+        /// 若共用网络锁，一次 2s 超时的读请求会把"取缓存"也卡住（见 TryGetLastPollData）。
+        /// </summary>
+        private readonly ConcurrentDictionary<string, object> _lastPollData =
+            new ConcurrentDictionary<string, object>();
 
         private volatile bool _disposed;
 
@@ -95,9 +101,11 @@ namespace CommonLib.Services
         /// <returns>true=连接成功</returns>
         public bool Connect(PlcMasterConfig config)
         {
-            _config = config;
             lock (_syncRoot)
             {
+                // _config 必须在锁内赋值：否则轮询线程（锁内读 _config.PollItems）可能在
+                // 赋值与 ConnectInternal 之间读到"新配置 + 旧连接"，用新地址去读旧设备。
+                _config = config;
                 return ConnectInternal();
             }
         }
@@ -305,10 +313,12 @@ namespace CommonLib.Services
             return Execute(() => _master.WriteMultipleCoils(_config.UnitId, startAddress, values));
         }
 
-        /// <summary>读取最近一次轮询缓存数据（按轮询项名称）；未轮询过返回 false。业务层免订阅事件即可取数。</summary>
+        /// <summary>读取最近一次轮询缓存数据（按轮询项名称）；未轮询过返回 false。业务层免订阅事件即可取数。
+        /// 【锁分离】缓存读写用 ConcurrentDictionary，不再借 _syncRoot——否则轮询线程正锁内读
+        /// （单条最坏阻塞一个 TimeoutMs）时，UI 高频取缓存会被一起卡住。</summary>
         public bool TryGetLastPollData(string name, out object values)
         {
-            lock (_syncRoot) { return _lastPollData.TryGetValue(name, out values); }
+            return _lastPollData.TryGetValue(name, out values);
         }
 
         /// <summary>执行一条"返回 ushort[] 的读请求"公共路径：锁内自愈连接 + 读 + 断连标记。</summary>
@@ -367,14 +377,20 @@ namespace CommonLib.Services
         }
 
         /// <summary>
-        /// 连接层异常统一处理：Socket 异常/IO 异常/超时 → 置未连接 + 触发边沿事件（上层自动重连）。
+        /// 连接层异常统一处理：Socket 异常/IO 异常/超时 → 置未连接 + 释放坏连接 + 触发边沿事件（上层自动重连）。
         /// Modbus 异常响应（SlaveException）不算断开——设备在线只是报错，不破坏连接状态。
+        /// 【断连即释放】标记断开的同时关闭坏 TcpClient（不必等 Monitor 下一轮重连才在
+        /// ConnectInternal 的 Disconnect 里关）——坏 socket 多挂几秒会让后续请求白等一个超时。
         /// </summary>
         private void MarkDisconnectedOnFailure(Exception ex)
         {
             if (ex is SocketException || ex is System.IO.IOException || ex is TimeoutException)
             {
                 _isConnected = false;
+                try { if (_client != null) _client.Close(); } catch { }
+                try { _client?.Dispose(); } catch { }
+                _client = null;
+                _master = null;
                 NotifyEdge();
                 OnError?.Invoke(this, $"ModbusTCP 主站通讯失败，已标记断开: {ex.Message}");
             }

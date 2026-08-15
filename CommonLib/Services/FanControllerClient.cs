@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;          // 用于读写"上次连接成功 IP"的磁盘缓存文件
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using CommonLib.Models;
 using NModbus;
 
@@ -22,8 +23,9 @@ namespace CommonLib.Services
     ///
     /// 【物理层】TCP/IP；端口默认 50000（非标准 502）；从站地址（UnitId）默认 1。
     ///
-    /// 【线程安全】与 ModbusTcpIoController 相同，用 _syncRoot 锁串行化对主站的所有访问。
-    /// 采集线程和 UI 线程（按钮点击）可能并发调用本类，锁保证同一时刻只有一个线程发请求。
+    /// 【线程安全】读写请求用 _syncRoot 锁串行化（同一时刻只有一个线程发请求）；
+    /// 但【连接建立】放在锁外执行（Connect 用局部对象逐个候选建连，成功才一次性锁内 commit）——
+    /// 设备离线时多候选尝试最坏耗时 候选数×FanTimeoutMs，锁外执行避免把锁占住、卡住读写调用。
     ///
     /// 【断线自愈（心跳机制）】送风机是"可选设备"，现场可能中途断电/断网。
     /// 采用"每次操作前检查连接，未连接则自动重连"的策略，后台静默持续重连；
@@ -47,17 +49,18 @@ namespace CommonLib.Services
         /// <summary>Modbus 主站（负责组包/解包、发起请求）。</summary>
         private IModbusMaster _master;
 
-        /// <summary>连接状态。</summary>
-        private bool _isConnected;
+        /// <summary>连接状态。volatile：Monitor 心跳/业务轮询线程在锁外读 IsConnected（见 EnsureConnected）。</summary>
+        private volatile bool _isConnected;
 
         /// <summary>上次连接尝试的时间（重连节流：设备掉线时不要每秒都去连一次）。</summary>
         private DateTime _lastConnectAttempt = DateTime.MinValue;
 
-        /// <summary>最近一次连接成功的 IP 地址（自动识别的结果）：设备地址没变的话一次就连上。</summary>
-        private string _activeIp;
+        /// <summary>最近一次连接成功的 IP 地址（自动识别的结果）：设备地址没变的话一次就连上。
+        /// volatile：候选列表在锁外构建（Connect），多线程并发重连时读它（见 BuildCandidateIps）。</summary>
+        private volatile string _activeIp;
 
-        /// <summary>是否已尝试从磁盘缓存恢复 _activeIp（防止每次构建候选列表都读一次磁盘）。</summary>
-        private bool _activeIpLoadedFromDisk;
+        /// <summary>是否已尝试从磁盘缓存恢复 _activeIp（防止每次构建候选列表都读一次磁盘）。volatile 同 _activeIp。</summary>
+        private volatile bool _activeIpLoadedFromDisk;
 
         /// <summary>重连节流间隔（毫秒）：两次连接尝试之间至少间隔 10 秒，避免对死设备频繁发起连接。</summary>
         private const int ReconnectIntervalMs = 10000;
@@ -75,101 +78,116 @@ namespace CommonLib.Services
         /// <summary>连接送风机控制屏（设计约定：不向外抛异常，统一用 OnError 通知上层）。</summary>
         public bool Connect(FanConfig config)
         {
-            _config = config;
-            lock (_syncRoot)
+            if (config == null)
             {
-                return ConnectInternal();
+                OnError?.Invoke(this, "配置为空，无法连接");
+                return false;
             }
-        }
 
-        /// <summary>
-        /// 连接送风机控制屏（实际执行部分，必须在 _syncRoot 锁内调用）。
-        /// 【自动识别 IP】现场控制器 IP 可能是 192.168.1.220/.221/.222 中任意一个（换工作台、换控制器都会变）。
-        /// 为免去每次改配置，这里按顺序逐个尝试候选 IP，第一个连接成功的即为设备真实地址。
-        /// </summary>
-        private bool ConnectInternal()
-        {
-            try
+            // ① 组装候选 IP（读配置 + 内存/磁盘缓存；锁外执行，相关字段 volatile 保证可见性）
+            List<string> candidates = BuildCandidateIps(config);
+            if (candidates.Count == 0)
             {
-                // 0) 先断开旧连接（避免重复 Connect 导致句柄泄漏）
-                Disconnect();
+                OnError?.Invoke(this, "送风机连接参数错误：没有可用的 IP 地址，请检查 FanIpAddress/FanIpCandidates 配置");
+                return false;
+            }
 
-                // 1) 组装候选 IP 列表（自动识别核心，见 BuildCandidateIps）
-                List<string> candidates = BuildCandidateIps();
-                if (candidates.Count == 0)
+            // ② 逐个候选【锁外】建连（纯局部对象，最坏阻塞 候选数×FanTimeoutMs，不占 _syncRoot）：
+            //    设备全离线时 ReadStatus/WriteCommand/按钮拿锁调用不会再被卡数秒
+            //    （旧实现锁内串行尝试，离线时锁被占住 候选数×FanTimeoutMs）。
+            Exception lastError = null;
+            foreach (string ip in candidates)
+            {
+                TcpClient client; IModbusMaster master; string err;
+                if (TryBuildConnection(ip, config.FanPort, config.FanTimeoutMs, out client, out master, out err))
                 {
-                    OnError?.Invoke(this, "送风机连接参数错误：没有可用的 IP 地址，请检查 FanIpAddress/FanIpCandidates 配置");
-                    return false;
-                }
-
-                // 2) 按顺序逐个尝试候选 IP：第一个连上的就是设备真实地址
-                Exception lastError = null;
-                foreach (string ip in candidates)
-                {
-                    try
+                    // ③ 成功后一次性锁内 commit（先 Disconnect 清掉可能残留的旧连接，防多连叠加）
+                    lock (_syncRoot)
                     {
-                        // 为每个候选 IP 单独创建 TcpClient（上一个失败的已关闭，不能复用）
-                        TcpClient client = new TcpClient();
-                        client.SendTimeout = _config.FanTimeoutMs;
-                        client.ReceiveTimeout = _config.FanTimeoutMs;
-
-                        // 【重要】TcpClient.Connect 是同步方法，且不受上面 Timeout 属性控制
-                        //（走的是系统 TCP 连接超时，默认可能长达 ~20 秒）。如果送风机掉线/网线没插好，
-                        // 直接 Connect 会让界面卡住很久。这里用 BeginConnect + WaitOne 实现"手动超时"：
-                        //   - FanTimeoutMs 内连接成功 → EndConnect 完成连接
-                        //   - FanTimeoutMs 内没成功 → 抛超时异常，继续试下一个候选 IP
-                        IAsyncResult connectResult = client.BeginConnect(ip, _config.FanPort, null, null);
-                        if (!connectResult.AsyncWaitHandle.WaitOne(_config.FanTimeoutMs))
-                        {
-                            client.Close();
-                            client.Dispose();
-                            lastError = new TimeoutException($"连接超时（{_config.FanTimeoutMs}ms）");
-                            continue;   // 本 IP 超时：尝试下一个候选
-                        }
-                        client.EndConnect(connectResult);
-
-                        // 连接成功：绑定当前客户端 + 创建 Modbus 主站（Master）
+                        Disconnect();
+                        _config = config;
                         _client = client;
-                        var factory = new ModbusFactory();
-                        _master = factory.CreateMaster(_client);
-                        _master.Transport.ReadTimeout = _config.FanTimeoutMs;
-                        _master.Transport.WriteTimeout = _config.FanTimeoutMs;
-
+                        _master = master;
                         _isConnected = true;
                         _activeIp = ip;      // 记住本次成功的 IP（内存），下次重连优先尝试它
                         SaveCachedIp(ip);    // 写盘缓存：本工控机"上次连上的控制器 IP"，下次启动直接用它
-                        return true;
                     }
-                    catch (Exception ex)
-                    {
-                        // 本 IP 连接失败：记下原因，继续尝试下一个候选
-                        lastError = ex;
-                    }
+                    return true;
                 }
+                // 本 IP 失败：记下原因，继续尝试下一个候选
+                lastError = new Exception($"IP {ip}: {err}");
+            }
 
-                // 3) 所有候选 IP 都连不上：通知上层（会显示在 UI 上），并清理资源
-                OnError?.Invoke(this, $"送风机连接失败（已尝试 {candidates.Count} 个 IP: {string.Join(", ", candidates)}）: {lastError?.Message}");
-                Disconnect();
-                return false;
+            // ④ 全部候选失败：更新配置引用并通知上层（会显示在 UI 上）
+            lock (_syncRoot) { _config = config; }
+            OnError?.Invoke(this, $"送风机连接失败（已尝试 {candidates.Count} 个 IP: {string.Join(", ", candidates)}）: {lastError?.Message}");
+            return false;
+        }
+
+        /// <summary>
+        /// 建立到单个候选 IP 的 TCP + Modbus 主站连接（静态方法：只用局部对象，不碰任何字段，
+        /// 供 Connect 在锁外逐个尝试，成功后才一次性 commit 到字段）。
+        /// </summary>
+        /// <param name="ip">候选 IP</param>
+        /// <param name="port">送风机端口（默认 50000）</param>
+        /// <param name="timeoutMs">连接/读写超时（毫秒）</param>
+        /// <param name="client">成功时输出已连接的 TcpClient（未占用字段，调用方负责 commit）</param>
+        /// <param name="master">成功时输出已就绪的 Modbus 主站</param>
+        /// <param name="error">失败原因（成功时为 null）</param>
+        /// <returns>true=本候选连接成功</returns>
+        private static bool TryBuildConnection(string ip, int port, int timeoutMs,
+                                               out TcpClient client, out IModbusMaster master, out string error)
+        {
+            client = null; master = null; error = null;
+            TcpClient c = new TcpClient();
+            try
+            {
+                c.SendTimeout = timeoutMs;
+                c.ReceiveTimeout = timeoutMs;
+
+                // 【重要】TcpClient.Connect 是同步方法且不受上面 Timeout 属性控制（走系统 TCP 连接
+                // 超时，默认最长 ~20 秒）。用 BeginConnect + WaitOne 实现"手动超时"：timeoutMs 内
+                // 没成功立即放弃，避免对不可达 IP 卡住调用线程。
+                IAsyncResult ar = c.BeginConnect(ip, port, null, null);
+                if (!ar.AsyncWaitHandle.WaitOne(timeoutMs))
+                {
+                    error = $"连接超时（{timeoutMs}ms）";
+                    try { c.Close(); } catch { }
+                    c.Dispose();
+                    return false;
+                }
+                c.EndConnect(ar);
+
+                var factory = new ModbusFactory();
+                IModbusMaster m = factory.CreateMaster(c);
+                m.Transport.ReadTimeout = timeoutMs;
+                m.Transport.WriteTimeout = timeoutMs;
+                client = c;
+                master = m;
+                return true;
             }
             catch (Exception ex)
             {
-                // 兜底异常：连接失败，通知上层并清理资源
-                OnError?.Invoke(this, $"送风机连接失败: {ex.Message}");
-                Disconnect();
+                error = ex.Message;
+                try { c.Close(); } catch { }
+                try { c.Dispose(); } catch { }
                 return false;
             }
         }
 
         /// <summary>
-        /// 组装本次连接要尝试的候选 IP 列表（自动识别核心）。
+        /// 组装本次连接要尝试的候选 IP 列表（自动识别核心，在 Connect 的锁外阶段调用）。
         /// 顺序（越靠前越优先）：
         ///   1) 自动识别开启时：上次连接成功的 IP（_activeIp，程序重启后从磁盘缓存恢复）——工控机记忆
         ///   2) 配置的主 IP（FanIpAddress）——始终优先尝试
         ///   3) FanAutoDetectEnabled=true 时，追加配置的候选 IP 列表（FanIpCandidates）
         /// 自动过滤：空字符串 / 非法 IP / 重复项。
+        /// 【线程安全】本方法读 config（调用方传入，连接期间不改）与 volatile 字段（_activeIp/
+        /// _activeIpLoadedFromDisk），可在锁外安全调用；并发重连重复读盘缓存是幂等无害的。
         /// </summary>
-        private List<string> BuildCandidateIps()
+        /// <param name="config">送风机配置（本次要连接的参数来源）</param>
+        /// <returns>候选 IP 列表（可能为空，表示配置里没 IP）</returns>
+        private List<string> BuildCandidateIps(FanConfig config)
         {
             var list = new List<string>();
 
@@ -187,7 +205,7 @@ namespace CommonLib.Services
             }
 
             // 1) 自动识别开启时：优先用"上次连接成功的 IP"（磁盘缓存恢复/本次会话内存）
-            if (_config.FanAutoDetectEnabled)
+            if (config.FanAutoDetectEnabled)
             {
                 if (!_activeIpLoadedFromDisk)
                 {
@@ -198,12 +216,12 @@ namespace CommonLib.Services
             }
 
             // 2) 配置的主 IP 始终尝试
-            AddCandidate(_config.FanIpAddress);
+            AddCandidate(config.FanIpAddress);
 
             // 3) 自动识别开启时，追加候选 IP 列表
-            if (_config.FanAutoDetectEnabled && _config.FanIpCandidates != null)
+            if (config.FanAutoDetectEnabled && config.FanIpCandidates != null)
             {
-                foreach (string ip in _config.FanIpCandidates)
+                foreach (string ip in config.FanIpCandidates)
                 {
                     AddCandidate(ip);
                 }
@@ -276,9 +294,11 @@ namespace CommonLib.Services
         }
 
         /// <summary>
-        /// 确保连接已建立；未连接则尝试（节流后）自动重连。必须在 _syncRoot 锁内调用。
+        /// 确保连接已建立；未连接则尝试（节流后）自动重连。可在锁外调用。
         /// 【心跳自愈】不再设"重试上限"：后台静默持续重连（10 秒节流），失败过程不刷日志；
         /// 需要送风机时上层可调用 <see cref="ReconnectNow"/> 立即重连。
+        /// 【锁策略】节流判断 + 标记在锁内串行化（防止业务轮询与 Monitor 后台重连同时通过节流
+        /// 窗口重复建连），但真正的建连放锁外（Connect 内部锁外建连 + 锁内 commit），不占锁。
         /// </summary>
         /// <returns>true 表示当前可用（已连接），false 表示不可用</returns>
         private bool EnsureConnected()
@@ -289,25 +309,36 @@ namespace CommonLib.Services
                 return true;
             }
 
-            // 未连接：先做"重连节流"判断（刚尝试过失败，10 秒内不再重试，避免对死设备频繁连接）
-            if ((DateTime.Now - _lastConnectAttempt).TotalMilliseconds < ReconnectIntervalMs)
+            // 未连接：节流判断 + 标记
+            lock (_syncRoot)
             {
-                return false;
+                if (_isConnected && _master != null && _client != null) return true;
+                if ((DateTime.Now - _lastConnectAttempt).TotalMilliseconds < ReconnectIntervalMs)
+                {
+                    return false;
+                }
+                _lastConnectAttempt = DateTime.Now;
             }
 
-            _lastConnectAttempt = DateTime.Now;
+            // 建连放锁外
             return Connect(_config);
         }
 
         /// <summary>
         /// 按需重连：用户点击"定值启动/定值停止"等需要送风机的操作时由上层调用，
-        /// 立即重连一次（不等后台 10 秒节流，保证按钮响应及时）。
+        /// 立即触发重连（不等后台 10 秒节流，保证按钮响应及时）。
+        /// 【异步化】同步执行最坏阻塞 候选数×FanTimeoutMs（设备离线时数秒），UI 按钮场景会卡死
+        /// 界面，故改为后台执行、立即返回当前状态；连接完成后由后续 ReadStatus/WriteCommand 生效
+        /// （EnsureConnected 也会兜底重连）。
         /// </summary>
-        /// <returns>重连后是否已连接</returns>
+        /// <returns>重连后是否已连接（异步重连下为发起时的当前状态，可能仍 false）</returns>
         public bool ReconnectNow()
         {
             if (_isConnected) return true;
-            return Connect(_config);
+            var cfg = _config;
+            if (cfg == null) return false;
+            Task.Run(() => Connect(cfg));
+            return _isConnected;
         }
 
         /// <summary>
@@ -325,12 +356,13 @@ namespace CommonLib.Services
 
             try
             {
+                // 锁外自愈：未连接则按节流重连（建连在锁外，不占锁，见 Connect）
+                if (!EnsureConnected()) return null;
+
                 ushort[] values;
                 lock (_syncRoot)
                 {
-                    // 未连接则尝试（节流后）自动重连
-                    if (!EnsureConnected()) return null;
-
+                    if (_master == null) return null;
                     // 读保持寄存器（功能码 0x03），从 0x0000 一次读 6 个
                     values = _master.ReadHoldingRegisters(_config.FanUnitId, 0x0000, 6);
                 }
@@ -358,8 +390,8 @@ namespace CommonLib.Services
             }
             catch (Exception ex)
             {
-                // 读取失败：断开连接（下次操作会按节流规则自动重连）
-                _isConnected = false;
+                // 读取失败：标记断开并释放坏连接（下次操作自动重连）
+                MarkDisconnected();
                 OnError?.Invoke(this, $"送风机读取失败: {ex.Message}");
                 return null;
             }
@@ -391,11 +423,12 @@ namespace CommonLib.Services
 
             try
             {
+                // 锁外自愈：未连接则按节流重连（建连在锁外，不占锁，见 Connect）
+                if (!EnsureConnected()) return false;
+
                 lock (_syncRoot)
                 {
-                    // 未连接则尝试（节流后）自动重连
-                    if (!EnsureConnected()) return false;
-
+                    if (_master == null) return false;
                     // 写单个保持寄存器（功能码 0x06）
                     _master.WriteSingleRegister(_config.FanUnitId, 0x0001, command);
                 }
@@ -403,10 +436,27 @@ namespace CommonLib.Services
             }
             catch (Exception ex)
             {
-                // 发送失败：断开连接（下次操作自动重连）
-                _isConnected = false;
+                // 发送失败：标记断开并释放坏连接（下次操作自动重连）
+                MarkDisconnected();
                 OnError?.Invoke(this, $"送风机命令发送失败: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 标记断开并释放坏连接（幂等）。锁内释放与读写串行化。
+        /// 【断连即释放】不必等 Monitor 下一轮重连才在 Connect 里关——坏 socket 多挂几秒会
+        /// 让后续读请求白等一个超时。
+        /// </summary>
+        private void MarkDisconnected()
+        {
+            lock (_syncRoot)
+            {
+                _isConnected = false;
+                try { if (_client != null) _client.Close(); } catch { }
+                try { if (_client != null) _client.Dispose(); } catch { }
+                _client = null;
+                _master = null;
             }
         }
 

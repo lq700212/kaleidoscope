@@ -45,7 +45,7 @@ namespace CommonLib.Services
         private readonly StringBuilder _line = new StringBuilder();
         private DateTime _lastFailLogAt = DateTime.MinValue;   // 上次记录"连接失败/超时"日志的时间（30s 节流，防刷屏）
         private volatile bool _disposed;
-        private bool _connected;        // 当前连接状态缓存，用于 ConnectionChanged 边沿检测（状态没变不发事件）
+        private volatile bool _connected;   // 当前连接状态缓存，用于 ConnectionChanged 边沿检测（状态没变不发事件）；volatile：Worker/Dispose 跨线程读写
 
         /// <summary>重连节流间隔（毫秒）</summary>
         private const int ReconnectMs = 3000;

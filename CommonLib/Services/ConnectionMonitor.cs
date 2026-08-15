@@ -72,6 +72,13 @@ namespace CommonLib.Services
         private DateTime _lastIoAttempt = DateTime.MinValue;
         private DateTime _lastFanAttempt = DateTime.MinValue;
 
+        /// <summary>
+        /// 各相机"重连任务进行中"标记（单飞：防止节流周期内上一个重连 Task 尚未结束时又发起新的，
+        /// 堆积成连接风暴）。用独立小锁保护——Timer 心跳线程与 Task 重连线程并发读写。
+        /// </summary>
+        private readonly object _cameraReconnectLock = new object();
+        private readonly bool[] _cameraReconnecting;
+
         /// <summary>PLC 主站（ModbusTcpMasterClient）与三类设备上次的连接状态（边沿检测用，见类注释）</summary>
         private bool _wasPlcMasterConnected;
         private bool _wasBaroConnected;
@@ -117,14 +124,16 @@ namespace CommonLib.Services
             _plc = plc;
             _plcMaster = plcMaster;
             _plcMasterConfig = plcMasterConfig;
-            _cameras = cameras;
+            // 判空防御：调用方漏传 null 时按空列表处理（下面 for/foreach 不会 NRE）
+            _cameras = cameras ?? new List<KeyenceIV4Camera>();
             _barometer = barometer;
             _baroConfig = baroConfig;
             _io = io;
             _ioConfig = ioConfig;
             _fan = fan;
             _fanConfig = fanConfig;
-            _lastCameraAttempt = new DateTime[Math.Max(1, cameras.Count)];
+            _lastCameraAttempt = new DateTime[Math.Max(1, _cameras.Count)];
+            _cameraReconnecting = new bool[_cameras.Count];
 
             // 记录 PLC 主站与三类设备初始连接状态，作为边沿检测基准
             _wasPlcMasterConnected = _plcMaster?.IsConnected ?? false;
@@ -167,12 +176,32 @@ namespace CommonLib.Services
                 {
                     // 心跳：纯 socket 探测，不打扰拍摄；探测发现对端已关连接会由服务自动标记断开
                     cam.CheckConnection();
+                    continue;
                 }
-                else if ((DateTime.Now - _lastCameraAttempt[i]).TotalMilliseconds >= ReconnectThrottleMs)
+
+                // 未连接：节流 + 单飞检查通过才发起后台重连
+                // 【单飞】_cameraReconnecting[i]=true 期间不再发起新重连——旧实现节流时间一到就
+                // Task.Run，若上一个重连 Task 恰好还没跑完（如网络栈异常慢）会叠加，虽被服务内部
+                // 锁串行化不崩，但会造成无谓的连接风暴。
+                bool go = false;
+                lock (_cameraReconnectLock)
                 {
-                    _lastCameraAttempt[i] = DateTime.Now;
+                    if (!_cameraReconnecting[i] &&
+                        (DateTime.Now - _lastCameraAttempt[i]).TotalMilliseconds >= ReconnectThrottleMs)
+                    {
+                        _cameraReconnecting[i] = true;
+                        _lastCameraAttempt[i] = DateTime.Now;
+                        go = true;
+                    }
+                }
+                if (go)
+                {
                     int idx = i; // 闭包锁副本
-                    System.Threading.Tasks.Task.Run(() => _cameras[idx].EnsureConnected()); // 后台重连，不阻塞本周期
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        try { _cameras[idx].EnsureConnected(); }
+                        finally { lock (_cameraReconnectLock) { _cameraReconnecting[idx] = false; } }
+                    });
                 }
             }
 

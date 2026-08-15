@@ -186,6 +186,9 @@ namespace CommonLib.Services
         /// <summary>
         /// 热更：停旧服务 → 按新配置全量重建 → 重新订阅聚合事件 → 触发 ServicesRebuilt。
         /// 这是"改配置免重启"的唯一入口（原项目 ApplyRuntimeConfig 的设备层部分）。
+        /// 【失败兜底】若新配置非法导致 BuildServices 中途异常，尽力释放半成品（防 FileSystemWatcher
+        /// 等句柄泄漏）、记 ERROR，并仍触发 ServicesRebuilt 通知上层设备层异常（此时 hub.Xxx 为 null，
+        /// 上层需判空防御或决定回滚）——绝不让程序处于"旧服务已释放、新服务没建成"的静默状态。
         /// </summary>
         /// <param name="newConfig">新的设备层总配置</param>
         public void ApplyConfig(DeviceHubConfig newConfig)
@@ -197,7 +200,18 @@ namespace CommonLib.Services
 
             // ② 换配置快照并重建全部服务
             Config = newConfig;
-            BuildServices();
+            try
+            {
+                BuildServices();
+            }
+            catch (Exception ex)
+            {
+                // 尽力清理已部分构建的服务（DisposeServices 对 null 字段安全），防句柄泄漏
+                try { DisposeServices(); } catch { }
+                LogHelper.Error($"DeviceHub 热更失败，设备层已释放，请检查新配置：{ex.Message}", ex);
+                ServicesRebuilt?.Invoke(this, EventArgs.Empty);
+                return;
+            }
 
             // ③ 通知上层"设备层已换新"：请重建业务编排（协调器）并重新订阅
             ServicesRebuilt?.Invoke(this, EventArgs.Empty);

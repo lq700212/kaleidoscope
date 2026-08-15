@@ -82,8 +82,8 @@ namespace CommonLib.Services
         /// <summary>实际连接的串口名（WMI 识别或固定配置的结果；未连接时为空）。</summary>
         private string _currentPortName;
 
-        /// <summary>连接状态缓存，用于 ConnectionChanged 边沿检测（状态没变不发事件）。</summary>
-        private bool _wasConnected;
+        /// <summary>连接状态缓存，用于 ConnectionChanged 边沿检测（状态没变不发事件）。volatile：心跳线程/收数据线程跨线程读写。</summary>
+        private volatile bool _wasConnected;
 
         /// <summary>本次"未连接"是否已提示过（true=本次掉线已提示一次，后续后台静默重试不再刷日志）。</summary>
         private bool _disconnectReported;
@@ -333,44 +333,42 @@ namespace CommonLib.Services
         /// </summary>
         private void CheckConnectionAlive()
         {
+            // ① 锁内快照：当前端口名 + 确认串口仍打开（未打开交给 TryConnect 处理，本轮心跳结束）
+            string currentPort;
             lock (_lock)
             {
-                // 未连接时不需要心跳（TryConnect 自己会处理重连）
+                if (_port == null || !_port.IsOpen) return;
+                currentPort = _currentPortName;
+            }
+
+            // ② 【锁外查询】WMI 关键词搜索 + 系统串口列表在锁外执行——它们耗时几十~几百 ms，
+            //    若放在 _lock 内会阻塞 DataReceived 收码（它与心跳共用 _lock）。查完拿结果进锁内判定。
+            bool dynamicMode = string.IsNullOrWhiteSpace(_cfg.PortName);
+            List<string> wmiMatches = dynamicMode ? FindMatchingPorts() : null;
+            string[] portNames = SafeGetPortNames();
+
+            lock (_lock)
+            {
+                // 查询期间端口可能已被重开/关闭：作废本轮判定（交给下轮或 TryConnect）
                 if (_port == null || !_port.IsOpen) return;
 
-                // 动态识别模式：WMI 关键词搜索 + 系统串口列表双信号
-                if (string.IsNullOrWhiteSpace(_cfg.PortName))
+                if (dynamicMode)
                 {
+                    // 动态识别模式：WMI 关键词搜索 + 系统串口列表双信号
                     // ① WMI 设备关键词搜索：null=查询失败 / 空=不在 / 非空=在
-                    List<string> wmiMatches = FindMatchingPorts();
                     bool wmiSaysPresent = wmiMatches != null &&
-                        wmiMatches.Exists(p => string.Equals(p, _currentPortName, StringComparison.OrdinalIgnoreCase));
+                        wmiMatches.Exists(p => string.Equals(p, currentPort, StringComparison.OrdinalIgnoreCase));
 
                     // ② 系统串口列表（GetPortNames，读注册表 SERIALCOMM）：当前端口是否还在
-                    bool inPortList = false;
-                    try
-                    {
-                        string[] portNames = SerialPort.GetPortNames();
-                        if (portNames != null)
-                        {
-                            foreach (string p in portNames)
-                            {
-                                if (string.Equals(p, _currentPortName, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    inPortList = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    catch { /* GetPortNames 失败：跳过这一路判定 */ }
+                    bool inPortList = portNames != null &&
+                        Array.Exists(portNames, p => string.Equals(p, currentPort, StringComparison.OrdinalIgnoreCase));
 
-                    DebugLog($"心跳: 当前={_currentPortName}, WMI匹配=[{JoinPorts(wmiMatches)}], " +
-                             $"系统列表=[{JoinPorts(SerialPort.GetPortNames())}], WMI在={wmiSaysPresent}, 列表在={inPortList}");
+                    DebugLog($"心跳: 当前={currentPort}, WMI匹配=[{JoinPorts(wmiMatches)}], " +
+                             $"系统列表=[{JoinPorts(portNames)}], WMI在={wmiSaysPresent}, 列表在={inPortList}");
 
                     // 两路独立判定：任一路"查询成功但端口已不在" → 判定断连（查询失败那路自动跳过）
                     if ((wmiMatches != null && !wmiSaysPresent) ||
-                        (!inPortList && SafeGetPortNames() != null))
+                        (portNames != null && !inPortList))
                     {
                         OnDisconnectDetected("扫码枪已被拔掉（动态搜索不到该串口）");
                         return;
@@ -379,26 +377,11 @@ namespace CommonLib.Services
                 else
                 {
                     // 固定串口模式：回落到"当前端口名是否还在系统串口列表"判断
-                    try
+                    bool portExists = portNames != null &&
+                        Array.Exists(portNames, p => string.Equals(p, currentPort, StringComparison.OrdinalIgnoreCase));
+                    if (!portExists)
                     {
-                        bool portExists = false;
-                        foreach (string p in SerialPort.GetPortNames())
-                        {
-                            if (string.Equals(p, _currentPortName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                portExists = true;
-                                break;
-                            }
-                        }
-                        if (!portExists)
-                        {
-                            OnDisconnectDetected("USB 串口已被移除");
-                            return;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        OnDisconnectDetected($"端口探测失败: {ex.Message}");
+                        OnDisconnectDetected("USB 串口已被移除");
                         return;
                     }
                 }
@@ -597,7 +580,12 @@ namespace CommonLib.Services
             if (th != null)
             {
                 _heartbeatThread = null;
-                if (!th.Join(2000)) { try { th.Abort(); } catch { /* 退出超时兜底 */ } }
+                // 心跳循环按 _disposed 退出，最坏再等一个心跳周期（3s）。
+                // 旧代码 Join(2000) 超时后用 Thread.Abort 兜底——Abort 已过时且可能破坏串口句柄
+                // 状态，现改为等待自然退出；若真卡在 WMI/串口系统查询里（概率极低），进程退出时
+                // 后台线程随之结束，不阻塞关窗。
+                try { if (!th.Join(3000)) LogHelper.Warn("扫码枪心跳线程未在 3s 内退出（可能阻塞在系统查询），交由进程退出清理"); }
+                catch { }
             }
 
             lock (_lock)
