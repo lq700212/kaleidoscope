@@ -146,7 +146,7 @@ namespace Kaleidoscope.ConfigEditor
             int x = 12;
 
             var btnNew = MakeButton("新建", "新建一份默认配置", NewConfig, true);
-            var btnOpen = MakeButton("打开…", "打开 .kcfg 配置文件", OpenConfig, true);
+            var btnOpen = MakeButton("打开", "打开 .kcfg 配置文件", OpenConfig, true);
             var btnSave = MakeButton("保存", "保存（保存前自动校验）", SaveConfig, true);
             _toolbar.Controls.Add(btnNew);
             _toolbar.Controls.Add(btnOpen);
@@ -156,7 +156,7 @@ namespace Kaleidoscope.ConfigEditor
             x = PlaceButton(btnSave, x, y) + 18; // 组间留更大间距代替分隔线
 
             var btnValidate = MakeButton("校验", "校验当前配置，列出错误与警告", ValidateConfig);
-            var btnExport = MakeButton("导出说明书…", "把全部设备配置的字段说明导出成 Markdown 文档（现场参数交接用）", ExportDoc);
+            var btnExport = MakeButton("导出说明书", "把全部设备配置的字段说明导出成 Markdown 文档（现场参数交接用）", ExportDoc);
             _toolbar.Controls.Add(btnValidate);
             _toolbar.Controls.Add(btnExport);
             x = PlaceButton(btnValidate, x, y) + 8;
@@ -242,11 +242,17 @@ namespace Kaleidoscope.ConfigEditor
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 240,
+                SplitterDistance = 300,
                 FixedPanel = FixedPanel.Panel1,
                 SplitterWidth = 6,
                 BackColor = FormBg,
             };
+            // 坑：SplitContainer 创建时 Width 还是默认 150（Dock 布局未发生），此时设
+            // SplitterDistance=300 会被 clamp 到 150-6-25≈119；之后 Dock=Fill 拉伸到 1100
+            // 因 FixedPanel=Panel1 保持该值不放大 → 必须等窗体 Shown（尺寸已定）后再设一次。
+            // 左侧树固定 300px：PLC 从站/主站、扫码枪"（串口/TCP）"等带括号长文本
+            // 缩进后剩余可用宽度需 ≥ 280，119 会截断括号内文字。
+            Shown += (s, e) => split.SplitterDistance = 300;
             split.Panel1.Controls.Add(_tree);
             split.Panel1.BackColor = FormBg;
             split.Panel2.Controls.Add(rightPanel);
@@ -309,17 +315,18 @@ namespace Kaleidoscope.ConfigEditor
         /// <returns>UIButton 实例（未定位置，由调用方 PlaceButton 摆放）</returns>
         private UIButton MakeButton(string text, string tip, Action onClick, bool primary = false)
         {
-            // 实测文本宽 + 左右留白，确保"导出说明书…/添加设备"这类长文本不截断
-            int w = TextRenderer.MeasureText(text, Font).Width + 32;
             var b = new UIButton
             {
                 Text = text,
                 AutoSize = false,
-                Size = new Size(w, 32),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Radius = 6,
                 TabStop = false,
             };
+            // UIButton 默认字号 12pt，与窗体默认 9pt 不同——必须用按钮自身字体实测宽度，
+            // 否则"打开…/导出说明书…"这类长文本会截断；左右各留 20px（+40）。
+            int w = TextRenderer.MeasureText(text, b.Font).Width + 40;
+            b.Size = new Size(w, 32);
             if (!primary)
             {
                 // 次要按钮：浅绿底 + 深绿字 + 浅绿描边（显式自定义样式）

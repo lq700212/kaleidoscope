@@ -27,16 +27,28 @@
   2. `UIForm` 标题栏左上角**红色小三角**：`UIForm.OnPaint` 用 WinForms `ShowIcon`（默认 true）
      判断是否 `DrawIcon` 标题栏图标，会把 SunnyUI 内置红色图标画出来（与 `ShowTitleIcon` 无关，
      设 Icon=null 仍画）——MainForm 补 `ShowIcon = false` 干净移除。
+- **文本截断修复**：
+  1. 工具条按钮（打开/导出说明书）文本显示不全——`MakeButton` 原用**窗体默认字体**（9pt）
+     `TextRenderer.MeasureText` 定宽，而 UIButton 实际渲染用**自身默认字体（12pt）**，测宽偏窄约 1/3；
+     改为用 `b.Font` 实测 + 左右各 20px 留白（打开 79 / 导出说明书 127，文字均完整显示）；
+     按用户要求按钮文案去掉"…"省略号（打开…→打开、导出说明书…→导出说明书）；
+  2. 左侧设备树区域过窄（SplitterDistance=240 且被 SplitContainer 创建期 clamp 到 ~119），
+     PLC 从站"从站（监听 502，三拍握手）"、扫码枪"（串口/TCP）"括号内文本被裁剪——
+     树区固定 300px，并在窗体 `Shown`（尺寸已定）后再设一次 `SplitterDistance=300`
+     （**坑**：SplitContainer 创建时 Width 仍为默认 150，此时设 SplitterDistance 会被
+     clamp 到 150-6-25≈119，Dock 拉伸后因 FixedPanel=Panel1 保持该值不变）。
 - 文档同步：根 `README.md`、`ConfigEditor/README.md`（界面小节 + 结构 libs 说明）。
 
 ### 验证
 
 - MSBuild Debug/AnyCPU 构建 ConfigEditor 通过。
 - 启动冒烟：带 .kcfg / 无参数均稳定存活 10s 无崩溃；窗体构造成功（UIForm）。
-- 布局坐标反射验证：工具栏 7 按钮全 `Y=10/H=32` 垂直居中、宽度按文本实测
-  （导出说明书…110 / 添加设备 88 等不截断）；预设条 label Y=11（中线 23 对称居中）。
+- 布局坐标反射验证：工具栏 7 按钮全 `Y=10/H=32` 垂直居中、宽度按**按钮自身 12pt 字体**实测
+  （打开 79 / 导出说明书 127 / 添加设备 111 等不截断）；预设条 label Y=11（中线 23 对称居中）；
+  左侧树区 `SplitterDistance=300`（Panel1 300px / Panel2 790px），树文字右缘距面板边界 35px 余量。
 - 截图逐像素扫描：**主窗体 1100x780 内红色像素 count=0**（两处红块均消除）；
-  按钮行采样 新建/保存=Accent 绿、打开…=白字、校验/导出=浅绿、添加设备=disabled 深灰。
+  按钮行采样 新建/保存=Accent 绿、打开…=白字、校验/导出=浅绿、添加设备=disabled 深灰；
+  按钮文字完整（打开…文字右端距按钮右缘 24px、导出说明书… 41px 余量）。
 
 ## V1.4.1（2026-08-16）修补：README 快速接入代码块 + 描述符构建防御
 
