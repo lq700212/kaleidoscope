@@ -50,7 +50,7 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 - 命名空间：`Kaleidoscope.Models`（配置）、`Kaleidoscope.Services`（服务）、`Kaleidoscope.Utils`（工具）、`Kaleidoscope.Configuration`（配置持久化/校验）。
 - **配置持久化约定（V1.2.4 起）**：`ConfigSerializer` 读写 `.kcfg` JSON（UTF-8 无 BOM、缩进、中文直读）；DataContractJsonSerializer 缺字段自动补默认值（版本兼容）、显式 null 会覆盖默认值（必须经 `EnsureSafe` 兜底）；`DeviceHubConfigValidator` 保存前必校验（IP/端口/寄存器越界，Errors 必须修 Warnings 建议修）。新增配置模型字段时无需迁移旧文件。
 - **配置序列化约定**：串口停止位存字符串 `"1"/"15"/"2"`；校验位存枚举名 `None/Odd/Even/Mark/Space`；PLC 地址存 **DataStore 索引**（协议号 = 索引 + 40000）。读写两端大小写兼容。
-- **配置模型元数据（V1.3.0 起，可视化编辑器地基）**：`Models/*.cs` 每个公开属性必须带 `[DisplayName(中文名)]` + `[Description(说明)]`；顶层聚合配置（如 `DeviceHubConfig`）按业务语义再加 `[Category]` 分组。**新增配置字段时同步补**，否则编辑器/业务界面只显示英文属性名，视为遗漏返工。
+- **配置模型元数据（V1.3.0 起，可视化编辑器地基）**：`Models/*.cs` 每个公开属性必须带 `[DisplayName(中文名)]` + `[Description(说明)]`；顶层聚合配置（如 `DeviceHubConfig`）按业务语义再加 `[Category]` 分组。**新增配置字段时同步补**，否则编辑器/业务界面/自动说明书只显示英文属性名，视为遗漏返工。
 - 服务层事件一律**工作线程触发**，UI 订阅方自行 `Invoke`；库内不做 UI 线程跳转。
 - 日志只记边沿（连上/断开各一次），连续失败中间静默节流，防刷屏。
 
@@ -89,6 +89,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 - **新增设备类型**：先写服务类（独立后台线程 + 惰性连接 + Dispose 干净），再在 `DeviceHubConfig` 加配置段、`DeviceHub.BuildServices` 建实例、`SubscribeAggregateEvents` 聚合事件。
 - **Mock 三件套**：气压表/IO/送风机各自有 `MockXxx` 实现（随机数据模拟），`DeviceHubConfig.UseMockCommunication=true` 时全部用 Mock，不接设备跑通 UI/业务；接真机改回 false，业务代码不动。扫码枪/PLC/相机不受此开关影响。
 - **ConfigEditor（V1.3.0，独立工具不进库）**：`ConfigEditor/` 可视化配置编辑器只产 `.kcfg`、不启停设备；靠 Models 元数据自动渲染属性网格，**新增配置字段无需改编辑器代码**；`BrandPresets.cs` 品牌预设只收敛参数差异，协议差异仍需改库；产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入。编辑器自身遵循"改动必须可编译"铁律（同库工程构建命令）。
+- **设备自文档化（V1.4.0）**：`DeviceDescriptorRegistry` 基于 Models 元数据反射自动构建描述符（设备中文名 + 字段：中文名/说明/分组/类型/默认值/是否集合），`DeviceDescriptionExporter` 导出 Markdown 说明书（编辑器「导出说明书…」按钮同源）。**新增配置模型时只需在 Registry 静态构造里登记一行设备中文名**；字段清单自动跟上。校验规则仍手写在 `DeviceHubConfigValidator`（地址重叠等跨字段逻辑自动推导不了），两者职责互补。
 
 ## 已知通讯关键点（改之前先读对应文件注释）
 

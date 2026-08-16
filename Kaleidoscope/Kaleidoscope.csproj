@@ -78,6 +78,9 @@
     <Compile Include="Models\DeviceHubConfig.cs" />
     <Compile Include="Configuration\ConfigSerializer.cs" />
     <Compile Include="Configuration\DeviceHubConfigValidator.cs" />
+    <Compile Include="Configuration\DeviceDescriptor.cs" />
+    <Compile Include="Configuration\DeviceDescriptorRegistry.cs" />
+    <Compile Include="Configuration\DeviceDescriptionExporter.cs" />
     <Compile Include="Services\PlcService.cs" />
     <Compile Include="Services\KeyenceIV4Camera.cs" />
     <Compile Include="Services\ScannerService.cs" />

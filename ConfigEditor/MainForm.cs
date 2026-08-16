@@ -115,6 +115,7 @@ namespace Kaleidoscope.ConfigEditor
             _toolbar.Items.Add(MakeButton("保存", "保存（保存前自动校验）", SaveConfig));
             _toolbar.Items.Add(new ToolStripSeparator());
             _toolbar.Items.Add(MakeButton("校验", "校验当前配置，列出错误与警告", ValidateConfig));
+            _toolbar.Items.Add(MakeButton("导出说明书…", "把全部设备配置的字段说明导出成 Markdown 文档（现场参数交接用）", ExportDoc));
             _toolbar.Items.Add(new ToolStripSeparator());
             _btnAddDevice = MakeButton("添加设备", "在相机/扫码枪分组下新增一台", AddDevice);
             _btnDelDevice = MakeButton("删除设备", "删除选中的相机/扫码枪", DeleteDevice);
@@ -515,6 +516,31 @@ namespace Kaleidoscope.ConfigEditor
             lines.AddRange(r.Warnings);
             MessageBox.Show(this, string.Join("\r\n", lines), "校验",
                 MessageBoxButtons.OK, r.IsValid ? MessageBoxIcon.Warning : MessageBoxIcon.Error);
+        }
+
+        /// <summary>导出配置字段说明书（Markdown）：字段中文名/类型/默认值/说明，现场参数交接用</summary>
+        private void ExportDoc()
+        {
+            var dlg = new SaveFileDialog
+            {
+                Title = "导出设备配置说明书",
+                Filter = "Markdown (*.md)|*.md|所有文件 (*.*)|*.*",
+                FileName = "Kaleidoscope设备配置说明书.md",
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                // 导出的是"字段语义说明书"（含默认值），不依赖当前编辑值；
+                // 库新增配置字段后重新导出即可，文档自动跟上。
+                DeviceDescriptionExporter.ExportToMarkdownFile(dlg.FileName);
+                MessageBox.Show(this, "说明书已导出：" + dlg.FileName, "导出说明书",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "导出失败：" + ex.Message, "导出说明书",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         /// <summary>添加相机/扫码枪（只在对应分组节点选中时可用）</summary>

@@ -33,9 +33,12 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   ├── IoConfig.cs          #     IO 耦合器 IP/寄存器地址/备用通道映射
 │   │   ├── FanConfig.cs         #     送风机 IP/端口/自动识别候选/寄存器映射与命令码
 │   │   └── DeviceHubConfig.cs   #     全部设备 + 型号 + PlcRole + UseMockCommunication 聚合配置
-│   ├── Configuration/           #   配置持久化 + 校验（V1.2.4 新增，零第三方依赖）
+│   ├── Configuration/           #   配置持久化 + 校验 + 设备描述符（V1.2.4 / V1.4.0）
 │   │   ├── ConfigSerializer.cs  #     DeviceHubConfig ⇄ .kcfg JSON 文件（缺字段兼容/中文直读/自动兜底）
-│   │   └── DeviceHubConfigValidator.cs # 保存前校验（IP/端口/寄存器/必填，返回错误与警告）
+│   │   ├── DeviceHubConfigValidator.cs # 保存前校验（IP/端口/寄存器/必填，返回错误与警告）
+│   │   ├── DeviceDescriptor.cs  #     设备/字段描述符模型（中文名/说明/分组/类型/默认值）
+│   │   ├── DeviceDescriptorRegistry.cs # 按 Models 元数据反射自动构建设备描述符（自文档化）
+│   │   └── DeviceDescriptionExporter.cs # 导出 Markdown 设备配置说明书
 │   ├── Services/                #   底层通讯服务（自持后台线程/惰性连接/自动重连）
 │   │   ├── PlcService.cs        #     Modbus TCP 从站监听 + 寄存器读写 + 上电复位
 │   │   ├── ModbusTcpMasterClient.cs #  通用 Modbus TCP 主站（主动读写 + 自动轮询，PLC 主站模式用）
@@ -111,6 +114,16 @@ hub.ApplyConfig(cfg);                       // 转手给 DeviceHub 即可
 
 保存前建议先用 `DeviceHubConfigValidator.Validate(cfg)` 拦截明显错误（IP/端口/寄存器越界等，
 返回 `Errors` 必须修、`Warnings` 建议修），把坏配置挡在运行时之前。
+
+### 设备自文档化（V1.4.0：字段说明 = 文档）
+
+`Kaleidoscope.Configuration` 提供"配置自文档化"：描述符基于 `Models/*.cs` 的
+`System.ComponentModel` 元数据反射自动构建，**新增字段自动出现在说明书里，不用手工维护**：
+
+```csharp
+DeviceDescriptionExporter.ExportToMarkdownFile("设备配置说明书.md");  // 导出全部设备段字段表
+var d = DeviceDescriptorRegistry.Get(typeof(CameraConfig));           // 取单段描述符（智能渲染/日志自述用）
+```
 
 // ② 启动：扫码枪连接 + 心跳监控 + 存图定期清理 + PLC 主站轮询（气压表/IO/送风机由监控心跳自动连接）
 hub.Start();

@@ -7,6 +7,50 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.4.0（2026-08-16）设备自文档化：DeviceDescriptor 描述符 + 说明书导出
+
+> 配置"可视化编辑器"规划的第三步：把第二步的 `System.ComponentModel` 元数据（V1.3.0）收敛成
+> **可编程访问的设备描述符**。从此"字段说明=文档"落成真：配置模型自带语义，说明书/智能渲染/
+> 日志自描述全部由一个入口生成，库新增字段自动跟上、不靠人肉维护文档。
+
+### 改动范围
+
+- **新增 `Configuration/DeviceDescriptor.cs`**：描述符模型——`DeviceDescriptor`（设备中文名 +
+  字段清单）+ `DeviceFieldDescriptor`（属性名/中文名/说明/分组/友好类型名/默认值文本/是否集合）。
+- **新增 `Configuration/DeviceDescriptorRegistry.cs`**：注册表 + 反射构建——
+  - 静态构造登记"配置模型类型 → 设备中文名"一行一个（含 4 个集合子表项，共 13 段）；
+  - `Build(Type)` 反射读取 `[DisplayName]/[Description]/[Category]` + 类型信息 + 默认值样本
+    （new 模型后读属性，即字段初始化器默认配置），字段按 MetadataToken 声明顺序稳定输出；
+  - `Get(Type)` 单段（缓存 + 锁）、`GetAll()` 全部（按登记顺序）；
+  - 友好类型名：`List<CameraConfig>` 这种泛型、嵌套对象显示 `（对象）Xxx`、集合显示 `（集合）List<...>`。
+- **新增 `Configuration/DeviceDescriptionExporter.cs`**：`ExportToMarkdown()` /
+  `ExportToMarkdownFile(path)`（UTF-8 无 BOM）——把全部设备段的字段表（中文名/类型/默认值/说明）
+  导出成 Markdown 说明书；单元格对 `|`/换行转义，防破坏表格。
+- **ConfigEditor 集成**：工具栏新增「导出说明书…」按钮（`ExportToMarkdownFile` + 保存对话框）。
+- **csproj**：新增 3 个 Compile（零新依赖，描述符纯反射 + 现有特性）。
+
+### 为什么这么改
+
+- 通用库定位的最后一环：设备参数文档（现场交接/对参数）不再手写，而是模型元数据的免费副产品；
+  新增配置模型只需在 Registry 加一行中文名登记，字段说明/说明书自动出现。
+- 边界明确：描述符是"字段语义"元数据，校验规则仍手写在 `DeviceHubConfigValidator`
+  （寄存器重叠/地址越界等跨字段逻辑无法从元数据自动推导），两者职责互补。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope + ConfigEditor 通过（无 error）。
+- PowerShell 冒烟（加载 bin 输出 dll）：`GetAll()` 返回 13 段、总字段 126；`CameraConfig` 22 字段、
+  首字段 CameraId（声明顺序正确）；Markdown 导出含中文、嵌套对象显示 `（对象）Xxx`、集合显示
+  `（集合）List<...>`；导出文件生成成功。ConfigEditor 启动冒烟存活不崩。
+
+### 文档同步
+
+- `ConfigEditor/README.md`：工具栏表格 + 导出说明书说明 + 结构行更新。
+- `README.md`：仓库结构 `Configuration/` 补描述符三件；「配置读写」后新增「设备自文档化」小节。
+- `AGENTS.md`：代码约定元数据条目补"自动说明书"；架构约束新增「设备自文档化（V1.4.0）」。
+- `使用说明.md`：四开头引导补说明书导出一句。
+- `CHANGELOG.md`：本版本（V1.4.0）。
+
 ## V1.3.0（2026-08-16）可视化配置编辑器（ConfigEditor）+ 配置模型元数据
 
 > 配置"可视化编辑器"规划的第一步（V1.2.4 已铺好 ConfigSerializer/Validator 地基）之后，
