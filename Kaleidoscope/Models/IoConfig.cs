@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Kaleidoscope.Models
 {
@@ -24,42 +25,64 @@ namespace Kaleidoscope.Models
         /// IO 输入通道总数（耦合器提供的 DI 通道数，不一定要等于气压表数）。
         /// 老化现场：3 个输入模块（2×DI50N-S + 1×DI40N-S）= 80 路，前 72 路用于真空负压表，其余预留。
         /// </summary>
+        [DisplayName("输入通道总数")]
+        [Description("耦合器提供的 DI 通道数；老化现场 80 路（前 72 路用于真空负压表）")]
         public int TotalInputs { get; set; } = 80;
 
         /// <summary>
         /// IO 输出通道总数（耦合器提供的 DO 通道数）。
         /// 老化现场：5×DQ50P-S = 160 路，业务实际用 144（真空电磁阀 72 + 载台上电 72），其余预留。
         /// </summary>
+        [DisplayName("输出通道总数")]
+        [Description("耦合器提供的 DO 通道数；老化现场 160 路（实际用 144）")]
         public int TotalOutputs { get; set; } = 160;
 
         /// <summary>IO 耦合器 IP 地址（GX-CL140 默认 192.168.1.20）。</summary>
+        [DisplayName("耦合器 IP")]
+        [Description("IO 耦合器 IP 地址（GX-CL140 默认 192.168.1.20）")]
         public string PlcAddress { get; set; } = "192.168.1.20";
 
         /// <summary>IO 耦合器 Modbus TCP 端口（标准 502）。</summary>
+        [DisplayName("端口")]
+        [Description("IO 耦合器 Modbus TCP 端口（标准 502）")]
         public int PlcPort { get; set; } = 502;
 
         /// <summary>IO 耦合器从站地址（UnitId，默认 1）。</summary>
+        [DisplayName("从站地址 UnitId")]
+        [Description("IO 耦合器从站地址，默认 1")]
         public byte IoUnitId { get; set; } = 1;
 
         /// <summary>DI 输入寄存器起始地址（功能码 0x04），默认 0x1000。</summary>
+        [DisplayName("DI 输入寄存器起始地址")]
+        [Description("DI 输入寄存器起始地址（功能码 0x04），默认 0x1000；16 点/寄存器")]
         public ushort IoInputRegisterStartAddress { get; set; } = 0x1000;
 
         /// <summary>DO 输出寄存器起始地址（Holding Register），默认 0x2000。</summary>
+        [DisplayName("DO 输出寄存器起始地址")]
+        [Description("DO 输出寄存器起始地址（功能码 0x03/0x06），默认 0x2000；16 点/寄存器")]
         public ushort IoOutputRegisterStartAddress { get; set; } = 0x2000;
 
         /// <summary>
         /// 输入点逻辑取反开关：现场线路 NPN（低有效）但耦合器映射后有的"1=ON"、有的"0=ON"，
         /// 需现场实测。false=bit=1 认为 ON（默认），true=bit=0 认为 ON。
         /// </summary>
+        [DisplayName("输入逻辑取反")]
+        [Description("false=bit=1 认为 ON（默认）；true=bit=0 认为 ON（现场线路低有效时用）")]
         public bool InvertInputs { get; set; } = false;
 
         /// <summary>输出点逻辑取反开关，语义同 InvertInputs。</summary>
+        [DisplayName("输出逻辑取反")]
+        [Description("输出点逻辑取反开关，语义同输入逻辑取反")]
         public bool InvertOutputs { get; set; } = false;
 
         /// <summary>TCP 发送超时（毫秒），默认 3000。</summary>
+        [DisplayName("发送超时(ms)")]
+        [Description("TCP 发送超时毫秒，默认 3000")]
         public int TcpSendTimeoutMs { get; set; } = 3000;
 
         /// <summary>TCP 接收超时（毫秒），同时用于 BeginConnect 手动超时，默认 3000。</summary>
+        [DisplayName("接收超时(ms)")]
+        [Description("TCP 接收超时毫秒，同时用于 BeginConnect 手动超时，默认 3000")]
         public int TcpReceiveTimeoutMs { get; set; } = 3000;
 
         /// <summary>
@@ -67,9 +90,13 @@ namespace Kaleidoscope.Models
         /// 现场某 DQ 通道烧毁后把该通道信号改写到备用通道；false 时所有行为不变（默认）。
         /// 业务侧输出编号完全不变，只重定向物理寄存器+bit。
         /// </summary>
+        [DisplayName("启用备用通道映射")]
+        [Description("true=把烧毁/异常通道的信号改写到备用通道，业务输出编号不变，只重定向物理点")]
         public bool IoBackupChannelMappingEnabled { get; set; } = false;
 
         /// <summary>IO 输出备用通道映射表（IoBackupChannelMappingEnabled=true 时生效），解析见 IoOutputChannelRemap.ParseAll。</summary>
+        [DisplayName("备用通道映射表")]
+        [Description("备用通道映射表（双击展开编辑）：源 寄存器@通道 -> 目标 寄存器@通道")]
         public List<IoOutputChannelRemap> IoBackupChannelMappings { get; set; } = new List<IoOutputChannelRemap>();
     }
 }

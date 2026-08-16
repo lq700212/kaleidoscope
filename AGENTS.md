@@ -14,7 +14,7 @@
 - .NET Framework **4.7.2**，C# `LangVersion=7.3`（WinForms 业务项目引用，勿引入 .NET Core 语法/API）
 - 通讯：**NModbus 3.0.83**（Modbus TCP 从站/主站，汇川 PLC）+ **NModbus.Serial 3.0.83**（Modbus RTU 主站，气压表）+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口 + IO 耦合器/送风机 Modbus TCP 主站
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
-- 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）
+- 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），供 `ConfigEditor/` 可视化编辑器自动渲染参数界面
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
@@ -50,6 +50,7 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 - 命名空间：`Kaleidoscope.Models`（配置）、`Kaleidoscope.Services`（服务）、`Kaleidoscope.Utils`（工具）、`Kaleidoscope.Configuration`（配置持久化/校验）。
 - **配置持久化约定（V1.2.4 起）**：`ConfigSerializer` 读写 `.kcfg` JSON（UTF-8 无 BOM、缩进、中文直读）；DataContractJsonSerializer 缺字段自动补默认值（版本兼容）、显式 null 会覆盖默认值（必须经 `EnsureSafe` 兜底）；`DeviceHubConfigValidator` 保存前必校验（IP/端口/寄存器越界，Errors 必须修 Warnings 建议修）。新增配置模型字段时无需迁移旧文件。
 - **配置序列化约定**：串口停止位存字符串 `"1"/"15"/"2"`；校验位存枚举名 `None/Odd/Even/Mark/Space`；PLC 地址存 **DataStore 索引**（协议号 = 索引 + 40000）。读写两端大小写兼容。
+- **配置模型元数据（V1.3.0 起，可视化编辑器地基）**：`Models/*.cs` 每个公开属性必须带 `[DisplayName(中文名)]` + `[Description(说明)]`；顶层聚合配置（如 `DeviceHubConfig`）按业务语义再加 `[Category]` 分组。**新增配置字段时同步补**，否则编辑器/业务界面只显示英文属性名，视为遗漏返工。
 - 服务层事件一律**工作线程触发**，UI 订阅方自行 `Invoke`；库内不做 UI 线程跳转。
 - 日志只记边沿（连上/断开各一次），连续失败中间静默节流，防刷屏。
 
@@ -87,6 +88,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 - **ImageStore 归 DeviceHub 所有**：`DeviceHub.Dispose`/`ApplyConfig` 显式释放（FileSystemWatcher 句柄），其他对象不得代关。
 - **新增设备类型**：先写服务类（独立后台线程 + 惰性连接 + Dispose 干净），再在 `DeviceHubConfig` 加配置段、`DeviceHub.BuildServices` 建实例、`SubscribeAggregateEvents` 聚合事件。
 - **Mock 三件套**：气压表/IO/送风机各自有 `MockXxx` 实现（随机数据模拟），`DeviceHubConfig.UseMockCommunication=true` 时全部用 Mock，不接设备跑通 UI/业务；接真机改回 false，业务代码不动。扫码枪/PLC/相机不受此开关影响。
+- **ConfigEditor（V1.3.0，独立工具不进库）**：`ConfigEditor/` 可视化配置编辑器只产 `.kcfg`、不启停设备；靠 Models 元数据自动渲染属性网格，**新增配置字段无需改编辑器代码**；`BrandPresets.cs` 品牌预设只收敛参数差异，协议差异仍需改库；产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入。编辑器自身遵循"改动必须可编译"铁律（同库工程构建命令）。
 
 ## 已知通讯关键点（改之前先读对应文件注释）
 
@@ -131,6 +133,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 
 - 成功标准：输出 `Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll` 且无 error。
 - Demo 测试台同理（引用 Kaleidoscope bin 输出）：`Demo/KaleidoscopeDemo.csproj` 构建后再跑 `Demo\bin\Debug\KaleidoscopeDemo.exe`。
+- 可视化配置编辑器同理：`ConfigEditor/KaleidoscopeConfigEditor.csproj` 构建后跑 `ConfigEditor\bin\Debug\KaleidoscopeConfigEditor.exe`（可命令行传 .kcfg 直接打开）。
 - 无单元测试框架；以构建通过 + Demo 冒烟测试为验证手段。
 
 ## 文档同步（铁律：每次任务主动完成，不许等提醒）

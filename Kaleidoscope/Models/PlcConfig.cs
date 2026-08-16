@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Kaleidoscope.Models
 {
@@ -24,37 +25,55 @@ namespace Kaleidoscope.Models
     public class PlcConfig
     {
         /// <summary>上位机从站监听绑定 IP（"0.0.0.0"=所有网卡；多网卡可填 19.87.6.230 绑定指定网卡）</summary>
+        [DisplayName("监听 IP")]
+        [Description("上位机从站监听绑定 IP；0.0.0.0=监听所有网卡（现场主机多网卡时可填指定 IP 绑定单网卡）")]
         public string IpAddress { get; set; } = "0.0.0.0";
 
         /// <summary>上位机从站监听端口，Modbus TCP 标准 502</summary>
+        [DisplayName("监听端口")]
+        [Description("上位机从站监听端口，Modbus TCP 标准 502")]
         public int Port { get; set; } = 502;
 
         /// <summary>上位机从站 UnitId（需与汇川主站通讯指令里的 UnitId 一致，默认 1）</summary>
+        [DisplayName("从站单元号 UnitId")]
+        [Description("需与 PLC 主站通讯指令里的 UnitId 一致，默认 1")]
         public byte UnitId { get; set; } = 1;
 
         /// <summary>单次读写超时（毫秒，从站模式主要用于日志/容错，不再阻塞主动连接）</summary>
+        [DisplayName("读写超时(ms)")]
+        [Description("从站模式主要用于日志/容错，不阻塞主动连接")]
         public int TimeoutMs { get; set; } = 2000;
 
         // ─── 寄存器地址映射（协议，见类注释）───
         // 设计原则：定长请求放前面，结果与变长数据（型号）放后面，地址可向后扩展。
 
         /// <summary>PLC→上位机：扫码请求。PLC 写 1=请求扫码、0=无请求；上位机读到 1 触发扫码枪。配置=DataStore 索引 1（协议 40001）。</summary>
+        [DisplayName("扫码请求地址")]
+        [Description("PLC→上位机扫码请求寄存器（DataStore 索引，协议号=索引+40000）；PLC 写 1 触发扫码")]
         public ushort ScanRequestAddress { get; set; } = 1;
 
         /// <summary>上位机→PLC：扫码结果。0=默认/复位，1=扫码OK，2=扫码NG（超时）。配置=索引 4（协议 40004）。</summary>
+        [DisplayName("扫码结果地址")]
+        [Description("上位机→PLC 扫码结果寄存器：0=复位/1=OK/2=NG（超时）")]
         public ushort ScanResultAddress { get; set; } = 4;
 
         /// <summary>上位机→PLC：产品型号序号地址（协议 40007）。每次写型号时先把"该型号对应的序号"
         /// 写入本寄存器（型号序号来自 ModelIndexes 映射）；PLC 拿 40007 的序号即可快速区分型号，
         /// 不必解析型号字符串。</summary>
+        [DisplayName("型号序号地址")]
+        [Description("上位机→PLC 产品型号序号寄存器（协议 40007），写 ModelIndexes 里查到的序号")]
         public ushort ProductModelIndexAddress { get; set; } = 7;
 
         /// <summary>上位机→PLC：产品型号起始地址（连续写 ProductModelLen 个寄存器，最多 10 字符）。
         /// 配置=索引 8（协议 40008）——40007 已让给型号序号，型号字符串整体后移一位从 40008 起写。</summary>
+        [DisplayName("型号起始地址")]
+        [Description("上位机→PLC 产品型号字符串起始寄存器（协议 40008），连续写 ProductModelLen 个")]
         public ushort ProductModelAddress { get; set; } = 8;
 
         /// <summary>产品型号寄存器数（每个寄存器 2 字符，默认 5 个=10 字符；超 10 字符按文档
         /// 从索引 13（协议 40013）扩展地址后调整本值，40007 序号位不受影响）。</summary>
+        [DisplayName("型号寄存器数")]
+        [Description("每个寄存器 2 字符，默认 5 个=10 字符；型号超 10 字符时改本值与起始地址")]
         public int ProductModelLen { get; set; } = 5;
 
         /// <summary>
@@ -62,6 +81,8 @@ namespace Kaleidoscope.Models
         /// 每个产品型号对应一个 PLC 序号（写 40007），运行时 PlcService.WriteProductModel
         /// 按型号名（忽略大小写）查本表得序号写 40007；型号没配序号时写 0（PLC 端视为未配置）。
         /// </summary>
+        [DisplayName("型号→序号映射表")]
+        [Description("产品型号名 → PLC 序号 映射（双击展开编辑）；型号没配序号时 PLC 端写 0")]
         public List<ModelIndexItem> ModelIndexes { get; set; } = new List<ModelIndexItem>();
 
         /// <summary>现场默认"产品型号 → PLC 序号"映射（如 Z121=1、U171=2）。
@@ -82,9 +103,13 @@ namespace Kaleidoscope.Models
     public class ModelIndexItem
     {
         /// <summary>产品型号名（匹配忽略大小写）</summary>
+        [DisplayName("型号名")]
+        [Description("产品型号名，与型号候选一致，匹配忽略大小写")]
         public string ModelName { get; set; } = "";
 
         /// <summary>该型号的 PLC 型号序号（写 40007，&gt;0 有效，0=未配置）</summary>
+        [DisplayName("PLC 序号")]
+        [Description("该型号对应的 PLC 40007 序号，>0 有效，0=未配置")]
         public int ModelIndex { get; set; }
     }
 }

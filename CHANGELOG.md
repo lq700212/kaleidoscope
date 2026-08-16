@@ -7,6 +7,57 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.3.0（2026-08-16）可视化配置编辑器（ConfigEditor）+ 配置模型元数据
+
+> 配置"可视化编辑器"规划的第一步（V1.2.4 已铺好 ConfigSerializer/Validator 地基）之后，
+> 本版本把第二步交付：一个**独立工具项目 `ConfigEditor/`**（不进库、不启停设备、只产 `.kcfg`），
+> 靠 `Models` 的 `System.ComponentModel` 元数据自动渲染参数界面。从此配设备不必手写 JSON，
+> 库新增配置字段界面自动出现、编辑器代码一行不用改。
+
+### 改动范围
+
+- **`Models/*.cs` 全部补 `System.ComponentModel` 元数据**（可视化编辑器地基）：
+  - 每个公开属性带 `[DisplayName(中文名)]` + `[Description(说明)]`；顶层聚合配置
+    `DeviceHubConfig` 按业务语义加 `[Category]` 分组（通讯/型号/模拟/图像等）。
+  - 覆盖：`PlcConfig`/`PlcMasterConfig`（含 `PlcPollItem`）/`CameraConfig`（含
+    `StationProgramItem`/`ModelStationPrograms`）/`ScanConfig`/`BarometerConfig`/
+    `IoConfig`/`IoOutputChannelRemap`/`FanConfig`/`ImageConfig`/`DeviceHubConfig`。
+  - 行为零变化（纯特性）；后续新增字段须同步补特性（已列入 AGENTS.md 代码约定红线）。
+- **新增独立工具工程 `ConfigEditor/`**（`KaleidoscopeConfigEditor.csproj`，net472，
+  引用 Kaleidoscope bin 输出，与 Demo 同策略拷 NModbus.dll）：
+  - `MainForm`：左侧设备树（全局/PLC 从站/主站/相机 N/扫码枪 N/气压表/IO/送风机/图像存储，
+    相机与扫码枪支持增删）+ 右侧 PropertyGrid（按 Category 分组、中文名、带说明）+ 工具栏
+    （新建/打开/保存/校验）+ 状态栏；关窗/打开/新建时未保存改动给确认。
+  - 保存前走 `DeviceHubConfigValidator.Validate`：Errors 阻止保存并弹窗逐条列出、
+    Warnings 确认后仍可保存；读写走 `ConfigSerializer`（.kcfg，UTF-8 无 BOM）。
+  - `BrandPresets.cs`：内置品牌预设（按设备类型一键填充该品牌默认参数）——汇川 PLC 从站/主站、
+    基恩士 IV4 相机、基恩士 SR(TCP)/Honeywell Xenon 1902(串口) 扫码枪、通用气压表(0x0001/0x0010)、
+    三菱 GX-CL140 IO 耦合器、送风机现场实测映射 + 另一厂商示例映射；预设只收敛参数差异，
+    协议差异仍需改库。品牌列表在数据层追加，编辑器代码不用改。
+  - `Program` 支持命令行传 .kcfg 启动即打开。
+
+### 为什么这么改
+
+- 通用库定位：换新客户做新界面时，配置环节也不该重写表单。元数据 + PropertyGrid 让
+  "配置界面"变成库模型的免费副产品；新增字段不再需要同步改编辑器。
+- 编辑器保持独立工具（不引运行时代码、不启停设备），库的分层架构（DeviceHub 门面）不被污染；
+  产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入，与手写 .kcfg 完全等价。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 ConfigEditor 通过（无 error），构建后自动拷 Kaleidoscope.dll/NModbus.dll。
+- 启动冒烟：无参数启动存活 4s 不崩；命令行传含 2 相机 + 2 扫码枪的 .kcfg 启动存活不崩
+  （验证 Load → 树重建 → 属性网格绑定链路）。GUI 深度交互以人工验证为主。
+
+### 文档同步
+
+- `ConfigEditor/README.md`：编辑器用途/构建/操作/产出接入（新增）。
+- `README.md`：技术栈序列化条目补元数据说明；仓库结构加 `ConfigEditor/`；新增
+  「⭐ 可视化配置编辑器」小节。
+- `AGENTS.md`：技术栈序列化条目补元数据；代码约定新增「配置模型元数据（V1.3.0 起）」；
+  架构约束新增「ConfigEditor」条目；构建命令补编辑器命令。
+- `CHANGELOG.md`：本版本（V1.3.0）。
+
 ## V1.2.4（2026-08-16）库内置配置持久化 + 校验（ConfigSerializer/Validator）
 
 > 配置"可视化编辑器"规划的第一步地基：把设备配置（`DeviceHubConfig`）的**读写与校验**收进库内，

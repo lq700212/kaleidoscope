@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Kaleidoscope.Models
 {
@@ -33,15 +34,24 @@ namespace Kaleidoscope.Models
         /// Master=上位机作主站（主动读写 PLC，用 PlcMasterConfig）。业务层用
         /// DeviceHub.IsPlcMaster 判断，取 hub.Plc（从站）或 hub.PlcMaster（主站）使用。
         /// </summary>
+        [DisplayName("PLC 通讯角色")]
+        [Description("Slave=上位机作从站（监听 502，默认）；Master=上位机作主站（主动读写 PLC）")]
+        [Category("全局")]
         public PlcRole PlcRole { get; set; } = PlcRole.Slave;
 
         /// <summary>PLC 通讯配置（Modbus TCP 从站监听参数 + 寄存器地址；仅 PlcRole=Slave 生效）</summary>
+        [DisplayName("PLC（从站）")]
+        [Description("PLC 从站监听参数 + 寄存器地址（仅 PlcRole=Slave 生效）")]
+        [Category("PLC（从站）")]
         public PlcConfig Plc { get; set; } = new PlcConfig();
 
         /// <summary>
         /// PLC（或其它 Modbus TCP 从站设备）主站连接与轮询配置（仅 PlcRole=Master 生效，
         /// 用 ModbusTcpMasterClient 主动读写）。字段见 <see cref="PlcMasterConfig"/>。
         /// </summary>
+        [DisplayName("PLC（主站）")]
+        [Description("主站连接与轮询配置（仅 PlcRole=Master 生效）")]
+        [Category("PLC（主站）")]
         public PlcMasterConfig PlcMaster { get; set; } = new PlcMasterConfig();
 
         /// <summary>
@@ -49,33 +59,51 @@ namespace Kaleidoscope.Models
         /// 为空列表时 DeviceHub 会兜底用 CameraConfig.DefaultCameras()（通用示例默认值，
         /// 新项目应按现场实际 IP 修改这些默认值或直接配好本列表）。
         /// </summary>
+        [DisplayName("相机列表")]
+        [Description("相机列表（双击展开编辑/在左侧树增删台）；空列表时运行时用库默认相机")]
+        [Category("相机")]
         public List<CameraConfig> Cameras { get; set; } = new List<CameraConfig>();
 
         /// <summary>
         /// 扫码枪配置列表（多台，每台按 ScanConfig.Mode 选 TCP 或串口实现）。
         /// 为空列表则不留任何扫码枪（条码走手动输入/业务侧模拟）。
         /// </summary>
+        [DisplayName("扫码枪列表")]
+        [Description("扫码枪列表（双击展开编辑/在左侧树增删台）；空列表则不留扫码枪")]
+        [Category("扫码枪")]
         public List<ScanConfig> Scanners { get; set; } = new List<ScanConfig>();
 
         /// <summary>图像存储配置（存图目录结构/文件名模板/保留天数/FTP 兜底目录）</summary>
+        [DisplayName("图像存储")]
+        [Description("存图目录结构/文件名模板/保留天数/FTP 兜底目录")]
+        [Category("图像存储")]
         public ImageConfig Image { get; set; } = new ImageConfig();
 
         /// <summary>
         /// 气压表（真空负压表）通讯配置（Modbus RTU 主站，RS485→USB 读压力/写阈值）。
         /// 接入方式：业务层定时调 hub.Barometer.ReadAllData() 采集，写设备阈值调 SetAllThresholds。
         /// </summary>
+        [DisplayName("气压表")]
+        [Description("气压表通讯配置（Modbus RTU 主站，读压力/写阈值）")]
+        [Category("气压表")]
         public BarometerConfig Barometer { get; set; } = new BarometerConfig();
 
         /// <summary>
         /// IO 耦合器通讯配置（Modbus TCP 主站，读 DI/写 DO 控制真空电磁阀/载台上电）。
         /// 接入方式：业务层定时调 hub.Io.ReadAllInputs()/ReadAllOutputs() 采集，控制输出调 WriteOutput。
         /// </summary>
+        [DisplayName("IO 耦合器")]
+        [Description("IO 耦合器通讯配置（Modbus TCP 主站，读 DI/写 DO）")]
+        [Category("IO 耦合器")]
         public IoConfig Io { get; set; } = new IoConfig();
 
         /// <summary>
         /// 冷却送风机控制屏通讯配置（Modbus TCP，定值启动/停止 + 读温度湿度）。
         /// 接入方式：业务层调 hub.Fan.ReadStatus()/StartFixedValue()/Stop()。
         /// </summary>
+        [DisplayName("送风机")]
+        [Description("送风机控制屏通讯配置（Modbus TCP，定值启停 + 读温湿度）")]
+        [Category("送风机")]
         public FanConfig Fan { get; set; } = new FanConfig();
 
         /// <summary>
@@ -84,18 +112,27 @@ namespace Kaleidoscope.Models
         /// - false：启用真实通讯（气压表 Modbus RTU + IO Modbus TCP + 送风机 Modbus TCP），
         ///   需要现场接线与正确参数。扫码枪/PLC/相机不受此开关影响（各自按配置真实连接）。
         /// </summary>
+        [DisplayName("模拟通讯")]
+        [Description("true=气压表/IO/送风机用随机数模拟（不接设备跑通 UI）；false=接真机")]
+        [Category("全局")]
         public bool UseMockCommunication { get; set; } = false;
 
         /// <summary>
         /// 当前产品型号（如 "U171"）：PLC 从站建站成功后会立即写进型号区（协议 40007~40012），
         /// 相机触发切程序也按它查各相机的 ModelStationPrograms 型号表。空串则跳过建站即写。
         /// </summary>
+        [DisplayName("当前产品型号")]
+        [Description("如 U171：PLC 从站建站成功写进型号区；相机切程序按它查型号程序表")]
+        [Category("全局")]
         public string ProductModel { get; set; } = "";
 
         /// <summary>
         /// 产品型号候选列表（切型号时用，如 ["U171","Z121"]）。仅作为"型号集合"的载体
         /// 提供给界面下拉/配置用；DeviceHub 本身不强依赖它（PLC 只写 ProductModel）。
         /// </summary>
+        [DisplayName("产品型号候选")]
+        [Description("切型号时用（双击展开编辑），如 U171/Z121")]
+        [Category("全局")]
         public List<string> ProductModels { get; set; } = new List<string>();
 
         /// <summary>

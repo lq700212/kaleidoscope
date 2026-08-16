@@ -9,7 +9,7 @@
 - .NET Framework 4.7.2，C# LangVersion 7.3（WinForms 项目直接引用）
 - NModbus 3.0.83（Modbus TCP 从站 + Modbus RTU 主站 + Modbus TCP 主站），`libs/NModbus.dll` + `libs/NModbus.Serial.dll` 本地引用，**离线可编译**，不依赖 NuGet
 - System.Management（WMI 自动识别 CH340 串口 / 扫码枪串口，见 `Utils/SerialPortHelper.cs`）
-- Newtonsoft.Json **不需要**：配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，**零第三方依赖**），业务项目读/写设备配置一行搞定，只吃强类型配置对象
+- Newtonsoft.Json **不需要**：配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，**零第三方依赖**），业务项目读/写设备配置一行搞定，只吃强类型配置对象；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），可视化配置编辑器 `ConfigEditor/` 据此自动渲染参数界面（库加新字段界面自动出现）
 
 ## 二、仓库结构
 
@@ -58,6 +58,11 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
     ├── MainForm.cs              #   标准接入方式的最小界面模板（可直接抄接入骨架）
     ├── DemoConfig.cs            #   配置持久化：设备配置走 ConfigSerializer（devices.kcfg），界面记忆走 demo.json
     └── README.md                #   Demo 使用说明/验证清单/配置说明
+└── ConfigEditor/                # 可视化配置编辑器（独立工具，不进库；引用 Kaleidoscope bin 输出）
+    ├── KaleidoscopeConfigEditor.csproj # 构建后自动拷 Kaleidoscope/NModbus 到输出目录
+    ├── MainForm.cs              #   设备树 + 属性网格 + 品牌预设 + 校验保存 .kcfg
+    ├── BrandPresets.cs          #   内置品牌预设（基恩士/汇川/霍尼韦尔/三菱等默认参数）
+    └── README.md                #   编辑器使用说明
 ```
 
 ## ⭐ Demo 测试台（`Demo/`）
@@ -70,6 +75,20 @@ PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。�
    `Demo/KaleidoscopeDemo.csproj`（自动拷 Kaleidoscope.dll/NModbus/Newtonsoft.Json 到输出目录）；
    或直接跑 `Demo/bin/Debug/KaleidoscopeDemo.exe`。
 - **使用**：见 [`Demo/README.md`](Demo/README.md)（验证清单/配置说明）。
+
+## ⭐ 可视化配置编辑器（`ConfigEditor/`）
+
+不想手写 `.kcfg` JSON？`ConfigEditor/` 是独立的可视化配置工具（**不进库、不启停设备，只产配置**）：
+
+- 左侧设备树选设备（全局/PLC 从站/主站/相机/扫码枪/气压表/IO/送风机/图像存储，相机与扫码枪支持增删）；
+- 右侧属性网格直接改参数——中文名/说明来自 `Models/*.cs` 的 `System.ComponentModel` 元数据，
+  **库新增配置字段界面自动出现**，编辑器代码不用改；
+- 底部按设备选**品牌预设**一键填充该品牌默认参数（基恩士 IV4、Honeywell Xenon 1902、
+  三菱 GX-CL140、现场实测送风机映射等），之后可继续微调；
+- **保存前自动校验**：错误（IP/端口/寄存器越界）阻止保存，警告确认后仍可保存；
+  产出的 `.kcfg` 直接给 `ConfigSerializer.Load` + `ApplyConfig` 用。
+
+详见 [`ConfigEditor/README.md`](ConfigEditor/README.md)。
 
 ## 三、快速接入（四步）
 

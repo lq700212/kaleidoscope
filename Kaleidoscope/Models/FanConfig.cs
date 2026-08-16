@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Kaleidoscope.Models
 {
@@ -31,27 +32,41 @@ namespace Kaleidoscope.Models
         /// 是否启用送风机接入。true=启动时尝试连接并周期轮询（送风机是可选设备，失败不影响整机）；
         /// false=完全跳过（不建连接、不轮询）。
         /// </summary>
+        [DisplayName("启用送风机")]
+        [Description("true=启动时尝试连接并周期轮询；false=完全跳过（可选设备，失败不影响整机）")]
         public bool FanEnabled { get; set; } = true;
 
         /// <summary>送风机控制屏 IP 地址（现场实测默认 192.168.1.220）。</summary>
+        [DisplayName("控制屏 IP")]
+        [Description("送风机控制屏 IP 地址（现场实测默认 192.168.1.220）")]
         public string FanIpAddress { get; set; } = "192.168.1.220";
 
         /// <summary>送风机通讯端口（厂商控制屏实测 50000，非标准 502）。</summary>
+        [DisplayName("端口")]
+        [Description("厂商控制屏实测 50000，非标准 502")]
         public int FanPort { get; set; } = 50000;
 
         /// <summary>送风机从站地址（UnitId，实测默认 1）。</summary>
+        [DisplayName("从站地址 UnitId")]
+        [Description("送风机从站地址，实测默认 1")]
         public byte FanUnitId { get; set; } = 1;
 
         /// <summary>送风机通讯超时（毫秒）：连接/读写共用，防止掉线时界面卡死，默认 3000。</summary>
+        [DisplayName("通讯超时(ms)")]
+        [Description("连接/读写共用，防止掉线时界面卡死，默认 3000")]
         public int FanTimeoutMs { get; set; } = 3000;
 
         /// <summary>
         /// 送风机 IP 自动识别开关。true=按顺序尝试 FanIpAddress + FanIpCandidates + 缓存 IP，
         /// 第一个连上的即设备真实地址；false=只尝试 FanIpAddress（与旧行为一致）。
         /// </summary>
+        [DisplayName("IP 自动识别")]
+        [Description("true=按顺序尝试主 IP + 候选 IP + 缓存 IP，第一个连上的即真实地址")]
         public bool FanAutoDetectEnabled { get; set; } = true;
 
         /// <summary>送风机候选 IP 列表（FanAutoDetectEnabled=true 时生效），连接时按顺序逐个尝试。</summary>
+        [DisplayName("候选 IP 列表")]
+        [Description("自动识别时按顺序逐个尝试（双击展开编辑），可加 192.168.1.221/.222 等")]
         public List<string> FanIpCandidates { get; set; } = new List<string>();
 
         // ───────────────────── 寄存器映射（通用性关键，默认值 = 现场实测） ─────────────────────
@@ -64,33 +79,53 @@ namespace Kaleidoscope.Models
         /// 保持寄存器（功能码 0x03），字段按偏移从区块内取值。现场字段不连续时把本地址调至
         /// 覆盖所有字段的最前位置、FanStatusCount 调大覆盖到最远字段。
         /// </summary>
+        [DisplayName("读状态区块起始地址")]
+        [Description("一次从这连续读 FanStatusCount 个保持寄存器，字段按偏移从区块内取值")]
         public ushort FanStatusStartAddress { get; set; } = 0x0000;
 
         /// <summary>读状态区块长度（寄存器个数，默认 6 覆盖 0x0000~0x0005；现场字段更分散时调大）。</summary>
+        [DisplayName("读状态区块长度")]
+        [Description("寄存器个数，默认 6 覆盖 0x0000~0x0005；字段分散时调大")]
         public ushort FanStatusCount { get; set; } = 6;
 
         /// <summary>运行状态字段在区块内的偏移（默认 1 = 0x0001 控制/状态寄存器）。</summary>
+        [DisplayName("运行状态偏移")]
+        [Description("运行状态字段在区块内的偏移（默认 1 = 0x0001）")]
         public ushort FanRunStateOffset { get; set; } = 1;
 
         /// <summary>当前温度字段偏移（默认 2 = 0x0002，值 / 100 = °C）。</summary>
+        [DisplayName("温度字段偏移")]
+        [Description("当前温度字段偏移（默认 2 = 0x0002），值 ÷ 100 = °C")]
         public ushort FanTemperatureOffset { get; set; } = 2;
 
         /// <summary>当前湿度字段偏移（默认 3 = 0x0003，值 / 100 = %RH）。</summary>
+        [DisplayName("湿度字段偏移")]
+        [Description("当前湿度字段偏移（默认 3 = 0x0003），值 ÷ 100 = %RH")]
         public ushort FanHumidityOffset { get; set; } = 3;
 
         /// <summary>温度设定值字段偏移（默认 4 = 0x0004，值 / 100 = °C，只读）。</summary>
+        [DisplayName("温度设定偏移")]
+        [Description("温度设定值字段偏移（默认 4 = 0x0004），值 ÷ 100 = °C，只读")]
         public ushort FanTempSetpointOffset { get; set; } = 4;
 
         /// <summary>湿度设定值字段偏移（默认 5 = 0x0005，值 / 100 = %RH，只读）。</summary>
+        [DisplayName("湿度设定偏移")]
+        [Description("湿度设定值字段偏移（默认 5 = 0x0005），值 ÷ 100 = %RH，只读")]
         public ushort FanHumSetpointOffset { get; set; } = 5;
 
         /// <summary>控制寄存器地址（默认 0x0001）：定值启动/定值停止都写这里。</summary>
+        [DisplayName("控制寄存器地址")]
+        [Description("定值启动/定值停止都写这个寄存器（默认 0x0001）")]
         public ushort FanControlAddress { get; set; } = 0x0001;
 
         /// <summary>定值启动命令码（默认 0x0003，写入 FanControlAddress）。</summary>
+        [DisplayName("定值启动命令码")]
+        [Description("写入控制寄存器=定值启动（默认 0x0003）")]
         public ushort FanStartCommand { get; set; } = 0x0003;
 
         /// <summary>定值停止命令码（默认 0x0002，写入 FanControlAddress）。</summary>
+        [DisplayName("定值停止命令码")]
+        [Description("写入控制寄存器=定值停止（默认 0x0002）")]
         public ushort FanStopCommand { get; set; } = 0x0002;
     }
 }

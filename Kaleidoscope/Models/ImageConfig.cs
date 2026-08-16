@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Kaleidoscope.Models
 {
@@ -17,6 +18,8 @@ namespace Kaleidoscope.Models
     public class ImageConfig
     {
         /// <summary>图像保存根目录（不在则自动创建）</summary>
+        [DisplayName("存图根目录")]
+        [Description("图像保存根目录（不在则自动创建）")]
         public string SaveRootDir { get; set; } = @"E:\Images";
 
         /// <summary>
@@ -30,6 +33,8 @@ namespace Kaleidoscope.Models
         ///   {OKNG}   按本次判定展开成 OK 或 NG 两个并列目录之一，满足现场分开放习惯；
         ///   点位号进文件名（见 FileNameTemplate），不作为目录层级。
         /// </summary>
+        [DisplayName("目录层级列表")]
+        [Description("逐级建目录的占位符列表（双击展开编辑）：{年月日}/{SN}/{相机}/{OKNG}，{相机} 层务必保留防混图")]
         public List<string> SubDirs { get; set; } = new List<string> { "{年月日}", "{SN}", "{相机}", "{OKNG}" };
 
         /// <summary>
@@ -40,6 +45,8 @@ namespace Kaleidoscope.Models
         ///   相机源文件名 + "_" + 时间戳（如 0084_20260814_102030_123.jpeg），
         ///   本字段仅旧版 TCP/BR 取图（SaveImage/SaveImageBytes）仍按模板命名。
         /// </summary>
+        [DisplayName("文件名模板")]
+        [Description("旧版 SaveImage 用：{点位}/{相机}/{时间}/{SN}；双格式归档已固定为 源文件名_时间戳")]
         public string FileNameTemplate { get; set; } = "{点位}";
 
         /// <summary>
@@ -49,12 +56,18 @@ namespace Kaleidoscope.Models
         ///   模板渲染结果 + "_" + 时间戳。防止"同点位重复拍照/重复触发"时覆盖旧图。
         /// false：保持原名（模板带 {时间} 时基本不重名，此开关仅作保险）。
         /// </summary>
+        [DisplayName("文件名追加时间戳")]
+        [Description("true=双格式归档文件名 = 相机源文件名 + _时间戳，防重复拍照覆盖")]
         public bool FileTimestampSuffix { get; set; } = true;
 
         /// <summary>保留天数，0 表示不自动清理（ImageStore.StartPeriodicCleanup 用）</summary>
+        [DisplayName("保留天数")]
+        [Description("自动清理过期存图目录的天数；0=不自动清理")]
         public int KeepDays { get; set; } = 30;
 
         /// <summary>相机 FTP 上传目录兜底（各相机未单独配 FtpUploadDir 时用它；多台务必分开配）</summary>
+        [DisplayName("FTP 兜底目录")]
+        [Description("相机未单独配 FtpUploadDir 时的 FTP 上传目录兜底；多台相机务必分开配")]
         public string FtpRootDir { get; set; } = @"D:\Kaleidoscope\Images\ftp";
     }
 }

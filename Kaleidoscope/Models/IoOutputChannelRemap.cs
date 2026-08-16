@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 
 namespace Kaleidoscope.Models
@@ -22,15 +23,23 @@ namespace Kaleidoscope.Models
     public class IoOutputChannelRemap
     {
         /// <summary>源寄存器地址（绝对地址，如 0x2000）。</summary>
+        [DisplayName("源寄存器")]
+        [Description("源寄存器绝对地址（如 0x2000）")]
         public ushort SourceRegister { get; set; }
 
         /// <summary>源通道号（0~31，0 = 第 1 路）。</summary>
+        [DisplayName("源通道号")]
+        [Description("源通道号 0~31（0 = 第 1 路）")]
         public int SourceChannel { get; set; }
 
         /// <summary>目标寄存器地址（绝对地址，如 0x2009）。</summary>
+        [DisplayName("目标寄存器")]
+        [Description("目标（备用）寄存器绝对地址（如 0x2009）")]
         public ushort TargetRegister { get; set; }
 
         /// <summary>目标通道号（0~31，0 = 第 1 路）。</summary>
+        [DisplayName("目标通道号")]
+        [Description("目标（备用）通道号 0~31（0 = 第 1 路）")]
         public int TargetChannel { get; set; }
 
         /// <summary>
