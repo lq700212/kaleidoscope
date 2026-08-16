@@ -29,9 +29,9 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   ├── CameraConfig.cs      #     相机 IP/端口/指令/点位程序表/FTP 目录（含 DefaultCameras）
 │   │   ├── ScanConfig.cs        #     扫码枪 TCP/串口参数 + 触发指令 + 自动识别关键词
 │   │   ├── ImageConfig.cs       #     存图目录结构/文件名模板/保留天数
-│   │   ├── BarometerConfig.cs   #     气压表串口/波特率/压力地址/阈值
+│   │   ├── BarometerConfig.cs   #     气压表串口/波特率/压力地址/阈值地址/读寄存器数
 │   │   ├── IoConfig.cs          #     IO 耦合器 IP/寄存器地址/备用通道映射
-│   │   ├── FanConfig.cs         #     送风机 IP/端口/自动识别候选
+│   │   ├── FanConfig.cs         #     送风机 IP/端口/自动识别候选/寄存器映射与命令码
 │   │   └── DeviceHubConfig.cs   #     全部设备 + 型号 + PlcRole + UseMockCommunication 聚合配置
 │   ├── Services/                #   底层通讯服务（自持后台线程/惰性连接/自动重连）
 │   │   ├── PlcService.cs        #     Modbus TCP 从站监听 + 寄存器读写 + 上电复位
@@ -140,9 +140,9 @@ hub.ApplyConfig(newConfig);
 - **PLC**：现场汇川 PLC 可作**主站**（上位机作从站，监听本机 502，"请求-结果-复位"三拍握手，寄存器 40001~40012，配置存 **DataStore 索引**，协议号 = 索引 + 40000）或**从站**（上位机作主站，`PlcRole=Master`，用 `hub.PlcMaster` 主动读写 + 自动轮询）。完整协议见业务项目文档。
 - **相机**：基恩士 IV4 无协议 TCP，触发 + 判定（T2），判定即写 PLC 结果、图异步归档；FTP 取图扫目录取最新 jpeg+iv4p 对，归档后删源。
 - **扫码枪**：基恩士 SR 无协议 TCP，连上后需发触发指令（`ScanConfig.TriggerCommand`，默认 `LON`）才开始读码；串口枪（Mode=Serial）PortName 留空时按 `DeviceKeyword` 用 WMI 自动识别串口。
-- **气压表**（Modbus RTU 主站）：72 台真空负压表挂 RS485→USB（CH340），读压力（0x04 @ 0x0001，2 寄存器，kPa）、写报警阈值（0x06 @ 0x0010）；串口自动识别见 `Utils/SerialPortHelper.cs`。
+- **气压表**（Modbus RTU 主站）：72 台真空负压表挂 RS485→USB（CH340），读压力（0x04 @ 0x0001，2 寄存器，kPa，压力地址/读数量可配）、写报警阈值（0x06 @ 0x0010，**阈值地址可配 `BarometerThresholdRegisterAddress`**）；串口自动识别见 `Utils/SerialPortHelper.cs`。
 - **IO 耦合器**（Modbus TCP 主站）：读输入 DI（0x04 @ 0x1000）、写输出 DO（0x06 @ 0x2000），16 点/寄存器读-改-写，控制真空电磁阀/载台上电；物理地址与三菱八进制映射见 `Utils/IoMapBuilder.cs`。
-- **送风机**（Modbus TCP）：端口 50000，定值启动/停止 + 读温湿度（0x0001~0x0005 寄存器），IP 自动识别候选见 `FanConfig.FanIpCandidates`；`ReconnectNow()` 为后台异步重连（UI 按钮直接调用不卡死），断线后新配置自动生效。
+- **送风机**（Modbus TCP）：端口 50000，定值启动/停止 + 读温湿度；**寄存器映射与命令码全部可配**（读区块 `FanStatusStartAddress`+`FanStatusCount`、字段偏移 `Fan*Offset`、控制寄存器 `FanControlAddress`、命令码 `FanStartCommand`/`FanStopCommand`，默认值=现场实测 0x0001~0x0005 + 0x0003/0x0002，换厂商改配置不改库）；IP 自动识别候选见 `FanConfig.FanIpCandidates`；`ReconnectNow()` 为后台异步重连（UI 按钮直接调用不卡死），断线后新配置自动生效。
 - **存图清理**：`ImageConfig.KeepDays`（默认 30）控制保留天数，`StartPeriodicCleanup` 在 DeviceHub.Start 里自动启动。
 
 ## 七、日志出口

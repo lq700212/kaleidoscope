@@ -41,15 +41,15 @@ namespace Kaleidoscope.Services
         /// <returns>重连后是否已连接</returns>
         bool ReconnectNow();
 
-        /// <summary>读取送风机当前状态（状态 + 温度 + 湿度 + 设定值，一次批量读 6 个寄存器）。</summary>
+        /// <summary>读取送风机当前状态（状态 + 温度 + 湿度 + 设定值；读区块与字段偏移见 FanConfig）。</summary>
         /// <returns>送风机数据；读取失败返回 null（上层据此显示"离线"）</returns>
         FanData ReadStatus();
 
-        /// <summary>定值启动：让送风机按控制屏设定的温度运行（写入 0x0001 = 0x0003）。</summary>
+        /// <summary>定值启动：让送风机按控制屏设定的温度运行（写 FanControlAddress = FanStartCommand，默认 0x0001 = 0x0003）。</summary>
         /// <returns>是否发送成功</returns>
         bool StartFixedValue();
 
-        /// <summary>定值停止（写入 0x0001 = 0x0002）。</summary>
+        /// <summary>定值停止（写 FanControlAddress = FanStopCommand，默认 0x0001 = 0x0002）。</summary>
         /// <returns>是否发送成功</returns>
         bool Stop();
 

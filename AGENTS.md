@@ -101,9 +101,22 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 - **PW 同程序号跳过（V2.14.19）**：相机 `SwitchProgram` 缓存上次成功程序号，目标一致直接 return，省 200~390ms；**连接重建必须在 `EnsureConnected` 成功处把缓存重置 -1**，否则相机恢复默认程序后缓存骗过跳过、错拍。
 - **存图清理防误删**：`RunCleanupOnce` 只扫存图根目录顶层；快速路径按日期目录名判定，通用路径递归查**所有文件**早于阈值才删；根目录是盘符（如 `E:\`）直接放弃并告警。
 - **图片一律后台解码 + 缩略图**：禁止在 UI 线程"读盘 + GDI+ 解码 + 全尺寸大图赋值"（基恩士原图 2592×1944 会卡死界面）。
-- **气压表 RTU（Aging 沉淀）**：压力读 0x04@0x0001 取 2 寄存器、单位 kPa、小数位固定用配置（0x0002 不可靠）；写阈值 0x06@0x0010，SetAllThresholds 必须 50ms 间隔逐台写（串口共享会互相干扰）；串口 CH340 用 WMI 双重校验（Caption 含 CH340 **且** PNPDeviceID 含 VID_1A86/PID_7523），命中后写 `BarometerPort.cache` 记忆端口，换台电脑自动找回。
-- **IO 耦合器 TCP（Aging 沉淀）**：DI 0x04@0x1000、DO 0x03/0x06@0x2000，**16 点/寄存器**；单点写输出必须"读-改-写"（读整字回读原值 → 按位或 → 写回），否则会覆盖同寄存器其它输出；`MapOutputChannel` 走备用通道映射（业务输出号 → 物理输出号）。
-- **送风机 TCP（Aging 沉淀）**：端口 **50000** 不是 502；0x0001 控制字（0x0003=定值启动/0x0002=定值停止），0x0002~0x0005 是 温度/湿度/温度设定/湿度设定（**除以 100** 才是真实值）；IP 记忆到 `FanLastIp.cache`，`FanIpCandidates` 自动探测兜底；服务内部 10s 重连节流，与监控器 5s 节流叠加。
+- **气压表 RTU（Aging 沉淀）**：压力读 `BarometerPressureRegisterAddress`（默认 0x04@0x0001）
+  取 `BarometerReadRegisterCount`（默认 2）个寄存器、单位 kPa、小数位固定用配置（0x0002 不可靠）；
+  写阈值 `BarometerThresholdRegisterAddress`（默认 0x06@0x0010，**V1.2.3 起可配，勿再写死**），
+  SetAllThresholds 必须 50ms 间隔逐台写（串口共享会互相干扰）；串口 CH340 用 WMI 双重校验
+  （Caption 含 CH340 **且** PNPDeviceID 含 VID_1A86/PID_7523），命中后写 `BarometerPort.cache`
+  记忆端口，换台电脑自动找回。
+- **IO 耦合器 TCP（Aging 沉淀）**：DI 0x04@0x1000、DO 0x03/0x06@0x2000，**16 点/寄存器**；
+  单点写输出必须"读-改-写"（读整字回读原值 → 按位或 → 写回），否则会覆盖同寄存器其它输出；
+  `MapOutputChannel` 走备用通道映射（业务输出号 → 物理输出号）。
+- **送风机 TCP（Aging 沉淀，V1.2.3 起映射全配置化）**：端口 **50000** 不是 502；寄存器映射
+  全部走 FanConfig（读区块 `FanStatusStartAddress`+`FanStatusCount`、字段偏移 `Fan*Offset`、
+  控制寄存器 `FanControlAddress`、命令码 `FanStartCommand`/`FanStopCommand`），默认值对应
+  "0x0001 控制字（0x0003=定值启动/0x0002=定值停止），0x0002~0x0005 是 温度/湿度/温度设定/
+  湿度设定（**除以 100** 才是真实值）"，**换厂商改配置不改库**；状态解析优先按配置命令码
+  识别定值启停，再回退枚举。IP 记忆到 `FanLastIp.cache`，`FanIpCandidates` 自动探测兜底；
+  服务内部 10s 重连节流，与监控器 5s 节流叠加。
 - **扫码枪自动识别（Aging 沉淀）**：`PortName` 留空 → WMI 按 `DeviceKeyword`（默认 "Xenon 1902"）查设备名定位串口；心跳 3s 双信号判定（WMI 搜索 + 系统串口列表）+ 每 4 次心跳"关-重搜-重开"兜底，拔枪几秒内变"未连接"、插回自动恢复。
 
 ## 构建命令

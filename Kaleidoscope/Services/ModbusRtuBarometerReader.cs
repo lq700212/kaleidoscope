@@ -45,9 +45,6 @@ namespace Kaleidoscope.Services
         /// <summary>全局配置（Connect 时赋值，Disconnect 时不置空——方便错误排查看配置；ReadAllData 有判空保护）。</summary>
         private BarometerConfig _config;
 
-        /// <summary>阈值寄存器地址（Holding Register 0x0010，功能码 0x06），写入设备内部阈值、驱动硬件报警触点。</summary>
-        private const ushort ThresholdRegisterAddress = 0x0010;
-
         /// <summary>串口对象（RS485 转 USB 后会表现为一个 COM 口）。</summary>
         private SerialPort _serialPort;
 
@@ -312,17 +309,18 @@ namespace Kaleidoscope.Services
 
             try
             {
+                // 一次连续读 BarometerReadRegisterCount 个输入寄存器（功能码 0x04）：
+                // startAddress=压力寄存器（配置，默认 0x0001）；数量可配（默认 2 = 0x0001 压力原始值
+                // + 0x0002 小数位数）。注意：0x0002 现场实测不可靠，换算不用它（固定用配置小数位），
+                // 仍按配置数量读是为了与 Demo 的读取块保持一致（部分仪表需成块读才回数据）。
+                // 防御：数量夹到 1~125（Modbus 单帧上限），数量为 0/异常配置时至少读 1 个。
                 ushort[] registers;
                 lock (_syncRoot)
                 {
-                    // 读输入寄存器（Input Register，功能码 0x04）：
-                    // slaveAddress=从站地址(deviceId)；startAddress=压力寄存器(默认 0x0001)；
-                    // numberOfPoints=一次读 2 个（0x0001 压力原始值 + 0x0002 小数位数）。
-                    // 注意：0x0002 现场实测不可靠，换算不用它（固定用配置小数位），
-                    // 这里仍读 2 个是为了与 Demo 的读取块保持一致（部分仪表需成对读）。
-                    registers = _master.ReadInputRegisters((byte)deviceId, _config.BarometerPressureRegisterAddress, 2);
-                    if (registers == null || registers.Length < 2) return null;
+                    int readCount = Math.Max(1, Math.Min(125, (int)_config.BarometerReadRegisterCount));
+                    registers = _master.ReadInputRegisters((byte)deviceId, _config.BarometerPressureRegisterAddress, (ushort)readCount);
                 }
+                if (registers == null || registers.Length < 1) return null;   // 换算只用第 1 个寄存器（压力值）
 
                 // 寄存器值 → 压力值转换（以 Demo 为准）：
                 // - 压力原始值按有符号 short 解释（0xFFFE → -2，支持负压）
@@ -426,10 +424,11 @@ namespace Kaleidoscope.Services
         }
 
         /// <summary>
-        /// 写入单台气压表的设备阈值（Holding Register 0x0010，功能码 0x06）。
+        /// 写入单台气压表的设备阈值（Holding Register，功能码 0x06；寄存器地址用配置
+        /// BarometerThresholdRegisterAddress，默认 0x0010）。
         /// 与 Demo 保持一致：1. 小数位固定用配置（默认 1，与 Demo 硬编码 1 一致）；
         /// 2. 寄存器值 = round(阈值 × 10^小数位)，负数按补码写（设备按有符号 short 解释）；
-        /// 3. 写 WriteSingleRegister(slaveId=deviceId, 0x0010, 寄存器值)。
+        /// 3. 写 WriteSingleRegister(slaveId=deviceId, 阈值寄存器地址, 寄存器值)。
         /// 【单位提醒】thresholdValue 是"设备单位"（与压力读数同单位同小数位），
         /// 不是软件报警阈值 AlarmPressureThresholdKPa（kPa）。写前务必确认设备单位。
         /// </summary>
@@ -464,7 +463,7 @@ namespace Kaleidoscope.Services
                         return false;
                     }
 
-                    _master.WriteSingleRegister((byte)deviceId, ThresholdRegisterAddress, (ushort)scaled);
+                    _master.WriteSingleRegister((byte)deviceId, _config.BarometerThresholdRegisterAddress, (ushort)scaled);
                     return true;
                 }
             }

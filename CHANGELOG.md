@@ -7,6 +7,49 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.2.3（2026-08-16）通讯寄存器地址全面配置化（送风机/气压表去写死）
+
+> 通用性专项检查：全库通讯模块中，PLC 主站/从站、IO 耦合器、相机、扫码枪的地址早已配置化；
+> 唯独**送风机（FanControllerClient）的寄存器映射与命令码**、**气压表（ModbusRtuBarometerReader）
+> 的阈值寄存器地址与读寄存器数**仍写死在代码里。本次把这两处全部改为配置驱动（默认值
+> 严格对齐现场实测，行为零变化），换厂商/换仪表只改配置不改库。
+
+### 改动范围
+
+- **`Models/FanConfig.cs` 新增寄存器映射配置段**（默认值=现场实测，向后兼容）：
+  - 读状态区块：`FanStatusStartAddress`（0x0000）/ `FanStatusCount`（6）；
+  - 字段偏移（相对区块起始）：`FanRunStateOffset`（1）/ `FanTemperatureOffset`（2）/
+    `FanHumidityOffset`（3）/ `FanTempSetpointOffset`（4）/ `FanHumSetpointOffset`（5）；
+  - 控制：`FanControlAddress`（0x0001）/ `FanStartCommand`（0x0003）/ `FanStopCommand`（0x0002）。
+- **`Services/FanControllerClient.cs`**：`ReadStatus` 按配置区块批量读 + 按偏移取字段（偏移越界
+  对应字段取 0，不崩）；状态解析**优先按配置命令码识别定值启停**（`==FanStartCommand`→定值启动、
+  `==FanStopCommand`→定值停止），再回退 `FanRunState` 枚举强转——不同厂商命令码不同也能正确识别；
+  `StartFixedValue`/`Stop`/`WriteCommand` 改读 `FanStartCommand`/`FanStopCommand`/`FanControlAddress`。
+- **`Models/BarometerConfig.cs` 新增**：`BarometerThresholdRegisterAddress`（0x0010，原写死 const）、
+  `BarometerReadRegisterCount`（2，读压力一次连续读的寄存器数）。
+- **`Services/ModbusRtuBarometerReader.cs`**：删除 `private const ThresholdRegisterAddress = 0x0010`，
+  `SetThreshold` 改写配置阈值地址；`ReadData` 读数量改用配置（运行时夹到 1~125，数量 1 也能工作，
+  换算仍只信任第 1 个寄存器）。
+- **注释同步**：`IFanController`/`IBarometerReader`/`FanData`/`BarometerConfig`/`FanConfig`
+  类头与方法注释中"写死 0x0010 / 0x0001 / 0x0003"等描述改为"默认值 + 可配"口径。
+
+### 为什么这么改
+
+- 通用库定位：换新客户做新界面时底层服务一行不改。送风机/气压表若遇寄存器映射不同的设备，
+  旧实现必须改库代码（写死 0x0000~0x0005、0x0010），违背通用库目标。全部配置化后，
+  这些设备的协议差异都收敛到配置层。
+- 默认值严格等于旧行为：不改任何配置的项目编译运行结果与旧版完全一致（无破坏性变更）。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope 通过（`Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll`，无 error）。
+
+### 文档同步
+
+- `README.md`：仓库结构与对接要点补充送风机/气压表"寄存器地址/命令码可配"说明。
+- `AGENTS.md`：「已知通讯关键点」送风机/气压表两段更新为"映射已配置化"口径。
+- `CHANGELOG.md`：本版本（V1.2.3）。
+
 ## V1.2.2（2026-08-15）库改名 Kaleidoscope
 
 > 库名/程序集/命名空间/源码目录由 `CommonLib` 统一更名为 `Kaleidoscope`（万花筒）。

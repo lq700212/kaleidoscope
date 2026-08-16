@@ -10,8 +10,9 @@ namespace Kaleidoscope.Models
     /// 创建 <see cref="Services.ModbusRtuBarometerReader"/>（真实）或 Mock（UseMockCommunication=true）。
     ///
     /// 【来源】从 AgingTestSystem.Models.DeviceConfig 的气压表/串口字段拆分而来。
-    /// 协议以 ModbusRtuBarometerTest Demo 实测为准：
-    /// - 读压力：Input Register 0x0001（功能码 0x04），一次读 2 个寄存器（0x0001 压力 + 0x0002 小数位）
+    /// 协议以 ModbusRtuBarometerTest Demo 实测为准（默认值，均可配——换仪表型号改配置不改库）：
+    /// - 读压力：Input Register 0x0001（功能码 0x04），一次读 BarometerReadRegisterCount（默认 2）
+    ///   个寄存器（0x0001 压力 + 0x0002 小数位）
     /// - 写阈值：Holding Register 0x0010（功能码 0x06），值 = round(阈值 × 10^小数位)
     /// - 0x0002 小数位寄存器现场实测不可靠，换算一律用 BarometerDefaultDecimalPlaces（默认 1）
     ///
@@ -53,6 +54,19 @@ namespace Kaleidoscope.Models
         /// 0x0001 = 压力原始值（有符号 short，支持负压）；0x0002 = 小数位（不可靠，忽略）。
         /// </summary>
         public ushort BarometerPressureRegisterAddress { get; set; } = 0x0001;
+
+        /// <summary>
+        /// 读压力时一次连续读取的输入寄存器个数（默认 2：压力原始值 + 0x0002 小数位）。
+        /// 部分仪表要求成对/成块读才回数据，现场按说明书调整；换算只信任第 1 个寄存器（压力值），
+        /// 数量配置成 1 也能正常工作。防御：运行时自动夹到 1~125（Modbus 单帧上限）。
+        /// </summary>
+        public ushort BarometerReadRegisterCount { get; set; } = 2;
+
+        /// <summary>
+        /// 设备阈值寄存器地址（Holding Register，功能码 0x06，默认 0x0010）。
+        /// 写入设备内部阈值、驱动硬件报警触点；换仪表型号地址不同时改本配置即可（旧实现写死 0x0010）。
+        /// </summary>
+        public ushort BarometerThresholdRegisterAddress { get; set; } = 0x0010;
 
         /// <summary>
         /// 小数位固定换算值（默认 1，与 Demo 硬编码一致）。

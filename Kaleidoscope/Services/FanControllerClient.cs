@@ -13,13 +13,17 @@ namespace Kaleidoscope.Services
     /// 【来源】AgingTestSystem.Services.FanControllerClient 原样移植，配置类型换成独立强类型
     /// <see cref="FanConfig"/>。
     ///
-    /// 【寄存器映射】（实测，见 Demo 文档）
+    /// 【寄存器映射】（默认值实测，全部见 FanConfig 可配——换厂商改配置不改库）
     ///   0x0000 组合状态（未使用，忽略）
-    ///   0x0001 控制/状态（写：0x0003=定值启动，0x0002=定值停止；读回同值）
+    ///   0x0001 控制/状态（写：FanStartCommand 默认 0x0003=定值启动，FanStopCommand 默认 0x0002=定值停止；读回同值）
     ///   0x0002 当前温度（值/100 = °C）
     ///   0x0003 当前湿度（值/100 = %RH）
     ///   0x0004 温度设定值（值/100 = °C）
     ///   0x0005 湿度设定值（值/100 = %RH）
+    ///   【通用性】ReadStatus 按 FanStatusStartAddress + FanStatusCount 批量读、字段按 Fan*Offset
+    ///   取偏移；控制写 FanControlAddress；启停命令码用 FanStartCommand/FanStopCommand。
+    ///   状态解析优先匹配配置命令码（==FanStartCommand→定值启动、==FanStopCommand→定值停止），
+    ///   再回退 FanRunState 枚举强转——厂商命令码不同也能正确识别运行状态。
     ///
     /// 【物理层】TCP/IP；端口默认 50000（非标准 502）；从站地址（UnitId）默认 1。
     ///
@@ -342,7 +346,10 @@ namespace Kaleidoscope.Services
         }
 
         /// <summary>
-        /// 读取送风机当前状态（状态 + 温度 + 湿度 + 设定值），一次批量读 6 个寄存器（0x0000~0x0005）。
+        /// 读取送风机当前状态（状态 + 温度 + 湿度 + 设定值）。
+        /// 按配置 FanStatusStartAddress 起一次批量读 FanStatusCount 个寄存器（功能码 0x03），
+        /// 字段按 Fan*Offset（相对区块起始的偏移）从读回数组取值；偏移越界对应字段取 0/Unknown，
+        /// 不崩（现场字段分散时把区块范围调大覆盖即可，见 FanConfig 通用性说明）。
         /// </summary>
         /// <returns>送风机数据；读取失败返回 null（上层显示"离线"）</returns>
         public FanData ReadStatus()
@@ -359,31 +366,45 @@ namespace Kaleidoscope.Services
                 // 锁外自愈：未连接则按节流重连（建连在锁外，不占锁，见 Connect）
                 if (!EnsureConnected()) return null;
 
+                // 读区块参数（防御异常配置：数量至少 1，最多 125——Modbus 单帧上限）
+                int statusCount = Math.Max(1, Math.Min(125, (int)_config.FanStatusCount));
+                ushort blockStart = _config.FanStatusStartAddress;
+
                 ushort[] values;
                 lock (_syncRoot)
                 {
                     if (_master == null) return null;
-                    // 读保持寄存器（功能码 0x03），从 0x0000 一次读 6 个
-                    values = _master.ReadHoldingRegisters(_config.FanUnitId, 0x0000, 6);
+                    // 读保持寄存器（功能码 0x03），从 FanStatusStartAddress 连续读 statusCount 个
+                    values = _master.ReadHoldingRegisters(_config.FanUnitId, blockStart, (ushort)statusCount);
                 }
 
-                // 防御性检查：寄存器数量不足说明设备返回异常
-                if (values == null || values.Length < 6) return null;
+                // 防御性检查：一个寄存器都没读回说明设备返回异常
+                if (values == null || values.Length < 1) return null;
 
-                // 按实测映射解析（索引对应关系见类注释）：
-                // values[0] -> 0x0000（组合状态，未使用，忽略）
-                // values[1] -> 0x0001（控制/状态）
-                // values[2] -> 0x0002（当前温度，/100 = °C）
-                // values[3] -> 0x0003（当前湿度，/100 = %RH）
-                // values[4] -> 0x0004（温度设定值，/100 = °C）
-                // values[5] -> 0x0005（湿度设定值，/100 = %RH）
+                // 按配置偏移取值（偏移越界 → 该字段取 0，不崩；配合注释便于现场排查映射配置）
+                ushort Get(int offset) => offset >= 0 && offset < values.Length ? values[offset] : (ushort)0;
+                ushort runStateRaw = Get(_config.FanRunStateOffset);
+                ushort tempRaw = Get(_config.FanTemperatureOffset);
+                ushort humRaw = Get(_config.FanHumidityOffset);
+                ushort tempSetRaw = Get(_config.FanTempSetpointOffset);
+                ushort humSetRaw = Get(_config.FanHumSetpointOffset);
+
+                // 状态解析（通用性）：先按配置命令码识别定值启动/定值停止——不同厂商命令码可能
+                // 不同，用枚举强转（原实现）会认错；再回退枚举强转兼容原行为。
+                // 默认配置下行为与旧实现完全一致（0x0003→定值启动、0x0002→定值停止、0/1→对应枚举）。
+                FanRunState runState;
+                if (runStateRaw == _config.FanStartCommand) runState = FanRunState.FixedValueRunning;
+                else if (runStateRaw == _config.FanStopCommand) runState = FanRunState.FixedValueStopped;
+                else runState = Enum.IsDefined(typeof(FanRunState), (int)runStateRaw)
+                    ? (FanRunState)runStateRaw : FanRunState.Unknown;
+
                 return new FanData
                 {
-                    RunState = (FanRunState)values[1],
-                    Temperature = values[2] / 100.0f,
-                    Humidity = values[3] / 100.0f,
-                    TempSetpoint = values[4] / 100.0f,
-                    HumSetpoint = values[5] / 100.0f,
+                    RunState = runState,
+                    Temperature = tempRaw / 100.0f,
+                    Humidity = humRaw / 100.0f,
+                    TempSetpoint = tempSetRaw / 100.0f,
+                    HumSetpoint = humSetRaw / 100.0f,
                     IsOnline = true,
                     CollectTime = DateTime.Now
                 };
@@ -397,20 +418,20 @@ namespace Kaleidoscope.Services
             }
         }
 
-        /// <summary>定值启动（写入 0x0001 = 0x0003）：让送风机按控制屏设定的温度运行（厂商自动控温）。</summary>
+        /// <summary>定值启动（写入 FanControlAddress = FanStartCommand，默认 0x0001=0x0003）：让送风机按控制屏设定的温度运行（厂商自动控温）。</summary>
         public bool StartFixedValue()
         {
-            return WriteCommand(0x0003);
+            return WriteCommand(_config != null ? _config.FanStartCommand : (ushort)0x0003);
         }
 
-        /// <summary>定值停止（写入 0x0001 = 0x0002）。</summary>
+        /// <summary>定值停止（写入 FanControlAddress = FanStopCommand，默认 0x0001=0x0002）。</summary>
         public bool Stop()
         {
-            return WriteCommand(0x0002);
+            return WriteCommand(_config != null ? _config.FanStopCommand : (ushort)0x0002);
         }
 
-        /// <summary>向控制寄存器 0x0001 写入控制命令（公共内部方法）。</summary>
-        /// <param name="command">命令值（0x0003=定值启动，0x0002=定值停止）</param>
+        /// <summary>向控制寄存器 FanControlAddress 写入控制命令（公共内部方法，地址可配见 FanConfig）。</summary>
+        /// <param name="command">命令值（默认 FanStartCommand=0x0003=定值启动，FanStopCommand=0x0002=定值停止）</param>
         /// <returns>是否发送成功</returns>
         private bool WriteCommand(ushort command)
         {
@@ -429,8 +450,8 @@ namespace Kaleidoscope.Services
                 lock (_syncRoot)
                 {
                     if (_master == null) return false;
-                    // 写单个保持寄存器（功能码 0x06）
-                    _master.WriteSingleRegister(_config.FanUnitId, 0x0001, command);
+                    // 写单个保持寄存器（功能码 0x06）到配置的控制寄存器（默认 0x0001）
+                    _master.WriteSingleRegister(_config.FanUnitId, _config.FanControlAddress, command);
                 }
                 return true;
             }

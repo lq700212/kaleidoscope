@@ -9,7 +9,7 @@ namespace Kaleidoscope.Models
     /// </summary>
     public class FanData
     {
-        /// <summary>运行状态（从 0x0001 读到的值，见 FanRunState 枚举）。</summary>
+        /// <summary>运行状态（从配置 FanRunStateOffset 对应寄存器读到的值，见 FanRunState 枚举）。</summary>
         public FanRunState RunState { get; set; }
 
         /// <summary>当前温度（单位：°C，寄存器值 / 100）。</summary>
@@ -48,9 +48,11 @@ namespace Kaleidoscope.Models
 
     /// <summary>
     /// 冷却送风机运行状态枚举。
-    /// 寄存器 0x0001 读到的值直接对应命令码（实测）：
+    /// 控制/状态寄存器（FanConfig.FanRunStateOffset，默认 0x0001）读到的值直接对应命令码（实测）：
     /// 0x0000=程式停止、0x0001=程式启动、0x0002=定值停止、0x0003=定值启动。
     /// 本上位机只用到"定值启动/定值停止"；程式模式是设备自带能力，保留枚举便于识别显示。
+    /// 运行时优先按配置命令码（FanStartCommand/FanStopCommand）识别定值启停——不同厂商命令码
+    /// 不同也能正确解析（见 FanControllerClient.ReadStatus）；读回值匹配不上再回退本枚举强转。
     /// Unknown 是本库自定义哨兵值（读失败/未初始化），不会出现在设备寄存器里。
     /// </summary>
     public enum FanRunState

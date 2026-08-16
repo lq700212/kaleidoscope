@@ -7,9 +7,11 @@ namespace Kaleidoscope.Services
     /// <summary>
     /// 气压表数据读取接口（真实 / Mock 共用同一声明，业务层只依赖本接口）。
     ///
-    /// 【协议口径（已定论，现场实测）】
-    /// - 读压力：Input Register 0x0001（功能码 0x04），同时读 0x0002 取小数位（不可靠，换算固定用配置小数位）
-    /// - 写阈值：Holding Register 0x0010（功能码 0x06），值 = round(阈值 × 10^小数位)
+    /// 【协议口径（已定论，现场实测；寄存器地址均可配，见 BarometerConfig）】
+    /// - 读压力：Input Register 0x0001（功能码 0x04，地址可配 BarometerPressureRegisterAddress），
+    ///   同时读 0x0002 取小数位（不可靠，换算固定用配置小数位）
+    /// - 写阈值：Holding Register 0x0010（功能码 0x06，地址可配 BarometerThresholdRegisterAddress），
+    ///   值 = round(阈值 × 10^小数位)
     /// 真实实现 <see cref="ModbusRtuBarometerReader"/>；模拟实现 <see cref="MockBarometerReader"/>
     /// （DeviceHubConfig.UseMockCommunication=true 时使用）。
     ///
@@ -50,7 +52,8 @@ namespace Kaleidoscope.Services
         BarometerData[] ReadAllData();
 
         /// <summary>
-        /// 写入单台气压表的设备阈值（Holding Register 0x0010）。
+        /// 写入单台气压表的设备阈值（Holding Register，功能码 0x06；寄存器地址用配置
+        /// BarometerThresholdRegisterAddress，默认 0x0010）。
         /// 【单位说明】thresholdValue 是"设备单位"（与压力读数同单位同小数位，寄存器值=round(阈值×10^小数位)），
         /// 不等于软件报警阈值 AlarmPressureThresholdKPa。写进设备内部、驱动硬件报警触点（→GX-CL140 的 DI）。
         /// </summary>
