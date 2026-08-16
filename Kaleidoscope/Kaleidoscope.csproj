@@ -41,6 +41,10 @@
     <Reference Include="System.Drawing" />
     <!-- WMI 串口识别（SerialPortHelper / 扫码枪自动识别，System.Management） -->
     <Reference Include="System.Management" />
+    <!-- 配置持久化（Configuration\ConfigSerializer：DataContractJsonSerializer 序列化 DeviceHubConfig，
+         net472 内置零第三方依赖；JsonReaderWriterFactory 返回 XmlDictionaryWriter 需 System.Xml） -->
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml" />
     <!-- 本地引用的第三方库（libs 目录，离线可编译）：
          NModbus：Modbus 主站/从站（CreateMaster / CreateSlaveNetwork / CreateRtuMaster）
          NModbus.Serial：RTU 主站（factory.CreateRtuMaster(SerialPort)），气压表 RS485 用 -->
@@ -72,6 +76,8 @@
     <Compile Include="Models\IoPointDefinition.cs" />
     <Compile Include="Models\IoOutputChannelRemap.cs" />
     <Compile Include="Models\DeviceHubConfig.cs" />
+    <Compile Include="Configuration\ConfigSerializer.cs" />
+    <Compile Include="Configuration\DeviceHubConfigValidator.cs" />
     <Compile Include="Services\PlcService.cs" />
     <Compile Include="Services\KeyenceIV4Camera.cs" />
     <Compile Include="Services\ScannerService.cs" />

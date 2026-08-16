@@ -509,7 +509,8 @@ namespace KaleidoscopeDemo
         {
             _cfg.ProductModel = cmbModel.SelectedItem?.ToString() ?? _cfg.ProductModel;
             _cfg.Save();
-            AppendLog("配置已保存：" + DemoConfig.ConfigFilePath);
+            AppendLog("配置已保存：设备配置 → " + DemoConfig.DevicesFilePath);
+            AppendLog("配置已保存：界面记忆 → " + DemoConfig.ConfigFilePath);
         }
 
         /// <summary>重新加载磁盘配置并重建设备层。</summary>
@@ -522,7 +523,7 @@ namespace KaleidoscopeDemo
             txtPlcIp.Text = _cfg.Devices.Plc?.IpAddress ?? "0.0.0.0";
             txtPlcPort.Text = (_cfg.Devices.Plc?.Port ?? 502).ToString();
             RebuildHub();
-            AppendLog("已从磁盘加载配置：" + DemoConfig.ConfigFilePath);
+            AppendLog("已从磁盘加载配置：设备配置 ← " + DemoConfig.DevicesFilePath);
         }
 
         // ══════════════════════ 相机操作（全部后台线程）══════════════════════

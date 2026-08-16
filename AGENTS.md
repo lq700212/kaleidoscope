@@ -14,7 +14,7 @@
 - .NET Framework **4.7.2**，C# `LangVersion=7.3`（WinForms 业务项目引用，勿引入 .NET Core 语法/API）
 - 通讯：**NModbus 3.0.83**（Modbus TCP 从站/主站，汇川 PLC）+ **NModbus.Serial 3.0.83**（Modbus RTU 主站，气压表）+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口 + IO 耦合器/送风机 Modbus TCP 主站
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
-- 序列化 Newtonsoft.Json **不引入**本库（配置反序列化是业务侧职责，本库只吃强类型对象）
+- 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
@@ -47,7 +47,8 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 ## 代码约定
 
 - 类/方法/属性 PascalCase；私有字段 `_camelCase`；接口前缀 `I`；事件 `PascalCase` 命名。
-- 命名空间：`Kaleidoscope.Models`（配置）、`Kaleidoscope.Services`（服务）、`Kaleidoscope.Utils`（工具）。
+- 命名空间：`Kaleidoscope.Models`（配置）、`Kaleidoscope.Services`（服务）、`Kaleidoscope.Utils`（工具）、`Kaleidoscope.Configuration`（配置持久化/校验）。
+- **配置持久化约定（V1.2.4 起）**：`ConfigSerializer` 读写 `.kcfg` JSON（UTF-8 无 BOM、缩进、中文直读）；DataContractJsonSerializer 缺字段自动补默认值（版本兼容）、显式 null 会覆盖默认值（必须经 `EnsureSafe` 兜底）；`DeviceHubConfigValidator` 保存前必校验（IP/端口/寄存器越界，Errors 必须修 Warnings 建议修）。新增配置模型字段时无需迁移旧文件。
 - **配置序列化约定**：串口停止位存字符串 `"1"/"15"/"2"`；校验位存枚举名 `None/Odd/Even/Mark/Space`；PLC 地址存 **DataStore 索引**（协议号 = 索引 + 40000）。读写两端大小写兼容。
 - 服务层事件一律**工作线程触发**，UI 订阅方自行 `Invoke`；库内不做 UI 线程跳转。
 - 日志只记边沿（连上/断开各一次），连续失败中间静默节流，防刷屏。

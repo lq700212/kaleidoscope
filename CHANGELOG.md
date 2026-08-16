@@ -7,6 +7,54 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.2.4（2026-08-16）库内置配置持久化 + 校验（ConfigSerializer/Validator）
+
+> 配置"可视化编辑器"规划的第一步地基：把设备配置（`DeviceHubConfig`）的**读写与校验**收进库内，
+> 业务项目不再自己写 JSON 反序列化（旧 Demo 用 Newtonsoft 手写一套 Load/Save 已弃用），
+> 也为后续独立的配置编辑器（第二步）提供统一的存取与校验入口。
+
+### 改动范围
+
+- **新增 `Configuration/ConfigSerializer.cs`**（命名空间 `Kaleidoscope.Configuration`）：
+  - `Save/Load/ToJson/FromJson/EnsureSafe`：`DeviceHubConfig ⇄ .kcfg` JSON 文件；
+  - 序列化用 .NET 内置 `DataContractJsonSerializer`（net472 自带，.NET Core 3.0+ 同名可用，
+    **零第三方依赖**，遵守"不引 Newtonsoft"红线）；
+  - 写盘 UTF-8 无 BOM、带缩进、`\uXXXX` 转义已解码回真实字符（中文直读、可手工编辑）；
+  - **版本兼容**：缺字段自动补默认值、未知成员自动忽略；显式 null 会覆盖默认值，
+    故读回后经 `EnsureSafe` 兜底（null 嵌套对象/列表替换为默认实例，防 NRE）；
+  - `Load` 文件不存在返回默认配置（不抛），存在但损坏抛 `InvalidDataException`。
+- **新增 `Configuration/DeviceHubConfigValidator.cs`**：`Validate(DeviceHubConfig)` 返回
+  错误（必须修）+ 警告（建议修）；覆盖 PLC 从站（IP/端口/型号序号/地址重叠）、PLC 主站
+  （IP/端口/轮询项）、相机（IP/端口/超时/点位程序号 0~127/取图来源）、扫码枪（Tcp/Serial
+  各自参数）、气压表（总数/读寄存器数 1~125/串口参数）、IO 耦合器（总路数/备用通道 0~31）、
+  送风机（状态区块偏移越界/启用段）、图像（保留天数/目录）、全局（PLC 角色/型号）；
+  `UseMockCommunication=true` 时跳过网络类参数校验，避免误报。
+- **csproj**：新增 `System.Runtime.Serialization`、`System.Xml` 引用 + 两个 Compile。
+- **Demo 接入（示范标准接法）**：`DemoConfig` 拆两层——设备配置走 `ConfigSerializer`
+  存 `Config/devices.kcfg`，界面记忆仍写 `Config/demo.json`；旧版内嵌 Devices 的 demo.json
+  首次运行自动迁移成 devices.kcfg（现场参数不丢）。`MainForm` 对外接口不变。
+
+### 为什么这么改
+
+- 通用库定位：换新客户做新界面时底层服务一行不改。配置读写收进库内后，新界面
+  `ConfigSerializer.Load(path)` 一行拿回强类型配置直接 `ApplyConfig`，不再各写各的序列化。
+- 为配置编辑器（第二步）铺路：编辑器与业务项目共用同一套序列化/校验，职责单一。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope + KaleidoscopeDemo 通过（无 error）。
+- PowerShell 冒烟（加载 bin 输出 dll）：Save/Load 往返（含中文/列表/点位表）、配置文件中无
+  `\u` 转义且含中文、未知成员+缺字段容错、null 嵌套兜底、校验器默认配置无错误/坏配置有错误，
+  全部通过。
+
+### 文档同步
+
+- `README.md`：技术栈"Newtonsoft.Json 不需要"更新为"内置 ConfigSerializer"；仓库结构加
+  `Configuration/`；快速接入新增"配置读写（库内置）"小节。
+- `AGENTS.md`：技术栈序列化条目更新；代码约定新增"配置持久化约定（V1.2.4 起）"；
+  命名空间清单加 `Kaleidoscope.Configuration`。
+- `CHANGELOG.md`：本版本（V1.2.4）。
+
 ## V1.2.3（2026-08-16）通讯寄存器地址全面配置化（送风机/气压表去写死）
 
 > 通用性专项检查：全库通讯模块中，PLC 主站/从站、IO 耦合器、相机、扫码枪的地址早已配置化；

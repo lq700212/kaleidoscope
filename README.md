@@ -9,7 +9,7 @@
 - .NET Framework 4.7.2，C# LangVersion 7.3（WinForms 项目直接引用）
 - NModbus 3.0.83（Modbus TCP 从站 + Modbus RTU 主站 + Modbus TCP 主站），`libs/NModbus.dll` + `libs/NModbus.Serial.dll` 本地引用，**离线可编译**，不依赖 NuGet
 - System.Management（WMI 自动识别 CH340 串口 / 扫码枪串口，见 `Utils/SerialPortHelper.cs`）
-- Newtonsoft.Json **不需要**（配置反序列化由业务项目负责，本库只吃强类型配置对象）
+- Newtonsoft.Json **不需要**：配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，**零第三方依赖**），业务项目读/写设备配置一行搞定，只吃强类型配置对象
 
 ## 二、仓库结构
 
@@ -23,7 +23,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   ├── Kaleidoscope.csproj         #   类库项目（Reference HintPath 引 libs\NModbus.dll 等）
 │   ├── libs/NModbus.dll         #   第三方依赖（拷 dll 进 libs，离线可编译）
 │   │   └── NModbus.Serial.dll   #    Modbus RTU 串口传输（气压表用）
-│   ├── Models/                  #   纯配置模型（强类型，序列化由业务侧决定）
+│   ├── Models/                  #   纯配置模型（强类型，序列化由 Configuration 层负责）
 │   │   ├── PlcConfig.cs         #     PLC 从站监听/寄存器地址/型号映射
 │   │   ├── PlcMasterConfig.cs   #     PLC 主站连接/轮询配置（上位机主动读写 PLC）
 │   │   ├── CameraConfig.cs      #     相机 IP/端口/指令/点位程序表/FTP 目录（含 DefaultCameras）
@@ -33,6 +33,9 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   ├── IoConfig.cs          #     IO 耦合器 IP/寄存器地址/备用通道映射
 │   │   ├── FanConfig.cs         #     送风机 IP/端口/自动识别候选/寄存器映射与命令码
 │   │   └── DeviceHubConfig.cs   #     全部设备 + 型号 + PlcRole + UseMockCommunication 聚合配置
+│   ├── Configuration/           #   配置持久化 + 校验（V1.2.4 新增，零第三方依赖）
+│   │   ├── ConfigSerializer.cs  #     DeviceHubConfig ⇄ .kcfg JSON 文件（缺字段兼容/中文直读/自动兜底）
+│   │   └── DeviceHubConfigValidator.cs # 保存前校验（IP/端口/寄存器/必填，返回错误与警告）
 │   ├── Services/                #   底层通讯服务（自持后台线程/惰性连接/自动重连）
 │   │   ├── PlcService.cs        #     Modbus TCP 从站监听 + 寄存器读写 + 上电复位
 │   │   ├── ModbusTcpMasterClient.cs #  通用 Modbus TCP 主站（主动读写 + 自动轮询，PLC 主站模式用）
@@ -53,7 +56,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 └── Demo/                        # WinForms 测试台（引用 Kaleidoscope bin 输出）
     ├── KaleidoscopeDemo.csproj     #   构建后自动拷 Kaleidoscope/NModbus/Newtonsoft.Json 到输出目录
     ├── MainForm.cs              #   标准接入方式的最小界面模板（可直接抄接入骨架）
-    ├── DemoConfig.cs            #   Newtonsoft.Json 持久化 Config/demo.json
+    ├── DemoConfig.cs            #   配置持久化：设备配置走 ConfigSerializer（devices.kcfg），界面记忆走 demo.json
     └── README.md                #   Demo 使用说明/验证清单/配置说明
 ```
 
@@ -75,6 +78,20 @@ PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。�
 ```csharp
 // ① 构造：传入聚合配置即建好全部服务（惰性连接，不碰网络）
 var hub = new DeviceHub(LoadDeviceConfig());
+```
+
+### 配置读写（库内置，业务项目不用自己写 JSON 逻辑）
+
+设备配置（`DeviceHubConfig`）的持久化已收进库内（`Kaleidoscope.Configuration`，零第三方依赖）：
+
+```csharp
+var cfg = ConfigSerializer.Load(path);      // 读：文件不存在→默认配置；缺新版字段→默认值补齐；损坏→抛 InvalidDataException
+ConfigSerializer.Save(cfg, path);           // 写：自动建目录，UTF-8 无 BOM，中文直读、可手工编辑
+hub.ApplyConfig(cfg);                       // 转手给 DeviceHub 即可
+```
+
+保存前建议先用 `DeviceHubConfigValidator.Validate(cfg)` 拦截明显错误（IP/端口/寄存器越界等，
+返回 `Errors` 必须修、`Warnings` 建议修），把坏配置挡在运行时之前。
 
 // ② 启动：扫码枪连接 + 心跳监控 + 存图定期清理 + PLC 主站轮询（气压表/IO/送风机由监控心跳自动连接）
 hub.Start();

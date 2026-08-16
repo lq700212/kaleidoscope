@@ -23,7 +23,7 @@
 
 > 首次启动无配置 → 用库默认值（PLC 监听 0.0.0.0:502、两台默认相机 19.87.6.213/.212、
 > 扫码枪 TCP 19.87.6.100:9004、存图根目录 E:\Images）。现场改 IP 后点"保存配置"，
-> 存到 `Config/demo.json`，下次自动加载。
+> 设备配置存到 `Config/devices.kcfg`、界面记忆存 `Config/demo.json`，下次自动加载。
 
 ## 二、界面功能速查
 
@@ -55,15 +55,20 @@
 
 ## 五、配置文件说明
 
-`Config/demo.json`（Newtonsoft.Json 序列化，含 Kaleidoscope 全部强类型配置）：
-- `productModel`：当前型号（PLC 建站成功写入型号区）
-- `devices.plc`：从站监听 IP/端口 + 寄存器地址
-- `devices.cameras`：相机列表（IP/端口/FTP 目录/PLC 通道/点位程序表）
-- `devices.scanners`：扫码枪列表（TCP/串口参数 + 触发指令 + 自动识别关键词）
-- `devices.image`：存图根目录/目录层级/保留天数
-- `devices.barometer`：气压表（CH340 串口自动识别/波特率/压力地址/阈值，默认 72 台）
-- `devices.io`：IO 耦合器（IP 502/DI 0x1000/DO 0x2000/备用通道映射，默认 80 入 160 出）
-- `devices.fan`：送风机（IP 50000/自动识别候选/温湿度寄存器）
-- `devices.useMockCommunication`：`true` 用 Mock（不接设备），`false` 接真机
+Demo 的配置拆两个文件（都在 `Config/` 目录）：
 
-现场换相机 IP 只改 `devices.cameras` 里的 `ipAddress`，或直接改界面上"配置"区后保存。
+**`devices.kcfg`**（设备层配置，库内置 `ConfigSerializer` 读写，UTF-8 无 BOM、中文直读、缺字段自动补默认值）：
+- `productModel`：当前型号（PLC 建站成功写入型号区）
+- `plc` / `plcMaster`：从站监听 IP/端口 + 寄存器地址 / 主站连接与轮询
+- `cameras`：相机列表（IP/端口/FTP 目录/PLC 通道/点位程序表）
+- `scanners`：扫码枪列表（TCP/串口参数 + 触发指令 + 自动识别关键词）
+- `image`：存图根目录/目录层级/保留天数
+- `barometer`：气压表（CH340 串口自动识别/波特率/压力地址/阈值，默认 72 台）
+- `io`：IO 耦合器（IP 502/DI 0x1000/DO 0x2000/备用通道映射，默认 80 入 160 出）
+- `fan`：送风机（IP 50000/自动识别候选/温湿度寄存器）
+- `useMockCommunication`：`true` 用 Mock（不接设备），`false` 接真机
+
+**`demo.json`**（仅 Demo 自己的界面记忆：窗口坐标等；保留旧版迁移逻辑，首次运行会把旧内嵌
+设备配置自动落成 devices.kcfg）。
+
+现场换相机 IP 只改 `devices.kcfg` 里 `cameras` 的 `ipAddress`，或直接改界面上"配置"区后保存。
