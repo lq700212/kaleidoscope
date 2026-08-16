@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using Sunny.UI;
 using Kaleidoscope.Configuration;
 using Kaleidoscope.Models;
 
@@ -44,6 +45,9 @@ namespace Kaleidoscope.ConfigEditor
     /// 底部按设备选"品牌预设"一键填充该品牌默认参数 → 保存前自动校验（错误阻止、警告确认）。
     ///
     /// 【为什么这么设计】
+    /// - 界面用 SunnyUI（LayuiGreen 浅绿小清新主题，Program 入口已设全局）：
+    ///   窗体继承 UIForm（无系统边框、圆角阴影）、工具条/状态条/品牌预设条用 UIPanel 容器，
+    ///   按钮统一 UIButton（文本居中、圆角、悬浮提示），同一行的按钮控件按容器高度垂直居中；
     /// - 不用手写几十个配置表单：PropertyGrid + 模型元数据（DisplayName/Description/Category）
     ///   自动渲染，新增配置字段天然出现在界面上，编辑器代码不用同步改；
     /// - 列表类配置（型号映射/点位表/轮询项/备用通道）用 PropertyGrid 内建集合编辑器，
@@ -58,25 +62,39 @@ namespace Kaleidoscope.ConfigEditor
     /// 【红线】本工具只产配置、不改库、不启停设备——运行仍是业务项目 + DeviceHub 的职责；
     /// 保存前必须过 DeviceHubConfigValidator（Errors 必须修，Warnings 确认后仍可保存）。
     /// </summary>
-    public class MainForm : Form
+    public class MainForm : UIForm
     {
         private DeviceHubConfig _cfg;
         private string _filePath = "";
         private bool _dirty;
 
         // UI 控件
-        private TreeView _tree;
+        private UITreeView _tree;
         private PropertyGrid _grid;
-        private ToolStrip _toolbar;
-        private StatusStrip _status;
-        private ToolStripStatusLabel _statusLabel;
-        private ToolStripButton _btnAddDevice;
-        private ToolStripButton _btnDelDevice;
-        private Panel _presetPanel;
-        private Label _presetLabel;
-        private ComboBox _presetCombo;
-        private Button _presetApply;
+        private UIPanel _toolbar;
+        private UIPanel _statusBar;
+        private UILabel _statusLabel;
+        private UIButton _btnAddDevice;
+        private UIButton _btnDelDevice;
+        private UIPanel _presetPanel;
+        private UILabel _presetLabel;
+        private UIComboBox _presetCombo;
+        private UIButton _presetApply;
         private NodeTag _selectedTag;
+
+        // ── 小清新配色（LayuiGreen 主题的浅绿扩展）──
+        // 注意：SunnyUI 3.9.8 的 UIStyles.SetStyle 只设全局枚举、不刷新颜色缓存，
+        // Inherited 控件会一直取默认蓝色——所以关键颜色一律显式指定，不依赖全局主题。
+        private static readonly Color Accent = Color.FromArgb(95, 184, 120);       // 主题浅绿（标题栏/主按钮）
+        private static readonly Color AccentHover = Color.FromArgb(110, 200, 135); // 主按钮悬浮
+        private static readonly Color AccentPress = Color.FromArgb(80, 165, 105);  // 主按钮按下
+        private static readonly Color AccentDark = Color.FromArgb(56, 142, 89);      // 深绿（次要按钮文字）
+        private static readonly Color SoftBg = Color.FromArgb(232, 246, 236);        // 浅绿底（次要按钮/预设条）
+        private static readonly Color SoftHover = Color.FromArgb(214, 236, 220);     // 浅绿悬浮
+        private static readonly Color SoftPress = Color.FromArgb(196, 226, 204);     // 浅绿按下
+        private static readonly Color SoftBorder = Color.FromArgb(176, 218, 186);    // 浅绿描边
+        private static readonly Color BarBg = Color.FromArgb(250, 252, 250);         // 工具条/状态条底色
+        private static readonly Color FormBg = Color.FromArgb(244, 247, 244);        // 窗体客户区底色
 
         /// <summary>构造：支持启动即打开指定配置</summary>
         /// <param name="openFile">可选 .kcfg 文件路径（命令行第一个参数），null=新建默认配置</param>
@@ -88,6 +106,14 @@ namespace Kaleidoscope.ConfigEditor
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1100, 780);
             MinimumSize = new Size(920, 620);
+            BackColor = FormBg;
+            ShowShadow = true;
+            Resizable = true;
+            ShowTitleIcon = false; // SunnyUI 的"标题栏图标"开关（与 WinForms ShowIcon 是两回事）
+            ShowIcon = false;      // 关键：UIForm.OnPaint 用 WinForms ShowIcon 判断是否 DrawIcon 标题栏图标，
+                                   // 默认 true 会把 SunnyUI 内置红色图标画到标题栏左上角（红色小三角），必须关掉
+            TitleColor = Accent;   // 标题栏显式浅绿（SetStyle 不生效时的兜底）
+            TitleForeColor = Color.White;
 
             BuildLayout();
             RebuildTree();
@@ -108,67 +134,94 @@ namespace Kaleidoscope.ConfigEditor
         /// <summary>构建全部控件与事件接线</summary>
         private void BuildLayout()
         {
-            // 顶部工具栏
-            _toolbar = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(4, 0, 0, 0) };
-            _toolbar.Items.Add(MakeButton("新建", "新建一份默认配置", NewConfig));
-            _toolbar.Items.Add(MakeButton("打开…", "打开 .kcfg 配置文件", OpenConfig));
-            _toolbar.Items.Add(MakeButton("保存", "保存（保存前自动校验）", SaveConfig));
-            _toolbar.Items.Add(new ToolStripSeparator());
-            _toolbar.Items.Add(MakeButton("校验", "校验当前配置，列出错误与警告", ValidateConfig));
-            _toolbar.Items.Add(MakeButton("导出说明书…", "把全部设备配置的字段说明导出成 Markdown 文档（现场参数交接用）", ExportDoc));
-            _toolbar.Items.Add(new ToolStripSeparator());
+            // ────────── 顶部工具条：一排 UIButton，按条高垂直居中 ──────────
+            _toolbar = new UIPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 52,
+                FillColor = BarBg,
+                RectColor = Color.Transparent,
+            };
+            int y = (_toolbar.Height - 32) / 2; // 按钮统一 32 高，(52-32)/2=10 → 上下留白相等
+            int x = 12;
+
+            var btnNew = MakeButton("新建", "新建一份默认配置", NewConfig, true);
+            var btnOpen = MakeButton("打开…", "打开 .kcfg 配置文件", OpenConfig, true);
+            var btnSave = MakeButton("保存", "保存（保存前自动校验）", SaveConfig, true);
+            _toolbar.Controls.Add(btnNew);
+            _toolbar.Controls.Add(btnOpen);
+            _toolbar.Controls.Add(btnSave);
+            x = PlaceButton(btnNew, x, y) + 8;
+            x = PlaceButton(btnOpen, x, y) + 8;
+            x = PlaceButton(btnSave, x, y) + 18; // 组间留更大间距代替分隔线
+
+            var btnValidate = MakeButton("校验", "校验当前配置，列出错误与警告", ValidateConfig);
+            var btnExport = MakeButton("导出说明书…", "把全部设备配置的字段说明导出成 Markdown 文档（现场参数交接用）", ExportDoc);
+            _toolbar.Controls.Add(btnValidate);
+            _toolbar.Controls.Add(btnExport);
+            x = PlaceButton(btnValidate, x, y) + 8;
+            x = PlaceButton(btnExport, x, y) + 18;
+
             _btnAddDevice = MakeButton("添加设备", "在相机/扫码枪分组下新增一台", AddDevice);
             _btnDelDevice = MakeButton("删除设备", "删除选中的相机/扫码枪", DeleteDevice);
-            _toolbar.Items.Add(_btnAddDevice);
-            _toolbar.Items.Add(_btnDelDevice);
+            _toolbar.Controls.Add(_btnAddDevice);
+            _toolbar.Controls.Add(_btnDelDevice);
+            x = PlaceButton(_btnAddDevice, x, y) + 8;
+            x = PlaceButton(_btnDelDevice, x, y) + 8;
 
-            // 左侧树 + 右侧属性区
-            _tree = new TreeView
+            // ────────── 左侧树 + 右侧属性区 ──────────
+            _tree = new UITreeView
             {
                 Dock = DockStyle.Fill,
                 HideSelection = false,
                 ShowLines = true,
+                ItemHeight = 26,
+                FillColor = Color.White,
+                SelectedColor = SoftBg,
+                SelectedForeColor = AccentDark,
+                HoverColor = Color.FromArgb(244, 249, 245),
+                LineColor = Color.FromArgb(210, 225, 214),
+                ScrollBarColor = Accent,
+                ScrollBarRectColor = Accent,
+                ScrollBarBackColor = Color.FromArgb(240, 245, 241),
             };
             _tree.AfterSelect += Tree_AfterSelect;
 
-            // 底部品牌预设条
-            _presetLabel = new Label
+            // ────────── 底部品牌预设条（选中设备节点才显示）──────────
+            _presetPanel = new UIPanel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 46,
+                FillColor = SoftBg,
+                RectColor = Color.Transparent,
+            };
+            _presetLabel = new UILabel
             {
                 Text = "品牌预设：",
                 AutoSize = true,
-                Anchor = AnchorStyles.Left,
+                ForeColor = AccentDark,
             };
-            _presetCombo = new ComboBox
+            _presetCombo = new UIComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
                 Width = 300,
-                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                DropDownStyle = UIDropDownStyle.DropDownList,
+                FillColor = Color.White,
+                RectColor = SoftBorder,
+                ForeColor = AccentDark,
+                Radius = 5,
             };
-            _presetApply = new Button
-            {
-                Text = "应用预设",
-                Width = 90,
-                Anchor = AnchorStyles.Right,
-            };
-            _presetApply.Click += PresetApply_Click;
-            _presetPanel = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 40,
-                Padding = new Padding(6, 8, 6, 6),
-            };
-            _presetLabel.Location = new Point(6, 11);
-            _presetCombo.Location = new Point(90, 8);
-            _presetApply.Location = new Point(_presetCombo.Right + 8, 7);
+            _presetApply = MakeButton("应用预设", "用选中品牌的默认参数整段替换当前设备配置", ApplyPreset);
             _presetPanel.Controls.Add(_presetLabel);
             _presetPanel.Controls.Add(_presetCombo);
             _presetPanel.Controls.Add(_presetApply);
             _presetPanel.Visible = false; // 默认隐藏，选中设备节点才显示
+            LayoutPresetBar();
 
+            // 属性网格（原生控件，置于白色 UIPanel 上）：按 Models 的 Category 分组显示
             _grid = new PropertyGrid
             {
                 Dock = DockStyle.Fill,
-                PropertySort = PropertySort.Categorized, // 按 Models 的 Category 分组显示
+                PropertySort = PropertySort.Categorized,
                 HelpVisible = true,
                 ToolbarVisible = true,
             };
@@ -176,7 +229,12 @@ namespace Kaleidoscope.ConfigEditor
 
             // 注意 WinForms Dock 布局按添加顺序：Bottom 的先占位、Fill 的后填剩余，
             // 顺序反了 Fill 会盖住 Bottom（先 add 的控件后布局，后 add 的覆盖在先 add 之上）。
-            var rightPanel = new Panel { Dock = DockStyle.Fill };
+            var rightPanel = new UIPanel
+            {
+                Dock = DockStyle.Fill,
+                FillColor = Color.White,
+                RectColor = Color.Transparent,
+            };
             rightPanel.Controls.Add(_presetPanel);
             rightPanel.Controls.Add(_grid);
 
@@ -186,27 +244,108 @@ namespace Kaleidoscope.ConfigEditor
                 Orientation = Orientation.Vertical,
                 SplitterDistance = 240,
                 FixedPanel = FixedPanel.Panel1,
+                SplitterWidth = 6,
+                BackColor = FormBg,
             };
             split.Panel1.Controls.Add(_tree);
+            split.Panel1.BackColor = FormBg;
             split.Panel2.Controls.Add(rightPanel);
+            split.Panel2.BackColor = FormBg;
 
-            // 底部状态栏
-            _status = new StatusStrip();
-            _statusLabel = new ToolStripStatusLabel("就绪");
-            _status.Items.Add(_statusLabel);
+            // ────────── 底部状态条 ──────────
+            _statusBar = new UIPanel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 30,
+                FillColor = BarBg,
+                RectColor = Color.Transparent,
+            };
+            _statusLabel = new UILabel
+            {
+                Text = "就绪",
+                AutoSize = false,
+                ForeColor = Color.FromArgb(90, 100, 92),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Location = new Point(14, 0),
+                Size = new Size(900, 30),
+            };
+            _statusBar.Controls.Add(_statusLabel);
 
             // 同样的 Dock 顺序：Top/Bottom 先占位，Fill 最后填剩余
-            Controls.Add(_status);
+            Controls.Add(_statusBar);
             Controls.Add(_toolbar);
             Controls.Add(split);
-            _toolbar.Dock = DockStyle.Top;
-            _status.Dock = DockStyle.Bottom;
         }
 
-        /// <summary>造一个工具栏按钮（统一事件接线；Action 便于直接绑无参方法）</summary>
-        private static ToolStripButton MakeButton(string text, string tip, Action onClick)
+        /// <summary>摆放顶部工具条上的一个按钮，返回按钮右缘 X（供下一控件衔接）</summary>
+        private static int PlaceButton(UIButton b, int x, int y)
         {
-            var b = new ToolStripButton(text) { ToolTipText = tip, AutoSize = false, Width = 76 };
+            b.Location = new Point(x, y);
+            return b.Right;
+        }
+
+        /// <summary>品牌预设条内控件同行垂直居中摆放（label/combo/按钮同一条中线）</summary>
+        private void LayoutPresetBar()
+        {
+            int cy = _presetPanel.Height / 2; // 条中线
+            int px = 14;
+            _presetLabel.Location = new Point(px, cy - _presetLabel.Height / 2);
+            px = _presetLabel.Right + 8;
+            _presetCombo.Location = new Point(px, cy - _presetCombo.Height / 2);
+            px = _presetCombo.Right + 10;
+            _presetApply.Location = new Point(px, cy - _presetApply.Height / 2);
+        }
+
+        /// <summary>
+        /// 造一个工具条/预设条按钮：文本水平垂直居中、圆角、按文本实测宽度（保证内容完整显示）；
+        /// primary=true 用实心主题绿（主操作），否则浅绿底+深绿字（次要操作）。
+        /// </summary>
+        /// <param name="text">按钮文本</param>
+        /// <param name="tip">悬浮提示文本。注：SunnyUI 3.9.8 的 UIButton 开启 ShowTips 存在绘制 bug——
+        /// 会在按钮上画一块红色渐变盖住文字（现场实测 RGB(255,0,0) 覆盖文字行），故暂不启用，
+        /// 参数保留供将来升级 SunnyUI 版本后恢复悬浮提示用。</param>
+        /// <param name="onClick">点击回调</param>
+        /// <param name="primary">true=实心主题绿主按钮</param>
+        /// <returns>UIButton 实例（未定位置，由调用方 PlaceButton 摆放）</returns>
+        private UIButton MakeButton(string text, string tip, Action onClick, bool primary = false)
+        {
+            // 实测文本宽 + 左右留白，确保"导出说明书…/添加设备"这类长文本不截断
+            int w = TextRenderer.MeasureText(text, Font).Width + 32;
+            var b = new UIButton
+            {
+                Text = text,
+                AutoSize = false,
+                Size = new Size(w, 32),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Radius = 6,
+                TabStop = false,
+            };
+            if (!primary)
+            {
+                // 次要按钮：浅绿底 + 深绿字 + 浅绿描边（显式自定义样式）
+                b.Style = UIStyle.Custom;
+                b.StyleCustomMode = true;
+                b.FillColor = SoftBg;
+                b.FillHoverColor = SoftHover;
+                b.FillPressColor = SoftPress;
+                b.ForeColor = AccentDark;
+                b.RectColor = SoftBorder;
+                b.RectHoverColor = SoftBorder;
+                b.RectPressColor = SoftBorder;
+            }
+            else
+            {
+                // 主按钮：实心主题浅绿 + 白字（显式自定义样式，不依赖全局 SetStyle）
+                b.Style = UIStyle.Custom;
+                b.StyleCustomMode = true;
+                b.FillColor = Accent;
+                b.FillHoverColor = AccentHover;
+                b.FillPressColor = AccentPress;
+                b.ForeColor = Color.White;
+                b.RectColor = Accent;
+                b.RectHoverColor = AccentHover;
+                b.RectPressColor = AccentPress;
+            }
             b.Click += (s, e) => onClick();
             return b;
         }
@@ -358,7 +497,7 @@ namespace Kaleidoscope.ConfigEditor
         // ══════════════════════ 品牌预设 ══════════════════════
 
         /// <summary>应用品牌预设：用该品牌默认实例整段替换当前设备的配置对象</summary>
-        private void PresetApply_Click(object sender, EventArgs e)
+        private void ApplyPreset()
         {
             if (_selectedTag == null) return;
             var preset = _presetCombo.SelectedItem as BrandPreset;

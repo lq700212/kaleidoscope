@@ -45,6 +45,13 @@
     <Reference Include="NModbus">
       <HintPath>libs\NModbus.dll</HintPath>
     </Reference>
+    <!-- 第三方库：SunnyUI（小清新界面主题，net472 版离线引用；SunnyUI.dll 运行时依赖 SunnyUI.Common.dll，两个都要） -->
+    <Reference Include="SunnyUI">
+      <HintPath>libs\SunnyUI.dll</HintPath>
+    </Reference>
+    <Reference Include="SunnyUI.Common">
+      <HintPath>libs\SunnyUI.Common.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -56,9 +63,11 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 
-  <!-- 构建后把 Kaleidoscope.dll / NModbus.dll 拷到输出目录（Kaleidoscope 引用只带 HintPath，不会自动复制） -->
+  <!-- 构建后把 Kaleidoscope.dll / NModbus.dll / SunnyUI.dll 拷到输出目录（Kaleidoscope 引用只带 HintPath，不会自动复制） -->
   <Target Name="CopyDepsAfterBuild" AfterTargets="Build">
     <Copy SourceFiles="..\Kaleidoscope\bin\Debug\Kaleidoscope.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="libs\NModbus.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="libs\SunnyUI.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="libs\SunnyUI.Common.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using Sunny.UI;
 
 namespace Kaleidoscope.ConfigEditor
 {
@@ -14,6 +15,9 @@ namespace Kaleidoscope.ConfigEditor
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // SunnyUI 全局主题：LayuiGreen 浅绿 = 小清新风格（须在窗体创建前设置，全界面统一）
+            UIStyles.SetStyle(UIStyle.LayuiGreen);
 
             string openFile = (args != null && args.Length > 0) ? args[0] : null;
             Application.Run(new MainForm(openFile));

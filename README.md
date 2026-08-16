@@ -62,7 +62,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
     ├── DemoConfig.cs            #   配置持久化：设备配置走 ConfigSerializer（devices.kcfg），界面记忆走 demo.json
     └── README.md                #   Demo 使用说明/验证清单/配置说明
 └── ConfigEditor/                # 可视化配置编辑器（独立工具，不进库；引用 Kaleidoscope bin 输出）
-    ├── KaleidoscopeConfigEditor.csproj # 构建后自动拷 Kaleidoscope/NModbus 到输出目录
+    ├── KaleidoscopeConfigEditor.csproj # 构建后自动拷 Kaleidoscope/NModbus/SunnyUI 到输出目录
     ├── MainForm.cs              #   设备树 + 属性网格 + 品牌预设 + 校验保存 .kcfg
     ├── BrandPresets.cs          #   内置品牌预设（基恩士/汇川/霍尼韦尔/三菱等默认参数）
     └── README.md                #   编辑器使用说明
@@ -90,6 +90,8 @@ PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。�
   三菱 GX-CL140、现场实测送风机映射等），之后可继续微调；
 - **保存前自动校验**：错误（IP/端口/寄存器越界）阻止保存，警告确认后仍可保存；
   产出的 `.kcfg` 直接给 `ConfigSerializer.Load` + `ApplyConfig` 用。
+- **界面小清新**（V1.5.0 起）：SunnyUI（LayuiGreen 浅绿主题）无边框圆角窗体，按钮文本居中、
+  宽度按文本实测、同排控件垂直对齐，`libs/` 离线引用，构建自动拷依赖。
 
 详见 [`ConfigEditor/README.md`](ConfigEditor/README.md)。
 

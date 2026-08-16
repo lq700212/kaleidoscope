@@ -88,7 +88,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 - **ImageStore 归 DeviceHub 所有**：`DeviceHub.Dispose`/`ApplyConfig` 显式释放（FileSystemWatcher 句柄），其他对象不得代关。
 - **新增设备类型**：先写服务类（独立后台线程 + 惰性连接 + Dispose 干净），再在 `DeviceHubConfig` 加配置段、`DeviceHub.BuildServices` 建实例、`SubscribeAggregateEvents` 聚合事件。
 - **Mock 三件套**：气压表/IO/送风机各自有 `MockXxx` 实现（随机数据模拟），`DeviceHubConfig.UseMockCommunication=true` 时全部用 Mock，不接设备跑通 UI/业务；接真机改回 false，业务代码不动。扫码枪/PLC/相机不受此开关影响。
-- **ConfigEditor（V1.3.0，独立工具不进库）**：`ConfigEditor/` 可视化配置编辑器只产 `.kcfg`、不启停设备；靠 Models 元数据自动渲染属性网格，**新增配置字段无需改编辑器代码**；`BrandPresets.cs` 品牌预设只收敛参数差异，协议差异仍需改库；产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入。编辑器自身遵循"改动必须可编译"铁律（同库工程构建命令）。
+- **ConfigEditor（V1.3.0，独立工具不进库）**：`ConfigEditor/` 可视化配置编辑器只产 `.kcfg`、不启停设备；靠 Models 元数据自动渲染属性网格，**新增配置字段无需改编辑器代码**；`BrandPresets.cs` 品牌预设只收敛参数差异，协议差异仍需改库；产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入。编辑器自身遵循"改动必须可编译"铁律（同库工程构建命令）。**界面（V1.5.0 起）用 SunnyUI 小清新**（`UIForm` + LayuiGreen 主题，`libs/` 离线引用 SunnyUI.dll + SunnyUI.Common.dll，构建自动拷输出目录；SunnyUI.dll 运行时依赖 Common，两个都要带）。
 - **设备自文档化（V1.4.0）**：`DeviceDescriptorRegistry` 基于 Models 元数据反射自动构建描述符（设备中文名 + 字段：中文名/说明/分组/类型/默认值/是否集合），`DeviceDescriptionExporter` 导出 Markdown 说明书（编辑器「导出说明书…」按钮同源）。**新增配置模型时只需在 Registry 静态构造里登记一行设备中文名**；字段清单自动跟上。校验规则仍手写在 `DeviceHubConfigValidator`（地址重叠等跨字段逻辑自动推导不了），两者职责互补。
 
 ## 已知通讯关键点（改之前先读对应文件注释）

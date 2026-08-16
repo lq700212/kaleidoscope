@@ -7,6 +7,37 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.5.0（2026-08-16）ConfigEditor 界面 SunnyUI 小清新重构
+
+### 改动范围
+
+- **ConfigEditor 界面从原生 WinForms 换成 SunnyUI（3.9.8，net472）小清新风格**：
+  - 窗体改继承 `UIForm`（无系统边框、圆角阴影、可拉伸），全局主题 `UIStyles.SetStyle(UIStyle.LayuiGreen)` 浅绿；
+  - 工具栏/状态栏/品牌预设条改 `UIPanel` 容器，按钮统一 `UIButton`：**文本水平垂直居中**、
+    圆角、悬浮提示、**宽度按文本实测（TextRenderer）保证内容完整显示**；
+  - 工具条/品牌预设条内**同排控件按容器中线上下垂直对齐**（按钮 Y=(52-32)/2=10、预设条 label/combo/按钮同中线）；
+  - 设备树换 `UITreeView`（浅绿选中高亮），属性网格仍为原生 `PropertyGrid`（置于白色 UIPanel）。
+- **依赖**：`ConfigEditor/libs/` 新增 `SunnyUI.dll` + `SunnyUI.Common.dll`（net472，离线 HintPath 引用，
+  csproj 构建后自动拷输出目录）。**坑**：SunnyUI.dll 运行时依赖 SunnyUI.Common.dll，两个都要带；
+  拷贝时勿把 net8.0 版 Common.dll 覆盖 net472 版（会 `System.Runtime 8.0` 加载崩溃；net472 版 168448 字节）。
+- **修复 SunnyUI 3.9.8 两处渲染 bug**（现场截图逐像素排查定位）：
+  1. `UIButton` 开启 `ShowTips=true` 时会在按钮上画一块**红色渐变盖住文字**
+     （按钮 FillColor/ForeColor 属性值全对、渲染却出 RGB(255,0,0)）——移除 ShowTips/TipsText，
+     `MakeButton` 的 `tip` 参数保留，待升级 SunnyUI 后恢复悬浮提示；
+  2. `UIForm` 标题栏左上角**红色小三角**：`UIForm.OnPaint` 用 WinForms `ShowIcon`（默认 true）
+     判断是否 `DrawIcon` 标题栏图标，会把 SunnyUI 内置红色图标画出来（与 `ShowTitleIcon` 无关，
+     设 Icon=null 仍画）——MainForm 补 `ShowIcon = false` 干净移除。
+- 文档同步：根 `README.md`、`ConfigEditor/README.md`（界面小节 + 结构 libs 说明）。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 ConfigEditor 通过。
+- 启动冒烟：带 .kcfg / 无参数均稳定存活 10s 无崩溃；窗体构造成功（UIForm）。
+- 布局坐标反射验证：工具栏 7 按钮全 `Y=10/H=32` 垂直居中、宽度按文本实测
+  （导出说明书…110 / 添加设备 88 等不截断）；预设条 label Y=11（中线 23 对称居中）。
+- 截图逐像素扫描：**主窗体 1100x780 内红色像素 count=0**（两处红块均消除）；
+  按钮行采样 新建/保存=Accent 绿、打开…=白字、校验/导出=浅绿、添加设备=disabled 深灰。
+
 ## V1.4.1（2026-08-16）修补：README 快速接入代码块 + 描述符构建防御
 
 > 自审修补（无功能变化）：修掉两处不影响运行的小问题。

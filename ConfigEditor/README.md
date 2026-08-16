@@ -14,7 +14,7 @@
 ## 怎么构建
 
 ```powershell
-# 先构建库，再构建编辑器（会自动拷 Kaleidoscope.dll / NModbus.dll 到输出目录）
+# 先构建库，再构建编辑器（会自动拷 Kaleidoscope.dll / NModbus.dll / SunnyUI.dll / SunnyUI.Common.dll 到输出目录）
 & "D:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
   Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
 & "D:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
@@ -24,6 +24,10 @@
 运行：`ConfigEditor\bin\Debug\KaleidoscopeConfigEditor.exe`（可拖拽/命令行传入 .kcfg 直接打开）。
 
 ## 界面与操作
+
+> 界面用 **SunnyUI**（3.9.8，net472）做小清新风格：无边框圆角窗体 + LayuiGreen 浅绿主题；
+> 按钮统一 UIButton（文本水平垂直居中、圆角、悬浮提示、宽度按文本实测保证内容完整显示）；
+> 同一行按钮/控件按行中线上下居中对齐。主题色在 `Program.cs` 入口 `UIStyles.SetStyle` 一次设置。
 
 | 区域 | 作用 |
 | --- | --- |
@@ -52,9 +56,12 @@ hub.ApplyConfig(cfg);                             // 转手给 DeviceHub，热�
 
 ```
 ConfigEditor/
-├── KaleidoscopeConfigEditor.csproj   # WinForms 工程（net472，引用 Kaleidoscope bin 输出）
-├── Program.cs                        # 入口（支持命令行传 .kcfg）
+├── KaleidoscopeConfigEditor.csproj   # WinForms 工程（net472，引用 Kaleidoscope bin 输出 + SunnyUI）
+├── Program.cs                        # 入口（支持命令行传 .kcfg；设置 SunnyUI 全局小清新主题）
 ├── MainForm.cs                       # 主窗体：设备树 + 属性网格 + 品牌预设 + 校验保存 + 导出说明书
 ├── BrandPresets.cs                   # 内置品牌预设库（按设备类型返回默认参数模板）
-└── libs/NModbus.dll                  # 运行时依赖（同 Demo 的拷贝策略）
+└── libs/                         # 离线引用的第三方库
+    ├── NModbus.dll                # 运行时依赖（同 Demo 的拷贝策略）
+    ├── SunnyUI.dll                # SunnyUI 界面库（net472）
+    └── SunnyUI.Common.dll         # SunnyUI 基础库（SunnyUI.dll 运行时依赖它，两个都要）
 ```
