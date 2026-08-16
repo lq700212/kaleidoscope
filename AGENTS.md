@@ -90,6 +90,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 ## 已知通讯关键点（改之前先读对应文件注释）
 
 - **PLC 从站网络释放（V2.14.23 血泪）**：重建/Dispose 时除 `_cts.Cancel()`/`_listener.Stop()` 外**必须 `_network?.Dispose()`**（NModbus `ModbusTcpSlaveNetwork` 实现了 IDisposable，会停止 TcpListener 并关闭所有已连入的 master TCP 会话；只 Stop listener 会让 PLC 主站认为旧连接还活着、不重连新从站 → 通讯假死）。三处清理点统一补。
+- **PLC 从站不依赖主站轮询节奏（V1.2.3 审查结论）**：从站模式上位机是被动响应方，PLC 轮询时间改大/改小都兼容（改小握手快、改大握手慢，值"保持到对端响应才复位"，不丢不冲；`_lock` 串行化、`MasterPollTick` 1s 只查 TCP 会话、`TcpKeepAlive` 5s 只探活，均不受快慢影响）。改代码时勿引入"假设 PLC 每隔固定周期来读写"的逻辑（如按 PLC 轮询周期估时判活）。两条边界在业务层：① 协调器"等 PLC 复位请求"超时须 > PLC 最慢轮询周期；② PLC 梯形图发下一拍请求前必须确认上位机结果已回 0（快轮询下不合规梯形图混拍窗口更频繁）。
 - **PLC 主站（V1.2.0）**：`ModbusTcpMasterClient` 是通用 Modbus TCP 主站（可连 PLC/远程 IO/仪表），
   范式对齐 `ModbusTcpIoController`——BeginConnect+WaitOne 强制超时、`_syncRoot` 锁串行化、读写失败
   断连标记；读离散输入用 `IModbusMaster.ReadInputs`（NModbus 3.0.83 无 `ReadDiscreteInputs` 方法）；
