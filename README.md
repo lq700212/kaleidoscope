@@ -100,7 +100,22 @@ PLC 读写 / 相机触发判定取图存图 / 扫码枪收码 / 存图归档。�
 ```csharp
 // ① 构造：传入聚合配置即建好全部服务（惰性连接，不碰网络）
 var hub = new DeviceHub(LoadDeviceConfig());
+
+// ② 启动：扫码枪连接 + 心跳监控 + 存图定期清理 + PLC 主站轮询（气压表/IO/送风机由监控心跳自动连接）
+hub.Start();
+
+// ③ 订阅聚合事件（可选，事件在工作线程触发，UI 订阅方需 Invoke 回 UI 线程）
+hub.SerialNumberScanned   += (s, code) => UpdateUi(code);            // 任意扫码枪读到条码
+hub.DeviceConnectionChanged += (s, e) => UpdateStatusLamp(e);        // 任一设备连接状态变化
+hub.ServicesRebuilt       += (s, e) => RebuildBusinessLayer(hub);    // 热更后重建你的业务编排
+// 细粒度事件直接订阅服务实例：hub.Plc / hub.Cameras / hub.Scanners / hub.ImageStore
+
+// ④ 关窗释放（顺序：监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储，各步异常不中断）
+hub.Dispose();
 ```
+
+**你的业务层（协调器）**：持有 `hub.Plc` / `hub.Cameras` / `hub.Scanners` / `hub.ImageStore` /
+`hub.Barometer` / `hub.Io` / `hub.Fan` 使用，**不要**新建 TcpClient/串口/连接（服务已内部惰性建连 + 自动重连）。
 
 ### 配置读写（库内置，业务项目不用自己写 JSON 逻辑）
 
@@ -124,22 +139,6 @@ hub.ApplyConfig(cfg);                       // 转手给 DeviceHub 即可
 DeviceDescriptionExporter.ExportToMarkdownFile("设备配置说明书.md");  // 导出全部设备段字段表
 var d = DeviceDescriptorRegistry.Get(typeof(CameraConfig));           // 取单段描述符（智能渲染/日志自述用）
 ```
-
-// ② 启动：扫码枪连接 + 心跳监控 + 存图定期清理 + PLC 主站轮询（气压表/IO/送风机由监控心跳自动连接）
-hub.Start();
-
-// ③ 订阅聚合事件（可选，事件在工作线程触发，UI 订阅方需 Invoke 回 UI 线程）
-hub.SerialNumberScanned   += (s, code) => UpdateUi(code);            // 任意扫码枪读到条码
-hub.DeviceConnectionChanged += (s, e) => UpdateStatusLamp(e);        // 任一设备连接状态变化
-hub.ServicesRebuilt       += (s, e) => RebuildBusinessLayer(hub);    // 热更后重建你的业务编排
-// 细粒度事件直接订阅服务实例：hub.Plc / hub.Cameras / hub.Scanners / hub.ImageStore
-
-// ④ 关窗释放（顺序：监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储，各步异常不中断）
-hub.Dispose();
-```
-
-**你的业务层（协调器）**：持有 `hub.Plc` / `hub.Cameras` / `hub.Scanners` / `hub.ImageStore` /
-`hub.Barometer` / `hub.Io` / `hub.Fan` 使用，**不要**新建 TcpClient/串口/连接（服务已内部惰性建连 + 自动重连）。
 
 ### PLC 主站 / 从站两模式
 

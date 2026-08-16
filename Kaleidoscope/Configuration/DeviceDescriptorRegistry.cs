@@ -135,11 +135,25 @@ namespace Kaleidoscope.Configuration
                     TypeName = GetFriendlyTypeName(p.PropertyType),
                     IsCollection = p.PropertyType != typeof(string)
                         && typeof(IEnumerable).IsAssignableFrom(p.PropertyType),
-                    DefaultValueText = (sample != null) ? FormatValue(p.GetValue(sample)) : "—",
+                    DefaultValueText = ReadDefaultValue(sample, p),
                 };
                 d.Fields.Add(f);
             }
             return d;
+        }
+
+        /// <summary>
+        /// 读默认值样本的属性值；getter 异常（如某个属性内部抛错）返回 "—"，
+        /// 不让单个字段拖垮整段描述符构建。
+        /// </summary>
+        /// <param name="sample">默认值样本实例（可能为 null）</param>
+        /// <param name="p">属性</param>
+        /// <returns>默认值文本</returns>
+        private static string ReadDefaultValue(object sample, PropertyInfo p)
+        {
+            if (sample == null) return "—";
+            try { return FormatValue(p.GetValue(sample)); }
+            catch { return "—"; }
         }
 
         /// <summary>

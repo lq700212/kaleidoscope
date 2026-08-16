@@ -7,6 +7,24 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.4.1（2026-08-16）修补：README 快速接入代码块 + 描述符构建防御
+
+> 自审修补（无功能变化）：修掉两处不影响运行的小问题。
+
+### 改动范围
+
+- **`README.md`**：修复「快速接入（四步）」格式——V1.2.4 起该节被「配置读写」小节拆散，
+  ①②③④ 只剩 ① 在代码块里、②③④ 变成裸文本；现已把四步合并回一个完整代码块，
+  「配置读写」「设备自文档化」等补充小节移到代码块之后。
+- **`Configuration/DeviceDescriptorRegistry.cs`**：`Build` 读取默认值时经 `ReadDefaultValue`
+  包 try/catch（某字段 getter 异常返回 "—"，不拖垮整段描述符构建）。
+
+### 验证
+
+- MSBuild Debug/AnyCPU 构建 Kaleidoscope + ConfigEditor 通过。
+- 冒烟回归：描述符 13 段/126 字段、说明书导出、编辑器启动（正常 .kcfg / 含 null 相机元素
+  / 损坏 JSON 三种场景均不崩）。
+
 ## V1.4.0（2026-08-16）设备自文档化：DeviceDescriptor 描述符 + 说明书导出
 
 > 配置"可视化编辑器"规划的第三步：把第二步的 `System.ComponentModel` 元数据（V1.3.0）收敛成
