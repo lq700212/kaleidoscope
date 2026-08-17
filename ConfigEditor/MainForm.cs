@@ -371,8 +371,8 @@ namespace Kaleidoscope.ConfigEditor
             root.Nodes.Add(new TreeNode("全局设置") { Tag = new NodeTag(NodeKind.Global, -1) });
 
             var plcGroup = new TreeNode("PLC") { Tag = new NodeTag(NodeKind.PlcGroup, -1) };
-            plcGroup.Nodes.Add(new TreeNode("从站（监听 502，三拍握手）") { Tag = new NodeTag(NodeKind.PlcSlave, -1) });
-            plcGroup.Nodes.Add(new TreeNode("主站（主动读写 + 轮询）") { Tag = new NodeTag(NodeKind.PlcMaster, -1) });
+            plcGroup.Nodes.Add(new TreeNode("PLC Slave（监听 502，三拍握手）") { Tag = new NodeTag(NodeKind.PlcSlave, -1) });
+            plcGroup.Nodes.Add(new TreeNode("PLC Master（主动读写 + 轮询）") { Tag = new NodeTag(NodeKind.PlcMaster, -1) });
             root.Nodes.Add(plcGroup);
 
             var camGroup = new TreeNode("相机") { Tag = new NodeTag(NodeKind.CameraGroup, -1) };

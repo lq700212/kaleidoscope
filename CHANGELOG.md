@@ -36,7 +36,10 @@
      PLC 从站"从站（监听 502，三拍握手）"、扫码枪"（串口/TCP）"括号内文本被裁剪——
      树区固定 300px，并在窗体 `Shown`（尺寸已定）后再设一次 `SplitterDistance=300`
      （**坑**：SplitContainer 创建时 Width 仍为默认 150，此时设 SplitterDistance 会被
-     clamp 到 150-6-25≈119，Dock 拉伸后因 FixedPanel=Panel1 保持该值不变）。
+     clamp 到 150-6-25≈119，Dock 拉伸后因 FixedPanel=Panel1 保持该值不变）；
+  3. PLC 树节点文案统一为英文：从站/主站 → **PLC Slave / PLC Master**，
+     与配置枚举 `PlcRole { Slave, Master }`、`PlcMasterConfig`/`PlcService` 字段命名对齐
+     （树节点显示中文"从站/主站"而属性区下拉显示英文 Slave/Master，风格不一致）。
 - 文档同步：根 `README.md`、`ConfigEditor/README.md`（界面小节 + 结构 libs 说明）。
 
 ### 验证
