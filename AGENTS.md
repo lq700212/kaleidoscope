@@ -133,6 +133,18 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
   服务内部 10s 重连节流，与监控器 5s 节流叠加。
 - **扫码枪自动识别（Aging 沉淀）**：`PortName` 留空 → WMI 按 `DeviceKeyword`（默认 "Xenon 1902"）查设备名定位串口；心跳 3s 双信号判定（WMI 搜索 + 系统串口列表）+ 每 4 次心跳"关-重搜-重开"兜底，拔枪几秒内变"未连接"、插回自动恢复。
 
+## 测试（验收测试用例集固化于 acceptance-test 技能）
+
+- **54 个回归用例**固化在 `.opencode/skill/acceptance-test/scripts/SmokeTest.cs`，
+  **一键运行**：`powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1`
+  （自动 Roslyn 编译 → 拷依赖 → 运行，退出码 0=全过/1=有失败，可接 CI）。
+- **判据**：`PASS=54 FAIL=0` 为基线（SKIP=HSL 授权用例无授权环境自动跳过，正常）；
+  FAIL 的用例名即定位（组.序号+场景描述）。改动库代码后、提交前必须跑一遍全 PASS。
+- **扩展用例**：对应分组加方法 + Main 注册 Run()；模拟设备复用现成基建
+  （MockSlave 从站 / StartSim 扫码枪 / StartCamSim 相机，用法见技能 SKILL.md）。
+- **编译坑**：必须用 VS 的 Roslyn csc（系统 csc 是 C# 5）——脚本已自动探测；
+  详见技能 SKILL.md「编译注意」。
+
 ## 已知界面布局关键点（ConfigEditor，2026-08 预设条事件沉淀）
 
 - **WinForms Dock 处理顺序（最高优先级红线）**：布局引擎按 Controls 集合【index 从大到小】依次扣减。

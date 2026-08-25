@@ -23,6 +23,8 @@ hsl.auth
 # ────────── 测试编译产物（SmokeTest.cs 编译到仓库根时的产物）──────────
 /SmokeTest.exe
 /SmokeTest.pdb
+tests/*.exe
+tests/*.pdb
 
 # ────────── 操作系统垃圾 ──────────
 Thumbs.db
