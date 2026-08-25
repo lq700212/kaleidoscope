@@ -23,8 +23,8 @@ namespace Kaleidoscope.Services
     }
 
     /// <summary>
-    /// 设备聚合门面（DeviceHub）：把 PLC（主站/从站两模式）/ 多相机 / 多扫码枪 / 图片存储 / 连接监控
-    /// 的【创建、启动、事件聚合、热更、释放】全链路编排收进这一个类，屏蔽底层细节。
+    /// 设备聚合门面（DeviceHub）：把 PLC（从站/Modbus主站/多品牌主站三模式）/ 多相机 / 多扫码枪 /
+    /// 图片存储 / 连接监控的【创建、启动、事件聚合、热更、释放】全链路编排收进这一个类，屏蔽底层细节。
     ///
     /// 【为什么要有这个门面】
     /// 原项目（CommandCenter）这套"建服务 + 订阅事件 + 热更停旧建新 + 关窗按序释放"的编排
@@ -37,12 +37,14 @@ namespace Kaleidoscope.Services
     /// 业务层（ProductionCoordinator 类角色）由新项目自己写，但可直接持有 hub.Plc / hub.Cameras /
     /// hub.Scanners / hub.ImageStore 这几个服务实例——DeviceHub 不关心业务，只负责"设备活着"。
     ///
-    /// 【PLC 主站/从站两模式（V1.2.0）】
-    /// 同一台汇川 PLC 两种角色都能接，由 DeviceHubConfig.PlcRole 决定：
-    /// - PlcRole.Slave（默认）：hub.Plc 是 PlcService（从站，监听 502 等 PLC 主站来读写）；
-    /// - PlcRole.Master：hub.Plc 为 null、hub.PlcMaster 是 ModbusTcpMasterClient（主站，
-    ///   主动读写 PLC，Start() 自动启动后台轮询）。业务层用 hub.IsPlcMaster 判断取哪个，
-    ///   两种模式下连接状态都聚合成 HubDeviceKind.Plc 指示灯，热更/释放行为一致。
+    /// 【PLC 三种模式（V1.6.0 起多品牌）】
+    /// 由 DeviceHubConfig.PlcRole 决定，同一时刻只生效其一：
+    /// - PlcRole.Slave（默认）：hub.Plc 是 PlcService（Modbus TCP 从站，监听 502 等 PLC 来读写）；
+    /// - PlcRole.Master：hub.PlcMaster 是 ModbusTcpMasterClient（Modbus TCP 主站 + 自动轮询）；
+    /// - PlcRole.MultiBrand：hub.PlcMultiBrand 是 HslPlcClient（三菱/欧姆龙/西门子/汇川等
+    ///   非 Modbus 协议主动读写，能力来自集成的商业通讯库 HslCommunication）。三种模式下连接
+    ///   状态都聚合成 HubDeviceKind.Plc 指示灯，热更/释放行为一致。业务层用 IsPlcMaster /
+    ///   IsPlcMultiBrand 判断取哪个实例。
     ///
     /// 【线程模型】
     /// - DeviceHub 的公开方法（构造/Start/ApplyConfig/Dispose）应在上层 UI 线程调用；
@@ -53,7 +55,7 @@ namespace Kaleidoscope.Services
     ///
     /// 【热更语义（与原项目 ApplyRuntimeConfig 对齐）】
     /// ApplyConfig 内部先按"监控→PLC→气压表/IO/送风机→扫码枪→相机→图像存储"顺序释放旧服务
-    /// （每步 try/catch，单步失败不中断后续），再用新配置重建并重新订阅聚合事件，最后触发
+    /// （每步 try/catch，单步失败不中断），再用新配置重建并重新订阅聚合事件，最后触发
     /// ServicesRebuilt 事件通知上层"设备层已换新，请重建你的业务编排并重新订阅"。
     /// ImageStore 归本门面所有，热更必须显式释放旧的（否则旧 FileSystemWatcher 句柄泄漏、
     /// 事件发给废弃对象）。
@@ -70,12 +72,22 @@ namespace Kaleidoscope.Services
 
         /// <summary>
         /// PLC 服务（主站模式 PlcRole.Master）：通用 Modbus TCP 主站，主动读写 PLC 寄存器，
-        /// Start() 自动启动后台轮询（见 PlcMasterConfig.PollItems）。从站模式下为 null。
+        /// Start() 自动启动后台轮询（见 PlcMasterConfig.PollItems）。其它模式下为 null。
         /// </summary>
         public ModbusTcpMasterClient PlcMaster { get; private set; }
 
-        /// <summary>当前 PLC 是否主站模式（true=用 PlcMaster；false=用 Plc 从站）。业务层据此取服务。</summary>
+        /// <summary>
+        /// PLC 服务（多品牌模式 PlcRole.MultiBrand）：经三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、
+        /// 汇川 H5U 等品牌协议主动读写（HslPlcClient，HSL 库），Start() 自动启动后台轮询，
+        /// 服务自带心跳自愈。其它模式下为 null。
+        /// </summary>
+        public HslPlcClient PlcMultiBrand { get; private set; }
+
+        /// <summary>当前 PLC 是否主站模式（true=用 PlcMaster）。业务层据此取服务。</summary>
         public bool IsPlcMaster => Config.PlcRole == PlcRole.Master;
+
+        /// <summary>当前 PLC 是否多品牌模式（true=用 PlcMultiBrand，非 Modbus 协议）。</summary>
+        public bool IsPlcMultiBrand => Config.PlcRole == PlcRole.MultiBrand;
 
         /// <summary>基恩士 IV4 相机服务列表（每台相机独立连接/触发/判图）</summary>
         public List<KeyenceIV4Camera> Cameras { get; private set; }
@@ -156,14 +168,16 @@ namespace Kaleidoscope.Services
 
         /// <summary>
         /// 启动全部设备：扫码枪打开连接（失败内部持续重连）+ 连接监控心跳点火 + 存图定期清理。
-        /// PLC 主站模式（PlcRole.Master）时在此启动后台自动轮询（见 ModbusTcpMasterClient.StartPolling，
-        /// 未配置轮询项则内部忽略）。幂等：重复调用不会重复建服务（服务已在构造时建好）。
+        /// PLC 主站模式（PlcRole.Master / MultiBrand）时在此启动后台自动轮询
+        /// （未配置轮询项则内部忽略）。幂等：重复调用不会重复建服务（服务已在构造时建好）。
         /// </summary>
         public void Start()
         {
-            // PLC 主站模式：启动后台自动轮询（从站模式 PlcMaster 为 null，无操作）
+            // PLC 主站/多品牌模式：启动后台自动轮询（从站模式为 null，无操作）
             try { PlcMaster?.StartPolling(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub.Start：PLC 主站轮询启动异常 " + ex.Message); }
+            try { PlcMultiBrand?.StartPolling(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub.Start：多品牌 PLC 轮询启动异常 " + ex.Message); }
 
             // 扫码枪打开连接（TCP/串口各自内部持续重连，失败不影响主流程）
             foreach (var sc in Scanners)
@@ -238,19 +252,31 @@ namespace Kaleidoscope.Services
         /// </summary>
         private void BuildServices()
         {
-            // ---------- PLC（主站/从站两模式，由 PlcRole 决定） ----------
+            // ---------- PLC（从站/Modbus主站/多品牌主站三模式，由 PlcRole 决定） ----------
             if (Config.PlcRole == PlcRole.Master)
             {
-                // 主站模式：上位机主动读写 PLC（通用 Modbus TCP 主站）。
+                // Modbus 主站模式：上位机主动读写 PLC（通用 Modbus TCP 主站）。
                 // 惰性连接：不在此碰网络，由 Start() 的轮询/读写自动建连，Monitor 心跳兜底重连。
                 Plc = null;
                 PlcMaster = new ModbusTcpMasterClient();
+                PlcMultiBrand = null;
+            }
+            else if (Config.PlcRole == PlcRole.MultiBrand)
+            {
+                // 多品牌主站模式（V1.6.0）：三菱/欧姆龙/西门子/汇川等非 Modbus 协议（HSL 库）。
+                // 带配置构造：实例自持心跳 Timer 在后台线程完成首连与断线自愈（此模式
+                // ConnectionMonitor 不参与 PLC 探活，见 HslPlcClient 类注释），构造线程不碰网络。
+                // Start() 时启动后台轮询（未配置轮询项则忽略）。
+                Plc = null;
+                PlcMaster = null;
+                PlcMultiBrand = new HslPlcClient(Config.MultiBrandPlc);
             }
             else
             {
                 // 从站模式（默认）：上位机监听 502 等 PLC 主站来读写（三拍握手，见 PlcService）。
                 Plc = new PlcService(Config.Plc);
                 PlcMaster = null;
+                PlcMultiBrand = null;
                 // 把当前型号交给 PLC：从站建站成功后立即写进型号区（40007=序号+40008~40012=字符串），
                 // PLC 不触发扫码也能读到当前型号（见 PlcService.SetCurrentModel）。空串则跳过。
                 if (!string.IsNullOrWhiteSpace(Config.ProductModel))
@@ -325,15 +351,18 @@ namespace Kaleidoscope.Services
         }
 
         /// <summary>
-        /// 按配置创建一台扫码枪实例（原项目 MainForm.BuildScanner）：
+        /// 按配置创建一台扫码枪实例：
         /// "Tcp" → ScannerTcpService（基恩士 SR 系列 TCP/IP 无协议，上位机作客户端收条码行）；
-        /// 其余 → ScannerService（串口 RS-232）。两者实现同一 IScanner 接口。
+        /// "Eip" → ScannerEipService（EtherNet/IP，上位机周期读 Assembly 取码，V1.6.0 新增）；
+        /// 其余 → ScannerService（串口 RS-232）。三者实现同一 IScanner 接口，上层收码链路零改动。
         /// 空安全比较：Mode 为 null/空时一律走串口分支，防配置手改 null 崩溃。
         /// </summary>
         private static IScanner BuildScanner(ScanConfig scan)
         {
             if (scan.Mode?.Trim().Equals("Tcp", StringComparison.OrdinalIgnoreCase) == true)
                 return new ScannerTcpService(scan);
+            if (scan.Mode?.Trim().Equals("Eip", StringComparison.OrdinalIgnoreCase) == true)
+                return new ScannerEipService(scan);
             return new ScannerService(scan);
         }
 
@@ -357,20 +386,27 @@ namespace Kaleidoscope.Services
             }
 
             // ---------- PLC ----------
-            // 两种角色分开聚合，但都归为 HubDeviceKind.Plc（UI 同一个 PLC 灯位）：
+            // 三种角色分开聚合，但都归为 HubDeviceKind.Plc（UI 同一个 PLC 灯位）：
             // - 从站模式（PlcRole.Slave）：Plc 监听就绪/失败（ConnectionChanged）+
             //   主站连入/断开（MasterConnectionChanged，即 PLC 主站连上/离开从站）；
-            // - 主站模式（PlcRole.Master）：Plc 为 null，订阅 PlcMaster.ConnectionChanged，
-            //   再由 Monitor.PlcMasterConnectionChanged 兜底边沿（其内部已节流重连，双保险不重复）。
+            // - 主站模式（PlcRole.Master）：订阅 PlcMaster.ConnectionChanged，
+            //   再由 Monitor.PlcMasterConnectionChanged 兜底边沿（其内部已节流重连，双保险不重复）；
+            // - 多品牌模式（PlcRole.MultiBrand）：HslPlcClient 自带心跳自愈与边沿事件，直接聚合。
             if (Plc != null)
             {
                 Plc.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
                 Plc.MasterConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC(主站)", c);
             }
-            else
+            else if (PlcMaster != null)
             {
                 PlcMaster.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
                 Monitor.PlcMasterConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, "PLC", c);
+            }
+            else if (PlcMultiBrand != null)
+            {
+                string label = "PLC(" + HslPlcClient.BrandLabel(
+                    Config.MultiBrandPlc != null ? Config.MultiBrandPlc.Brand : MultiBrandPlcBrand.MelsecMc) + ")";
+                PlcMultiBrand.ConnectionChanged += (s, c) => RaiseConnection(HubDeviceKind.Plc, label, c);
             }
 
             // ---------- 相机 ----------
@@ -416,11 +452,13 @@ namespace Kaleidoscope.Services
         {
             try { Monitor?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub：监控器释放异常 " + ex.Message); }
-            // PLC：从站或主站二选一，谁存在就释放谁（主站模式 Plc 为 null，PlcMaster 非 null）
+            // PLC：三种角色谁存在就释放谁（同一时刻只会有一个非 null）
             try { Plc?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub：PLC 释放异常 " + ex.Message); }
             try { PlcMaster?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("DeviceHub：PLC 主站释放异常 " + ex.Message); }
+            try { PlcMultiBrand?.Dispose(); }
+            catch (Exception ex) { LogHelper.Warn("DeviceHub：多品牌 PLC 释放异常 " + ex.Message); }
 
             // 三类主站设备：先断主站再放外围（扫码枪/相机），避免断开期间外围仍在读数据
             try { Barometer?.Dispose(); }
@@ -447,7 +485,7 @@ namespace Kaleidoscope.Services
             catch (Exception ex) { LogHelper.Warn("DeviceHub：图像存储释放异常 " + ex.Message); }
 
             // 清空引用，防止热更后旧实例被误用
-            Monitor = null; Plc = null; PlcMaster = null;
+            Monitor = null; Plc = null; PlcMaster = null; PlcMultiBrand = null;
             Barometer = null; Io = null; Fan = null;
             Scanners = null; Cameras = null; ImageStore = null;
         }

@@ -2,10 +2,48 @@
 
 > **本文件自 V1.0.0（Kaleidoscope 库抽取之日）起记，只记录 Kaleidoscope 仓库自身的改动。**
 > 更早的 V2.14.26 及以前版本均为 CommandCenter 原项目的历史记录（窗口徽标、点位配置、
-> 产品型号弹窗等界面功能，与 Kaleidoscope 库代码无关），**不随库迁移**；其中通讯相关的
+> 产品型号弹窗等界面功能，与 Kaleidoscope 库代码无关），**不随本仓库迁移**；其中通讯相关的
 > 血泪背景（PLC 从站释放 V2.14.23、相机判定即写 V2.13.7、PW 同程序号跳过 V2.14.19、
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
+
+## V1.6.0（2026-08-24）集成 HslCommunication：多品牌 PLC + EtherNet/IP 扫码枪
+
+### 新增
+
+- **集成商业通讯库 HslCommunication（12.6.0.0）供选择**（`libs/HslCommunication.dll` 本地引用，
+  离线可编译；**商业授权，授权码需自行购买**）：
+  - **多品牌 PLC 主站**：`PlcRole.MultiBrand` + `HslPlcClient`——三菱 MC/A1E、欧姆龙 FINS/CIP、
+    西门子 S7、汇川 H5U；一个 `IReadWriteNet` 接口吃掉所有品牌（新增品牌只加工厂 case），
+    地址填品牌语法（三菱 D100/欧姆龙 W10/西门子 DB1.DBW0），端口 0=按品牌默认；
+    锁串行化 + 断连边沿 + 节流重连 + 自带心跳自愈 + 可选轮询项（与 Modbus 主站事件同构）；
+  - **EtherNet/IP 扫码枪**：`ScanConfig.Mode="Eip"` + `ScannerEipService`——上位机周期读
+    Assembly 取条码，无需触发指令；保持型数据自动去重（码变化或出现过空才上报，
+    读到空清缓存，"同码→空→同码"可再次触发）。
+- **授权使用**：授权码放 exe 同目录 `hsl.auth` 文件（UTF-8，`#` 开头为注释行，码单独一行，
+  文件已被 .gitignore 忽略）；未配置时配置编辑器切到多品牌 PLC / EIP 扫码枪节点会弹窗
+  引导输入，验签通过自动保存；运行中放入文件无需重启自动生效。未授权不阻断通讯（受限流）。
+  授权注册统一在 `Utils/HslAuthorization.cs`（加载/验签/落盘），服务层连接前幂等调用。
+- **ConfigEditor**：设备树 PLC 分组重组（ModBus-TCP → 主站/从站；胡工科技通讯库 → 主站），
+  节点悬停 ToolTip 补充协议说明；七个多品牌品牌预设 + EIP 扫码枪预设；HSL 授权状态区
+  与输入弹窗（`HslAuthDialog`）；Demo 新增多品牌 PLC 直连测试区。
+- **调试工具固化为项目专属技能**：`.opencode/skill/ui-layout-debug/`（子窗口矩形枚举、
+  置顶真实截图，Python/PowerShell 双版本）。
+
+### 修复
+
+- **ConfigEditor 布局**：主窗体/rightPanel 的 Dock 添加顺序（Fill 必须最先 Add）——
+  原顺序下 split 占满全客户区，树/属性网格被状态条静默遮挡 30px，预设条控件只露顶边；
+  预设条/工具条/状态条/rightPanel 换原生 Panel；预设条显示时强制重排（Visible 切换布局时序）。
+- `ConfigSerializer.EnsureSafe` 补 `MultiBrandPlc` 段与轮询项列表兜底。
+- `HslPlcClient`：Dispose 后 in-flight 回调复活连接/Timer 的竞态（ConnectInternal/EnsureConnected
+  加废弃拦截）、StartKeepAlive 双 Timer 窗口加锁、ReconnectNow 锁内二次确认；
+  事件统一走 RaiseSafe 隔离（订阅者异常不外抛，防 Timer 回调未捕获异常崩进程）。
+- `ScannerEipService`：Worker 循环整圈异常兜底（订阅方异常不再杀死收码线程）。
+- `HslAuthorization`：未激活时每次重读授权文件（运行中补放文件无需重启），告警日志 30s 节流；
+  TryActivate/SaveToFile 加锁防并发。
+
+
 
 ## V1.5.0（2026-08-16）ConfigEditor 界面 SunnyUI 小清新重构
 

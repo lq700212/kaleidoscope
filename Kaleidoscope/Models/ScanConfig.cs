@@ -17,10 +17,13 @@ namespace Kaleidoscope.Models
         /// 通讯方式（大小写不敏感）：
         ///   "Tcp"   ：基恩士 SR 系列扫码枪以太网 TCP/IP 无协议通讯（默认，现场实测）——上位机作
         ///              TCP 客户端连扫码枪，扫码枪读到条码后主动推送文本行，上位机按行切分；
-        ///   "Serial"：串口 RS-232 扫码枪（扫完发一行条码+CR/LF）。
+        ///   "Serial"：串口 RS-232 扫码枪（扫完发一行条码+CR/LF）；
+        ///   "Eip"   ：EtherNet/IP(CIP) 扫码枪（V1.6.0 新增）——扫码枪作 EIP
+        ///              适配器(Adapter)，上位机作扫描器(Scanner)周期读 Assembly 数据取条码，
+        ///              适用基恩士 SR / 康耐视 DataMan 刷成 EIP 模式的机型。
         /// </summary>
         [DisplayName("通讯方式")]
-        [Description("Tcp=以太网无协议通讯（默认）；Serial=串口 RS-232")]
+        [Description("Tcp=以太网无协议通讯（默认）；Serial=串口 RS-232；Eip=EtherNet/IP 周期读 Assembly")]
         public string Mode { get; set; } = "Tcp";
 
         /// <summary>
@@ -90,5 +93,29 @@ namespace Kaleidoscope.Models
         [DisplayName("触发指令")]
         [Description("仅 TCP 方式；连接成功后自动发送（如 LON）启动读码，自动补 CRLF；留空不发送")]
         public string TriggerCommand { get; set; } = "LON";
+
+        // ────── EIP 模式专属参数（仅 Mode=Eip 使用，现场实测参数）──────
+
+        /// <summary>
+        /// EIP 读取地址：扫码枪 Assembly 实例号（T→O 数据），基恩士 SR / 康耐视 DataMan 常见
+        /// 默认 "4"，现场不同型号按扫码枪手册修改（仅 Mode=Eip 使用）。
+        /// </summary>
+        [DisplayName("EIP Assembly 地址")]
+        [Description("仅 EIP 方式；扫码枪 Assembly 实例号，基恩士 SR/DataMan 常见默认 4")]
+        public string EipAssemblyAddress { get; set; } = "4";
+
+        /// <summary>EIP 单次读取字节数 = 条码最大长度（Assembly 定长数据区，默认 64 够一维/二维码）。</summary>
+        [DisplayName("EIP 读取字节数")]
+        [Description("仅 EIP 方式；单次读取字节数=条码最大长度，默认 64")]
+        public int EipReadLengthBytes { get; set; } = 64;
+
+        /// <summary>
+        /// EIP 轮询周期（毫秒）：上位机周期读一次 Assembly 取条码。默认 200ms——扫码响应足够快
+        /// 且不占带宽。注意 Assembly 是【保持型】数据，服务内部已做去重（条码变化或中间出现过空
+        /// 才上报），同一条码不会按周期重复触发（仅 Mode=Eip 使用）。
+        /// </summary>
+        [DisplayName("EIP 轮询周期(ms)")]
+        [Description("仅 EIP 方式；周期读 Assembly 的间隔毫秒，默认 200")]
+        public int EipPollingMs { get; set; } = 200;
     }
 }

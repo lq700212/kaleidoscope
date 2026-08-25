@@ -56,12 +56,19 @@
       <HintPath>libs\NModbus.Serial.dll</HintPath>
       <!-- NuGet: NModbus.Serial 3.0.83（RTU 主站扩展，CreateRtuMaster 需引用本 dll） -->
     </Reference>
+    <Reference Include="HslCommunication">
+      <HintPath>libs\HslCommunication.dll</HintPath>
+      <!-- 公司购买的商业 PLC 协议库 12.6.0.0（从 HJvision 项目随库迁移，V1.6.0）：
+           多品牌 PLC 主站（三菱/欧姆龙/西门子/汇川）+ EtherNet/IP 扫码枪；
+           授权统一在 Utils/HslAuthorization 注册，仅 Services 层引用，Models/Configuration 不依赖 -->
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Utils\LogHelper.cs" />
     <Compile Include="Utils\TcpKeepAlive.cs" />
     <Compile Include="Utils\SerialPortHelper.cs" />
     <Compile Include="Utils\IoMapBuilder.cs" />
+    <Compile Include="Utils\HslAuthorization.cs" />
     <Compile Include="Models\PlcConfig.cs" />
     <Compile Include="Models\CameraConfig.cs" />
     <Compile Include="Models\ScanConfig.cs" />
@@ -70,6 +77,7 @@
     <Compile Include="Models\IoConfig.cs" />
     <Compile Include="Models\FanConfig.cs" />
     <Compile Include="Models\PlcMasterConfig.cs" />
+    <Compile Include="Models\MultiBrandPlcConfig.cs" />
     <Compile Include="Models\BarometerData.cs" />
     <Compile Include="Models\FanData.cs" />
     <Compile Include="Models\IoStatus.cs" />
@@ -93,6 +101,8 @@
     <Compile Include="Services\ModbusTcpIoController.cs" />
     <Compile Include="Services\FanControllerClient.cs" />
     <Compile Include="Services\ModbusTcpMasterClient.cs" />
+    <Compile Include="Services\HslPlcClient.cs" />
+    <Compile Include="Services\ScannerEipService.cs" />
     <Compile Include="Services\MockBarometerReader.cs" />
     <Compile Include="Services\MockIoController.cs" />
     <Compile Include="Services\MockFanController.cs" />

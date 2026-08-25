@@ -60,6 +60,12 @@ namespace KaleidoscopeDemo
         // ────── Kaleidoscope 核心：DeviceHub 门面（Demo 全程只持有它）──────
         private DeviceHub _hub;
 
+        // ────── 多品牌 PLC 直连测试（V1.6.0）：独立于 hub 的服务实例 ──────
+        // 【为什么不用 hub】hub 的 PLC 角色由配置决定（默认从站三拍握手），本区域目的是
+        // 快速验证 HSL 多品牌通道（换品牌/IP 即测），属于"库功能验证工具"性质；
+        // 正式项目仍应走 hub.PlcMultiBrand（PlcRole=MultiBrand），见 README 接入范式。
+        private HslPlcClient _hslPlc;
+
         // Demo 自身配置（含 DeviceHubConfig 内嵌）
         private DemoConfig _cfg;
 
@@ -81,6 +87,11 @@ namespace KaleidoscopeDemo
         private Label lblScannerCode;
         private Label lblMoveVal;
         private TextBox txtModel, txtReadAddr, txtReadVal, txtWriteAddr, txtWriteVal;
+        private ComboBox cmbHslBrand;
+        private TextBox txtHslIp, txtHslPort;
+        private Label lblHslState;
+        private ComboBox cmbHslType;
+        private TextBox txtHslAddr, txtHslVal, txtHslReadVal;
         private PictureBox picPreview;
         private Label lblSavedPath;
         private TextBox txtLog;
@@ -205,7 +216,7 @@ namespace KaleidoscopeDemo
             lblScannerCode.AutoEllipsis = true;
             lblScannerCode.ForeColor = Color.FromArgb(46, 158, 107);
             gScanner.Controls.Add(lblScannerCode);
-            gScanner.Controls.Add(MakeLabel("提示:TCP 模式连上后需发触发指令(LON)才开始读码;串口上电即读码", 12, 98));
+            gScanner.Controls.Add(MakeLabel("提示:TCP 模式连上后需发触发指令(LON);串口上电即读码;EIP 模式周期读 Assembly 自动去重(配置 Mode=Eip)", 12, 98));
             y += 130;
 
             // ── PLC 读写区 ──
@@ -248,6 +259,66 @@ namespace KaleidoscopeDemo
             gPlc.Controls.Add(txtWriteVal);
             gPlc.Controls.Add(MakeButton("写", 540, 168, 60, BtnWriteReg_Click));
             y += 220;
+
+            // ── 多品牌 PLC 直连测试区（V1.6.0：HSL 多品牌通道快速验证） ──
+            var gHsl = MakeGroup("多品牌 PLC（HSL 直连测试，独立于上方从站演示）", 8, y, 730, 160);
+            left.Controls.Add(gHsl);
+            gHsl.Controls.Add(MakeLabel("品牌:", 12, 26));
+            cmbHslBrand = MakeCombo(52, 23, 150);
+            cmbHslBrand.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbHslBrand.Items.AddRange(new object[]
+            {
+                new BrandItem { Text = "三菱 MC (6000)", Brand = MultiBrandPlcBrand.MelsecMc },
+                new BrandItem { Text = "三菱 A1E (6000)", Brand = MultiBrandPlcBrand.MelsecA1E },
+                new BrandItem { Text = "欧姆龙 FINS (9600)", Brand = MultiBrandPlcBrand.OmronFins },
+                new BrandItem { Text = "欧姆龙 CIP (44818)", Brand = MultiBrandPlcBrand.OmronCip },
+                new BrandItem { Text = "汇川 H5U (502)", Brand = MultiBrandPlcBrand.InovanceH5U },
+                new BrandItem { Text = "西门子 S7-1200 (102)", Brand = MultiBrandPlcBrand.SiemensS7 },
+            });
+            cmbHslBrand.SelectedIndex = 0;
+            gHsl.Controls.Add(cmbHslBrand);
+            gHsl.Controls.Add(MakeLabel("IP:", 212, 26));
+            txtHslIp = MakeText(240, 23, 130);
+            txtHslIp.Text = "192.168.0.1";
+            gHsl.Controls.Add(txtHslIp);
+            gHsl.Controls.Add(MakeLabel(":端口", 376, 26));
+            txtHslPort = MakeText(420, 23, 60);
+            txtHslPort.Text = "0";   // 0=按品牌默认端口
+            gHsl.Controls.Add(txtHslPort);
+            lblHslState = MakeLabel("○ 断连", 500, 26);
+            lblHslState.ForeColor = Color.Red;
+            gHsl.Controls.Add(lblHslState);
+            gHsl.Controls.Add(MakeButton("连接", 580, 22, 60, BtnHslConnect_Click));
+            gHsl.Controls.Add(MakeButton("断开", 648, 22, 60, BtnHslDisconnect_Click));
+            gHsl.Controls.Add(MakeLabel("类型:", 12, 62));
+            cmbHslType = MakeCombo(52, 59, 100);
+            cmbHslType.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbHslType.Items.AddRange(new object[]
+            {
+                new HslTypeItem { Text = "Bool(位)", Type = PlcDataType.Bool },
+                new HslTypeItem { Text = "Int16", Type = PlcDataType.Int16 },
+                new HslTypeItem { Text = "UInt16", Type = PlcDataType.UInt16 },
+                new HslTypeItem { Text = "Int32", Type = PlcDataType.Int32 },
+                new HslTypeItem { Text = "Float", Type = PlcDataType.Float },
+            });
+            cmbHslType.SelectedIndex = 1;
+            gHsl.Controls.Add(cmbHslType);
+            gHsl.Controls.Add(MakeLabel("地址:", 162, 62));
+            txtHslAddr = MakeText(206, 59, 110);
+            txtHslAddr.Text = "D100";
+            gHsl.Controls.Add(txtHslAddr);
+            gHsl.Controls.Add(MakeButton("读", 324, 55, 56, BtnHslRead_Click));
+            txtHslReadVal = MakeText(388, 59, 90);
+            txtHslReadVal.ReadOnly = true;
+            gHsl.Controls.Add(txtHslReadVal);
+            gHsl.Controls.Add(MakeLabel("写值:", 488, 62));
+            txtHslVal = MakeText(526, 59, 70);
+            txtHslVal.Text = "1";
+            gHsl.Controls.Add(txtHslVal);
+            gHsl.Controls.Add(MakeButton("写", 604, 55, 56, BtnHslWrite_Click));
+            gHsl.Controls.Add(MakeLabel("说明:地址填品牌语法（三菱D100/欧姆龙W10/西门子DB1.DBW0）；端口0=按品牌默认；Bool 写值填 1/0；断线自动重连", 12, 98));
+            gHsl.Controls.Add(MakeLabel("正式项目接入:PlcRole=MultiBrand + hub.PlcMultiBrand（配置编辑器选 PLC→胡工科技通讯库→主站）", 12, 126));
+            y += 160;
 
             // ── 存图测试区 ──
             var gSave = MakeGroup("存图测试（不依赖相机，验证 ImageStore 归档链路）", 8, y, 730, 80);
@@ -852,6 +923,175 @@ namespace KaleidoscopeDemo
             });
         }
 
+        // ══════════════════════ 多品牌 PLC 直连测试（全部后台线程）══════════════════════
+
+        /// <summary>品牌下拉项（ComboBox 显示 Text，Tag 语义存 Brand）。</summary>
+        private class BrandItem
+        {
+            public string Text;
+            public MultiBrandPlcBrand Brand;
+            public override string ToString() => Text;
+        }
+
+        /// <summary>数据类型下拉项。</summary>
+        private class HslTypeItem
+        {
+            public string Text;
+            public PlcDataType Type;
+            public override string ToString() => Text;
+        }
+
+        /// <summary>惰性取多品牌 PLC 测试客户端（首次连接时才建实例）。</summary>
+        private HslPlcClient GetOrCreateHslClient()
+        {
+            if (_hslPlc == null)
+            {
+                _hslPlc = new HslPlcClient();
+                _hslPlc.ConnectionChanged += (s, c) => SafeInvoke(RefreshHslState);
+            }
+            return _hslPlc;
+        }
+
+        /// <summary>从界面收集多品牌 PLC 连接配置（端口空/0 = 按品牌默认）。</summary>
+        private MultiBrandPlcConfig BuildHslConfig()
+        {
+            var cfg = new MultiBrandPlcConfig();
+            var brand = cmbHslBrand.SelectedItem as BrandItem;
+            if (brand != null) cfg.Brand = brand.Brand;
+            cfg.IpAddress = txtHslIp.Text.Trim();
+            int.TryParse(txtHslPort.Text.Trim(), out int port);   // 解析失败保持 0=默认端口
+            cfg.Port = port;
+            return cfg;
+        }
+
+        /// <summary>连接（重连）按钮：后台线程 Connect，完成后刷新状态灯。
+        /// 连接前顺带确保 HSL 授权已从 hsl.auth 加载（未激活不阻断，但受限流，日志明确提示）。</summary>
+        private void BtnHslConnect_Click(object sender, EventArgs e)
+        {
+            SetBusy(true);
+            AppendLog("→ 多品牌 PLC 连接 …");
+            Task.Run(() =>
+            {
+                bool authOk = HslAuthorization.EnsureRegistered();
+                bool ok = GetOrCreateHslClient().Connect(BuildHslConfig());
+                SafeInvoke(() =>
+                {
+                    AppendLog((ok ? "← 多品牌 PLC 连接成功" : "← 多品牌 PLC 连接失败（详见日志）")
+                        + (authOk
+                            ? "（HSL 授权：有效）"
+                            : "（HSL 授权：未激活受限流——请把 hsl.auth 放到本程序目录，或参照配置编辑器输入授权码）"));
+                    RefreshHslState();
+                    FinishOp();
+                });
+            });
+        }
+
+        /// <summary>断开按钮：释放测试客户端（下次点"连接"自动重建）。</summary>
+        private void BtnHslDisconnect_Click(object sender, EventArgs e)
+        {
+            SetBusy(true);
+            Task.Run(() =>
+            {
+                try { _hslPlc?.Dispose(); } catch { }
+                // 置 null 放 UI 线程做：避免与 RefreshHslState 的读取跨线程竞态
+                SafeInvoke(() => { _hslPlc = null; RefreshHslState(); FinishOp(); });
+            });
+        }
+
+        /// <summary>按类型下拉读一个点（后台线程，结果显示在只读框）。</summary>
+        private void BtnHslRead_Click(object sender, EventArgs e)
+        {
+            var client = _hslPlc;
+            if (client == null) { Msg("请先点击「连接」。"); return; }
+            string addr = txtHslAddr.Text.Trim();
+            if (addr.Length == 0) { Msg("请填写地址。"); return; }
+            var typeItem = cmbHslType.SelectedItem as HslTypeItem;
+            SetBusy(true);
+            AppendLog($"→ 多品牌 PLC 读 {addr} ({typeItem?.Text}) …");
+            Task.Run(() =>
+            {
+                bool ok; string text;
+                switch (typeItem?.Type ?? PlcDataType.Int16)
+                {
+                    case PlcDataType.Bool:
+                        ok = client.ReadBool(addr, out bool b); text = ok ? (b ? "TRUE" : "FALSE") : "失败";
+                        break;
+                    case PlcDataType.UInt16:
+                        ok = client.ReadUInt16(addr, out ushort u16); text = ok ? u16.ToString() : "失败";
+                        break;
+                    case PlcDataType.Int32:
+                        ok = client.ReadInt32(addr, out int i32); text = ok ? i32.ToString() : "失败";
+                        break;
+                    case PlcDataType.Float:
+                        ok = client.ReadFloat(addr, out float f); text = ok ? f.ToString("F3") : "失败";
+                        break;
+                    default: // Int16
+                        ok = client.ReadInt16(addr, out short i16); text = ok ? i16.ToString() : "失败";
+                        break;
+                }
+                SafeInvoke(() =>
+                {
+                    txtHslReadVal.Text = text;
+                    AppendLog(ok ? $"← {addr} = {text}" : $"← 读 {addr} 失败（未连接/无响应）");
+                    FinishOp();
+                });
+            });
+        }
+
+        /// <summary>按类型下拉写一个点（后台线程；Bool 写值填 1/0，其余按数值解析）。</summary>
+        private void BtnHslWrite_Click(object sender, EventArgs e)
+        {
+            var client = _hslPlc;
+            if (client == null) { Msg("请先点击「连接」。"); return; }
+            string addr = txtHslAddr.Text.Trim();
+            if (addr.Length == 0) { Msg("请填写地址。"); return; }
+            var typeItem = cmbHslType.SelectedItem as HslTypeItem;
+            string valText = txtHslVal.Text.Trim();
+
+            // 数值解析放 UI 线程：格式错误立即提示，不发网络请求
+            bool boolVal = false; short shortVal = 0; ushort ushortVal = 0; int intVal = 0; float floatVal = 0;
+            try
+            {
+                switch (typeItem?.Type ?? PlcDataType.Int16)
+                {
+                    case PlcDataType.Bool: boolVal = valText != "0"; break;
+                    case PlcDataType.UInt16: ushortVal = ushort.Parse(valText); break;
+                    case PlcDataType.Int32: intVal = int.Parse(valText); break;
+                    case PlcDataType.Float: floatVal = float.Parse(valText); break;
+                    default: shortVal = short.Parse(valText); break;
+                }
+            }
+            catch { Msg($"写值 [{valText}] 与类型 [{typeItem?.Text}] 不匹配。"); return; }
+
+            SetBusy(true);
+            AppendLog($"→ 多品牌 PLC 写 {addr} = {valText} ({typeItem?.Text}) …");
+            Task.Run(() =>
+            {
+                bool ok;
+                switch (typeItem?.Type ?? PlcDataType.Int16)
+                {
+                    case PlcDataType.Bool: ok = client.Write(addr, boolVal); break;
+                    case PlcDataType.UInt16: ok = client.Write(addr, ushortVal); break;
+                    case PlcDataType.Int32: ok = client.Write(addr, intVal); break;
+                    case PlcDataType.Float: ok = client.Write(addr, floatVal); break;
+                    default: ok = client.Write(addr, shortVal); break;
+                }
+                SafeInvoke(() =>
+                {
+                    AppendLog(ok ? $"← 已写 {addr} = {valText}" : $"← 写 {addr} 失败（未连接/无响应）");
+                    FinishOp();
+                });
+            });
+        }
+
+        /// <summary>刷新多品牌 PLC 状态标签（连接事件与操作收尾都会调）。</summary>
+        private void RefreshHslState()
+        {
+            bool on = _hslPlc != null && _hslPlc.IsConnected;
+            lblHslState.Text = on ? "● 已连接" : (_hslPlc == null ? "○ 断连" : "○ 重连中…");
+            lblHslState.ForeColor = on ? Color.Green : Color.Red;
+        }
+
         // ══════════════════════ 存图测试（不依赖相机）══════════════════════
 
         /// <summary>
@@ -1037,6 +1277,8 @@ namespace KaleidoscopeDemo
             _hub.SerialNumberScanned -= OnSerialScanned;
             try { _hub?.Dispose(); }
             catch (Exception ex) { LogHelper.Warn("Demo 关闭释放异常：" + ex.Message); }
+            try { _hslPlc?.Dispose(); }   // 多品牌 PLC 直连测试客户端独立于 hub，单独释放
+            catch { }
             base.OnFormClosing(e);
         }
     }

@@ -20,11 +20,20 @@ namespace Kaleidoscope.ConfigEditor
         /// <summary>PLC 分组节点（仅导航，无对象）</summary>
         PlcGroup,
 
+        /// <summary>PLC 下 ModBus-TCP 协议分组（仅导航，无对象；主站/从站归其下）</summary>
+        PlcModbusGroup,
+
+        /// <summary>胡工科技通讯库（HSL）分组（仅导航，无对象；主站/从站归其下）</summary>
+        PlcHslGroup,
+
         /// <summary>PLC 从站（PlcConfig）</summary>
         PlcSlave,
 
         /// <summary>PLC 主站（PlcMasterConfig）</summary>
         PlcMaster,
+
+        /// <summary>PLC 多品牌主站（MultiBrandPlcConfig，三菱/欧姆龙/西门子/汇川，V1.6.0）</summary>
+        PlcMultiBrand,
 
         /// <summary>相机分组节点（仅导航，无对象）</summary>
         CameraGroup,
@@ -123,6 +132,34 @@ namespace Kaleidoscope.ConfigEditor
                             () => new PlcMasterConfig()),
                     };
 
+                case NodeKind.PlcMultiBrand:
+                    // 多品牌主站预设：协议能力来自 HslCommunication 库（V1.6.0 集成）。
+                    // 各品牌差异=端口默认值+地址语法，预设把端口填成该品牌的行业默认（Port=0 也等效）。
+                    return new List<BrandPreset>
+                    {
+                        new BrandPreset("三菱 MC 协议（Q/iQ-R，6000）",
+                            "二进制通讯；地址如 D100/M10/X20，默认端口 6000",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.MelsecMc, Port = 6000 }),
+                        new BrandPreset("三菱 A1E 协议（A/Q 兼容口，6000）",
+                            "A1E 兼容口；地址如 D100/M10，默认端口 6000",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.MelsecA1E, Port = 6000 }),
+                        new BrandPreset("欧姆龙 FINS/TCP（CS/CJ/CP，9600）",
+                            "PLC 工程师指定的视觉上位机↔欧姆龙通讯方式；地址如 CIO100/W10/D100，端口 9600",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.OmronFins, Port = 9600 }),
+                        new BrandPreset("欧姆龙 EtherNet/IP(CIP)（NJ/NX，44818）",
+                            "按 CIP 标签名寻址（备用通道）；Slot=0，端口 44818",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.OmronCip, Port = 44818 }),
+                        new BrandPreset("汇川 H5U（Modbus TCP 兼容口，502）",
+                            "H5U 走 Modbus TCP 兼容口；地址如 D100/M10，端口 502",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.InovanceH5U, Port = 502 }),
+                        new BrandPreset("西门子 S7-1200（ISO-on-TCP，102）",
+                            "S1200/S1500 走 ISO-on-TCP；地址如 DB1.DBW0/M10.0，Rack=0 Slot=0，端口 102",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.SiemensS7, SiemensModel = "S1200", Port = 102 }),
+                        new BrandPreset("西门子 S7-300/400（102，槽位2）",
+                            "S300/S400 常见 Rack=0 Slot=2；改型号请同步改 SiemensModel 字段",
+                            () => new MultiBrandPlcConfig { Brand = MultiBrandPlcBrand.SiemensS7, SiemensModel = "S300", SiemensSlot = 2, Port = 102 }),
+                    };
+
                 case NodeKind.Camera:
                     return new List<BrandPreset>
                     {
@@ -137,6 +174,9 @@ namespace Kaleidoscope.ConfigEditor
                         new BrandPreset("基恩士 SR（TCP 无协议）",
                             "以太网无协议通讯，连上后发 LON 触发读码",
                             () => new ScanConfig { Mode = "Tcp" }),
+                        new BrandPreset("基恩士 SR / 康耐视 DataMan（EtherNet/IP）",
+                            "V1.6.0 新增：扫码枪作 EIP Adapter，上位机周期读 Assembly 取码（默认实例 4，200ms），无需触发指令",
+                            () => new ScanConfig { Mode = "Eip" }),
                         new BrandPreset("Honeywell Xenon 1902（串口）",
                             "串口 RS-232，上电即读码，WMI 按关键词自动识别端口",
                             () => new ScanConfig

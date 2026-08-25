@@ -154,6 +154,7 @@ namespace Kaleidoscope.Configuration
 
             config.Plc = config.Plc ?? new PlcConfig();
             config.PlcMaster = config.PlcMaster ?? new PlcMasterConfig();
+            config.MultiBrandPlc = config.MultiBrandPlc ?? new MultiBrandPlcConfig();
             config.Image = config.Image ?? new ImageConfig();
             config.Barometer = config.Barometer ?? new BarometerConfig();
             config.Io = config.Io ?? new IoConfig();
@@ -165,6 +166,7 @@ namespace Kaleidoscope.Configuration
 
             config.Plc.ModelIndexes = config.Plc.ModelIndexes ?? new System.Collections.Generic.List<ModelIndexItem>();
             config.PlcMaster.PollItems = config.PlcMaster.PollItems ?? new System.Collections.Generic.List<PlcPollItem>();
+            config.MultiBrandPlc.PollItems = config.MultiBrandPlc.PollItems ?? new System.Collections.Generic.List<MultiBrandPlcPollItem>();
             config.Fan.FanIpCandidates = config.Fan.FanIpCandidates ?? new System.Collections.Generic.List<string>();
             config.Io.IoBackupChannelMappings = config.Io.IoBackupChannelMappings ?? new System.Collections.Generic.List<IoOutputChannelRemap>();
 

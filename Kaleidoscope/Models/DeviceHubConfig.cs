@@ -4,13 +4,16 @@ using System.ComponentModel;
 namespace Kaleidoscope.Models
 {
     /// <summary>
-    /// PLC 通讯角色（主站/从站）。同一台汇川 PLC 两种模式都支持，由本项目需要决定：
-    /// - Slave ：上位机作 Modbus TCP【从站】，监听本机 502 等 PLC 主站来读写（请求-结果-复位三拍握手），
-    ///           用 PlcService + PlcConfig（默认，老项目兼容）。
-    /// - Master：上位机作 Modbus TCP【主站】，主动连 PLC 读写寄存器（通用主站，支持自动轮询），
-    ///           用 ModbusTcpMasterClient + PlcMasterConfig。也可用于连其它 Modbus TCP 从站设备。
+    /// PLC 通讯角色（从站/Modbus主站/多品牌主站）。同一台 PLC 三种模式都支持，由本项目需要决定：
+    /// - Slave     ：上位机作 Modbus TCP【从站】，监听本机 502 等 PLC 主站来读写（请求-结果-复位三拍握手），
+    ///               用 PlcService + PlcConfig（默认，老项目兼容）。
+    /// - Master    ：上位机作 Modbus TCP【主站】，主动连 PLC 读写寄存器（通用主站，支持自动轮询），
+    ///               用 ModbusTcpMasterClient + PlcMasterConfig。也可用于连其它 Modbus TCP 从站设备。
+    /// - MultiBrand：上位机经【非 Modbus 协议】主动读写多品牌 PLC（三菱 MC/A1E、欧姆龙 FINS/CIP、
+    ///               西门子 S7、汇川 H5U，能力来自集成的商业通讯库 HslCommunication），
+    ///               用 HslPlcClient + MultiBrandPlcConfig（V1.6.0 起）。
     /// </summary>
-    public enum PlcRole { Slave, Master }
+    public enum PlcRole { Slave, Master, MultiBrand }
 
     /// <summary>
     /// 设备层总配置（DeviceHub 的入参）：把 PLC/相机/扫码枪/图片存储四类配置
@@ -31,11 +34,13 @@ namespace Kaleidoscope.Models
     {
         /// <summary>
         /// PLC 通讯角色：Slave=上位机作从站（监听 502，默认，用 PlcConfig）；
-        /// Master=上位机作主站（主动读写 PLC，用 PlcMasterConfig）。业务层用
-        /// DeviceHub.IsPlcMaster 判断，取 hub.Plc（从站）或 hub.PlcMaster（主站）使用。
+        /// Master=上位机作 Modbus TCP 主站（主动读写 PLC，用 PlcMasterConfig）；
+        /// MultiBrand=经三菱/欧姆龙/西门子/汇川等品牌协议读写 PLC（用 MultiBrandPlcConfig）。
+        /// 业务层用 DeviceHub.IsPlcMaster / IsPlcMultiBrand 判断，取 hub.Plc（从站）/
+        /// hub.PlcMaster（Modbus 主站）/ hub.PlcMultiBrand（多品牌主站）使用。
         /// </summary>
         [DisplayName("PLC 通讯角色")]
-        [Description("Slave=上位机作从站（监听 502，默认）；Master=上位机作主站（主动读写 PLC）")]
+        [Description("Slave=从站监听 502（默认）；Master=Modbus TCP 主站；MultiBrand=三菱/欧姆龙/西门子等多品牌主站")]
         [Category("全局")]
         public PlcRole PlcRole { get; set; } = PlcRole.Slave;
 
@@ -53,6 +58,16 @@ namespace Kaleidoscope.Models
         [Description("主站连接与轮询配置（仅 PlcRole=Master 生效）")]
         [Category("PLC（主站）")]
         public PlcMasterConfig PlcMaster { get; set; } = new PlcMasterConfig();
+
+        /// <summary>
+        /// 多品牌 PLC 连接与轮询配置（仅 PlcRole=MultiBrand 生效，用 HslPlcClient 经
+        /// 三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U 协议主动读写）。
+        /// 字段见 <see cref="MultiBrandPlcConfig"/>。地址填各品牌自己的语法（如 "D100"）。
+        /// </summary>
+        [DisplayName("PLC（多品牌主站）")]
+        [Description("三菱/欧姆龙/西门子/汇川等多品牌协议配置（仅 PlcRole=MultiBrand 生效）")]
+        [Category("PLC（多品牌）")]
+        public MultiBrandPlcConfig MultiBrandPlc { get; set; } = new MultiBrandPlcConfig();
 
         /// <summary>
         /// 相机通讯配置列表（基恩士 IV4，支持多台）。每台的 IP/端口/指令/点位表/FTP 目录独立。

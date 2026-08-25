@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Sunny.UI;
 using Kaleidoscope.Configuration;
 using Kaleidoscope.Models;
+using Kaleidoscope.Utils;
 
 namespace Kaleidoscope.ConfigEditor
 {
@@ -71,16 +72,36 @@ namespace Kaleidoscope.ConfigEditor
         // UI 控件
         private UITreeView _tree;
         private PropertyGrid _grid;
-        private UIPanel _toolbar;
-        private UIPanel _statusBar;
+        private Panel _toolbar;
+        private Panel _statusBar;
         private UILabel _statusLabel;
         private UIButton _btnAddDevice;
         private UIButton _btnDelDevice;
-        private UIPanel _presetPanel;
+        private Panel _presetPanel;
         private UILabel _presetLabel;
         private UIComboBox _presetCombo;
         private UIButton _presetApply;
+        private UILabel _authLabel;
+        private UIButton _authBtn;
         private NodeTag _selectedTag;
+
+        /// <summary>本次会话是否已因"HSL 未激活"自动弹过授权输入窗（防反复骚扰；点按钮仍可随时手动打开）。</summary>
+        private bool _authPromptedThisSession;
+
+        /// <summary>树节点悬停提示（品牌/协议说明）。【为什么手动驱动】SunnyUI UITreeView 未透传
+        /// 原生 ShowNodeToolTips（实测节点 ToolTipText 不弹出），改用 ToolTip 组件 + MouseMove
+        /// 手动驱动：跨控件库稳定，节点切换时才更新文本（node 比较防抖，MouseMove 高频不抖）。</summary>
+        private readonly ToolTip _treeTip = new ToolTip { InitialDelay = 400, ReshowDelay = 200 };
+        private TreeNode _tipNode;
+
+        /// <summary>
+        /// 授权检查结果缓存（3 秒 TTL）：EnsureRegistered 在未激活状态下每次都会读授权文件，
+        /// 本地 SSD 上微秒级，但为防极端情况（文件被杀软锁定/程序被放到网络盘）拖慢 UI 线程，
+        /// 树节点高频切换时用缓存兜底——3 秒内重复选中 HSL 节点不再读文件，
+        /// 现场放入 hsl.auth 后最多 3 秒自动识别（通讯侧服务本就独立检测，不受此影响）。
+        /// </summary>
+        private DateTime _authCheckedAt = DateTime.MinValue;
+        private bool _authCheckedResult;
 
         // ── 小清新配色（LayuiGreen 主题的浅绿扩展）──
         // 注意：SunnyUI 3.9.8 的 UIStyles.SetStyle 只设全局枚举、不刷新颜色缓存，
@@ -135,12 +156,12 @@ namespace Kaleidoscope.ConfigEditor
         private void BuildLayout()
         {
             // ────────── 顶部工具条：一排 UIButton，按条高垂直居中 ──────────
-            _toolbar = new UIPanel
+            // （原生 Panel：SunnyUI UIPanel 在窗体级 Dock 正常，但统一用原生容器避免嵌套布局差异）
+            _toolbar = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = 52,
-                FillColor = BarBg,
-                RectColor = Color.Transparent,
+                BackColor = BarBg,
             };
             int y = (_toolbar.Height - 32) / 2; // 按钮统一 32 高，(52-32)/2=10 → 上下留白相等
             int x = 12;
@@ -176,6 +197,7 @@ namespace Kaleidoscope.ConfigEditor
                 HideSelection = false,
                 ShowLines = true,
                 ItemHeight = 26,
+                ShowNodeToolTips = true,   // 节点 ToolTipText 悬停提示（品牌/协议说明，见 RebuildTree）
                 FillColor = Color.White,
                 SelectedColor = SoftBg,
                 SelectedForeColor = AccentDark,
@@ -187,13 +209,31 @@ namespace Kaleidoscope.ConfigEditor
             };
             _tree.AfterSelect += Tree_AfterSelect;
 
+            // 设备树悬停提示：节点带 ToolTipText（品牌/协议说明）则显示，移出/换节点清空。
+            // 【为什么手动驱动】SunnyUI UITreeView 未透传原生 ShowNodeToolTips（实测不弹出），
+            // 改用 ToolTip 组件 + MouseMove 驱动；node 比较防抖，MouseMove 高频只在切换时更新。
+            _tree.MouseMove += (s, e) =>
+            {
+                var node = _tree.GetNodeAt(e.Location);
+                if (node == _tipNode) return;
+                _tipNode = node;
+                _treeTip.SetToolTip(_tree, node != null ? node.ToolTipText : "");
+            };
+            _tree.MouseLeave += (s, e) =>
+            {
+                _tipNode = null;
+                _treeTip.SetToolTip(_tree, "");
+            };
+
             // ────────── 底部品牌预设条（选中设备节点才显示）──────────
-            _presetPanel = new UIPanel
+            // 【原生 Panel】实测 SunnyUI UIPanel 内嵌 UIPanel 时子控件定位会被内部布局机制
+            // 偏移（控件整体沉底被裁）——预设条只是浅绿背景容器，用原生 Panel 保证子控件
+            // 坐标即所见位置；条内 SunnyUI 控件（按钮/下拉）自绘不受父容器影响。
+            _presetPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 46,
-                FillColor = SoftBg,
-                RectColor = Color.Transparent,
+                BackColor = SoftBg,
             };
             _presetLabel = new UILabel
             {
@@ -203,7 +243,7 @@ namespace Kaleidoscope.ConfigEditor
             };
             _presetCombo = new UIComboBox
             {
-                Width = 300,
+                Width = 240,   // 预留右侧 HSL 授权区空间：最长品牌名下拉里可看全，条上截断无碍
                 DropDownStyle = UIDropDownStyle.DropDownList,
                 FillColor = Color.White,
                 RectColor = SoftBorder,
@@ -211,10 +251,26 @@ namespace Kaleidoscope.ConfigEditor
                 Radius = 5,
             };
             _presetApply = MakeButton("应用预设", "用选中品牌的默认参数整段替换当前设备配置", ApplyPreset);
+            // HSL 授权状态区：仅当选中"多品牌 PLC"或"EIP 扫码枪"节点时可见（见 UpdateForSelection）。
+            // 未激活显示红色 ✗ + 按钮，点击弹授权输入窗；激活显示绿色 ✓（按钮仍可点，用于换码核对）。
+            _authLabel = new UILabel
+            {
+                Text = "HSL 授权：…",
+                AutoSize = true,
+                ForeColor = AccentDark,
+                Visible = false,
+            };
+            _authBtn = MakeButton("输入授权码", "输入/更换 HslCommunication 授权码（保存在本机 hsl.auth 文件）", PromptHslAuth);
+            _authBtn.Visible = false;
             _presetPanel.Controls.Add(_presetLabel);
             _presetPanel.Controls.Add(_presetCombo);
             _presetPanel.Controls.Add(_presetApply);
+            _presetPanel.Controls.Add(_authLabel);
+            _presetPanel.Controls.Add(_authBtn);
             _presetPanel.Visible = false; // 默认隐藏，选中设备节点才显示
+            // Dock 布局定型 / 窗体拉伸时重排预设条（初次 BuildLayout 时 Width 未定型，
+            // 必须靠这次 Resize 回调把控件摆到正确位置——否则右侧下方区域显示不全）
+            _presetPanel.Resize += (s, e) => LayoutPresetBar();
             LayoutPresetBar();
 
             // 属性网格（原生控件，置于白色 UIPanel 上）：按 Models 的 Category 分组显示
@@ -227,16 +283,17 @@ namespace Kaleidoscope.ConfigEditor
             };
             _grid.PropertyValueChanged += Grid_PropertyValueChanged;
 
-            // 注意 WinForms Dock 布局按添加顺序：Bottom 的先占位、Fill 的后填剩余，
-            // 顺序反了 Fill 会盖住 Bottom（先 add 的控件后布局，后 add 的覆盖在先 add 之上）。
-            var rightPanel = new UIPanel
+            // 注意 WinForms Dock 处理顺序：引擎按 Controls 集合【从 index 大到小】依次扣减——
+            // 所以 Fill 的属性网格必须先进（index 小、最后处理、填剩余），Bottom 的预设条后进
+            // （index 大、先处理、扣出底部 46px）。顺序反了两者会重叠：PropertyGrid 内部的
+            // 子窗口（GridView 等）会盖住预设条控件——右侧下方区域显示不全的根因（已实测复现）。
+            var rightPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                FillColor = Color.White,
-                RectColor = Color.Transparent,
+                BackColor = Color.White,
             };
-            rightPanel.Controls.Add(_presetPanel);
-            rightPanel.Controls.Add(_grid);
+            rightPanel.Controls.Add(_grid);        // Fill：index 小，最后处理
+            rightPanel.Controls.Add(_presetPanel); // Bottom：index 大，先扣出底部
 
             var split = new SplitContainer
             {
@@ -259,12 +316,11 @@ namespace Kaleidoscope.ConfigEditor
             split.Panel2.BackColor = FormBg;
 
             // ────────── 底部状态条 ──────────
-            _statusBar = new UIPanel
+            _statusBar = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 30,
-                FillColor = BarBg,
-                RectColor = Color.Transparent,
+                BackColor = BarBg,
             };
             _statusLabel = new UILabel
             {
@@ -277,10 +333,14 @@ namespace Kaleidoscope.ConfigEditor
             };
             _statusBar.Controls.Add(_statusLabel);
 
-            // 同样的 Dock 顺序：Top/Bottom 先占位，Fill 最后填剩余
-            Controls.Add(_statusBar);
-            Controls.Add(_toolbar);
+            // Dock 处理顺序与 rightPanel 同理：引擎按 index 从大到小依次扣减——
+            // split(Fill) 必须最先 Add（index 最小、最后处理、填工具条/状态条扣完的剩余）。
+            // 【原顺序的隐性 bug】status/toolbar 先 Add、split 后 Add 时，split 会占满整个
+            // 客户区，工具条/状态条只是 z-order 恰好盖在它上面（视觉正常）——但 split 内部
+            // 全部按全高布局，底部内容（如预设条）被状态条遮挡 30px，右侧下方显示不全。
             Controls.Add(split);
+            Controls.Add(_toolbar);
+            Controls.Add(_statusBar);
         }
 
         /// <summary>摆放顶部工具条上的一个按钮，返回按钮右缘 X（供下一控件衔接）</summary>
@@ -290,16 +350,30 @@ namespace Kaleidoscope.ConfigEditor
             return b.Right;
         }
 
-        /// <summary>品牌预设条内控件同行垂直居中摆放（label/combo/按钮同一条中线）</summary>
+        /// <summary>
+        /// 品牌预设条内控件布局：【从左到右顺序流式排列】全部控件（预设区 + HSL 授权区同一条线，
+        /// 组间留大间距区分），统一垂直居中。
+        /// 【为什么不用"贴右侧锚定"】初次调用时 _presetPanel 还没经过 Dock 布局（Width 是创建
+        /// 默认值），算出的右缘坐标是错的；且窗体拉伸不会自动重排——两者都会导致授权区与预设区
+        /// 重叠/被截断（右侧下方显示不全的根因）。流式排列最坏情况只是尾部超出被裁一点，
+        /// 绝不与左侧控件重叠；配合下方 Resize 联动，任何尺寸下都正确。
+        /// </summary>
         private void LayoutPresetBar()
         {
-            int cy = _presetPanel.Height / 2; // 条中线
+            // 中线固定 23 = 条高 46 的一半。不读 _presetPanel.Height：面板隐藏期间不参与 Dock
+            // 布局，属性读数可能是创建时的默认值（曾导致控件整体偏下被状态条裁掉，右侧下方显示不全）
+            int cy = 23;
             int px = 14;
             _presetLabel.Location = new Point(px, cy - _presetLabel.Height / 2);
-            px = _presetLabel.Right + 8;
+            px = _presetLabel.Right + 6;
             _presetCombo.Location = new Point(px, cy - _presetCombo.Height / 2);
             px = _presetCombo.Right + 10;
             _presetApply.Location = new Point(px, cy - _presetApply.Height / 2);
+            // ── HSL 授权区（仅选中多品牌 PLC / EIP 扫码枪节点时可见）──
+            px = _presetApply.Right + 22; // 组间距：预设区与授权区视觉分组
+            _authLabel.Location = new Point(px, cy - _authLabel.Height / 2);
+            px = _authLabel.Right + 8;
+            _authBtn.Location = new Point(px, cy - _authBtn.Height / 2);
         }
 
         /// <summary>
@@ -370,9 +444,39 @@ namespace Kaleidoscope.ConfigEditor
 
             root.Nodes.Add(new TreeNode("全局设置") { Tag = new NodeTag(NodeKind.Global, -1) });
 
+            // PLC 分组：ModBus-TCP（主站/从站）与胡工科技通讯库（HSL 多品牌）两个类别。
+            // 各节点 ToolTipText 补充协议/品牌说明（品牌细节不挤占树区宽度，悬停可见）。
             var plcGroup = new TreeNode("PLC") { Tag = new NodeTag(NodeKind.PlcGroup, -1) };
-            plcGroup.Nodes.Add(new TreeNode("从站（监听 502，三拍握手）") { Tag = new NodeTag(NodeKind.PlcSlave, -1) });
-            plcGroup.Nodes.Add(new TreeNode("主站（主动读写 + 轮询）") { Tag = new NodeTag(NodeKind.PlcMaster, -1) });
+            var modbusGroup = new TreeNode("ModBus-TCP")
+            {
+                Tag = new NodeTag(NodeKind.PlcModbusGroup, -1),
+                ToolTipText = "ModBus-TCP 协议（汇川等标准 PLC 的以太网口）",
+            };
+            modbusGroup.Nodes.Add(new TreeNode("从站（监听 502，三拍握手）")
+            {
+                Tag = new NodeTag(NodeKind.PlcSlave, -1),
+                ToolTipText = "上位机作 Modbus TCP 从站：监听本机 502 等 PLC 主站来读写（请求-结果-复位三拍握手）",
+            });
+            modbusGroup.Nodes.Add(new TreeNode("主站（主动读写 + 自动轮询）")
+            {
+                Tag = new NodeTag(NodeKind.PlcMaster, -1),
+                ToolTipText = "上位机作 Modbus TCP 主站：主动连 PLC 读写寄存器，支持后台自动轮询（也可连远程 IO/仪表）",
+            });
+            plcGroup.Nodes.Add(modbusGroup);
+            // 胡工科技通讯库（HSL）分组：当前仅实现主站（上位机主动读写 PLC）；
+            // HSL 的 Server 类（上位机模拟 PLC 被读写）暂无业务场景未抽取，未来需要时在此挂"从站"节点
+            var hslGroup = new TreeNode("胡工科技通讯库")
+            {
+                Tag = new NodeTag(NodeKind.PlcHslGroup, -1),
+                ToolTipText = "HslCommunication 商业通讯库（V1.6.0 集成）\r\n" +
+                              "当前提供主站能力；从站（Server 模拟 PLC）暂未接入",
+            };
+            hslGroup.Nodes.Add(new TreeNode("主站（多品牌协议）")
+            {
+                Tag = new NodeTag(NodeKind.PlcMultiBrand, -1),
+                ToolTipText = "上位机经品牌协议主动读写 PLC：三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U",
+            });
+            plcGroup.Nodes.Add(hslGroup);
             root.Nodes.Add(plcGroup);
 
             var camGroup = new TreeNode("相机") { Tag = new NodeTag(NodeKind.CameraGroup, -1) };
@@ -389,9 +493,7 @@ namespace Kaleidoscope.ConfigEditor
             var scanGroup = new TreeNode("扫码枪") { Tag = new NodeTag(NodeKind.ScannerGroup, -1) };
             for (int i = 0; i < _cfg.Scanners.Count; i++)
             {
-                bool tcp = _cfg.Scanners[i] != null
-                    && string.Equals(_cfg.Scanners[i].Mode, "Tcp", StringComparison.OrdinalIgnoreCase);
-                string mode = tcp ? "TCP" : "串口";
+                string mode = ScannerModeLabel(_cfg.Scanners[i]);
                 scanGroup.Nodes.Add(new TreeNode("扫码枪 " + (i + 1) + "（" + mode + "）")
                 {
                     Tag = new NodeTag(NodeKind.Scanner, i),
@@ -409,6 +511,15 @@ namespace Kaleidoscope.ConfigEditor
 
             // 保持原选中（如果还存在）
             if (_selectedTag != null) SelectNode(_selectedTag);
+        }
+
+        /// <summary>扫码枪通讯方式显示标签（树节点用）：Tcp→"TCP"、Eip→"EIP"，其余按串口兜底。</summary>
+        private static string ScannerModeLabel(ScanConfig s)
+        {
+            if (s == null) return "串口";
+            if (string.Equals(s.Mode, "Tcp", StringComparison.OrdinalIgnoreCase)) return "TCP";
+            if (string.Equals(s.Mode, "Eip", StringComparison.OrdinalIgnoreCase)) return "EIP";
+            return "串口";
         }
 
         /// <summary>按 Tag 选中树节点（不存在则忽略）</summary>
@@ -448,7 +559,92 @@ namespace Kaleidoscope.ConfigEditor
         {
             _grid.SelectedObject = ObjectFor(_selectedTag);
             UpdateBrandCombo(_selectedTag);
+            UpdateHslAuthArea(_selectedTag);
             UpdateButtons();
+        }
+
+        /// <summary>
+        /// 当前节点是否涉及 HslCommunication 通讯（多品牌 PLC 节点，或 Mode=Eip 的扫码枪节点）。
+        /// 涉及才显示"HSL 授权"状态区，并在未激活时引导输入。
+        /// </summary>
+        private bool IsHslNode(NodeTag tag)
+        {
+            if (tag == null) return false;
+            if (tag.Kind == NodeKind.PlcMultiBrand) return true;
+            if (tag.Kind == NodeKind.Scanner && tag.Index >= 0 && tag.Index < _cfg.Scanners.Count)
+            {
+                ScanConfig s = _cfg.Scanners[tag.Index];
+                return s != null && string.Equals(s.Mode, "Eip", StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 刷新底部"HSL 授权"状态区：仅 HSL 相关节点显示。
+        /// 【自动弹窗】首次切到 HSL 节点且本地从未激活（文件没码或码无效）时，自动弹一次
+        /// 授权输入窗；用户取消后本次会话不再骚扰（预设条上的按钮随时可手动打开）。
+        /// </summary>
+        private void UpdateHslAuthArea(NodeTag tag)
+        {
+            bool hslNode = IsHslNode(tag);
+            _authLabel.Visible = hslNode;
+            _authBtn.Visible = hslNode;
+            if (!hslNode) return;
+
+            // 3 秒 TTL 缓存：高频切节点时不重复做文件 IO（UI 线程防卡顿，见字段注释）
+            bool ok;
+            if ((DateTime.Now - _authCheckedAt).TotalSeconds < 3)
+            {
+                ok = _authCheckedResult;
+            }
+            else
+            {
+                ok = HslAuthorization.EnsureRegistered(); // 幂等：已激活走内存快路径零 IO
+                _authCheckedAt = DateTime.Now;
+                _authCheckedResult = ok;
+            }
+            RefreshAuthUi(ok);
+
+            if (!ok && !_authPromptedThisSession)
+            {
+                _authPromptedThisSession = true; // 无论用户输不输，本会话只自动弹这一次
+                PromptHslAuth();
+            }
+        }
+
+        /// <summary>按激活状态刷新授权标签文字与颜色（文本保持短小：预设条一行要放下两个功能区）。</summary>
+        private void RefreshAuthUi(bool activated)
+        {
+            if (activated)
+            {
+                _authLabel.Text = "HSL 授权：✓ 有效";
+                _authLabel.ForeColor = Color.FromArgb(46, 158, 107);
+                _authBtn.Text = "查看/更换码";
+            }
+            else
+            {
+                _authLabel.Text = "HSL 授权：✗ 未激活";
+                _authLabel.ForeColor = Color.FromArgb(200, 80, 80);
+                _authBtn.Text = "输入授权码";
+            }
+            LayoutPresetBar(); // 按钮文字宽度变了，重排一次
+        }
+
+        /// <summary>弹出授权码输入窗：确定（验签通过并落盘）后刷新状态区与状态栏提示。</summary>
+        private void PromptHslAuth()
+        {
+            using (var dlg = new HslAuthDialog(HslAuthorization.IsActivated))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    // 同步刷新 TTL 缓存：否则 3 秒内切换节点会按旧缓存显示"未激活"闪回
+                    bool ok = HslAuthorization.IsActivated;
+                    _authCheckedAt = DateTime.Now;
+                    _authCheckedResult = ok;
+                    RefreshAuthUi(ok);
+                    AppendStatus("HSL 授权已保存：" + HslAuthorization.AuthFilePath);
+                }
+            }
         }
 
         /// <summary>取当前选中节点对应的配置对象（无对象的导航节点返回 null）</summary>
@@ -460,6 +656,7 @@ namespace Kaleidoscope.ConfigEditor
                 case NodeKind.Global: return _cfg;
                 case NodeKind.PlcSlave: return _cfg.Plc;
                 case NodeKind.PlcMaster: return _cfg.PlcMaster;
+                case NodeKind.PlcMultiBrand: return _cfg.MultiBrandPlc;
                 case NodeKind.Camera: return _cfg.Cameras[tag.Index];
                 case NodeKind.Scanner: return _cfg.Scanners[tag.Index];
                 case NodeKind.Barometer: return _cfg.Barometer;
@@ -488,6 +685,9 @@ namespace Kaleidoscope.ConfigEditor
             _presetPanel.Visible = true;
             foreach (BrandPreset p in presets) _presetCombo.Items.Add(p);
             _presetCombo.SelectedIndex = 0;
+            // 【必须显示后重排】面板隐藏期间不参与 Dock 布局，BuildLayout 早期的控件定位
+            // 是错的（Resize 补偿在部分时序下不触发）——每次显示都强制摆一次才保证可见区域正确
+            LayoutPresetBar();
         }
 
         /// <summary>刷新工具栏按钮可用性（添加/删除只在分组/叶子节点生效）</summary>
@@ -528,6 +728,7 @@ namespace Kaleidoscope.ConfigEditor
             {
                 case NodeKind.PlcSlave: _cfg.Plc = (PlcConfig)obj; break;
                 case NodeKind.PlcMaster: _cfg.PlcMaster = (PlcMasterConfig)obj; break;
+                case NodeKind.PlcMultiBrand: _cfg.MultiBrandPlc = (MultiBrandPlcConfig)obj; break;
                 case NodeKind.Camera: _cfg.Cameras[tag.Index] = (CameraConfig)obj; break;
                 case NodeKind.Scanner: _cfg.Scanners[tag.Index] = (ScanConfig)obj; break;
                 case NodeKind.Barometer: _cfg.Barometer = (BarometerConfig)obj; break;

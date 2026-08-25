@@ -68,6 +68,7 @@ namespace Kaleidoscope.Configuration
 
             ValidatePlc(config, r);
             ValidatePlcMaster(config, r);
+            ValidateMultiBrandPlc(config, r);
             ValidateCameras(config, r);
             ValidateScanners(config, r);
             ValidateBarometer(config, r);
@@ -146,6 +147,80 @@ namespace Kaleidoscope.Configuration
                         r.Errors.Add($"PLC 主站：轮询项 [{item.Name}] 的读取数量 Count 至少为 1");
                     if (!System.Enum.IsDefined(typeof(PlcPollFunction), item.Function))
                         r.Errors.Add($"PLC 主站：轮询项 [{item.Name}] 的功能码 {item.Function} 非法");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 校验多品牌 PLC 配置（MultiBrandPlcConfig：品牌/IP/端口/轮询项/西门子型号）。
+        /// 仅 PlcRole=MultiBrand 时做完整校验（其它角色下整段配置不生效，不制造误报）。
+        /// </summary>
+        private static void ValidateMultiBrandPlc(DeviceHubConfig config, ConfigValidationResult r)
+        {
+            MultiBrandPlcConfig m = config.MultiBrandPlc;
+            if (m == null) return;
+
+            // 非多品牌角色：整段不生效，跳过（与"主站角色不校验从站地址重叠"同口径）
+            if (config.PlcRole != PlcRole.MultiBrand) return;
+
+            if (!System.Enum.IsDefined(typeof(MultiBrandPlcBrand), m.Brand))
+                r.Errors.Add($"PLC（多品牌）：品牌 {m.Brand} 非法");
+
+            CheckIp(m.IpAddress, "PLC（多品牌）", r);
+            // 端口 0=按品牌默认端口（合法约定），其余须在 1~65535
+            if (m.Port != 0)
+                CheckPort(m.Port, "PLC（多品牌）端口", r);
+
+            if (m.TimeoutMs <= 0) r.Errors.Add("PLC（多品牌）：超时 TimeoutMs 必须大于 0");
+            if (m.ReconnectIntervalMs < 0) r.Errors.Add("PLC（多品牌）：重连间隔 ReconnectIntervalMs 不能为负");
+            if (m.HeartbeatIntervalMs < 0) r.Errors.Add("PLC（多品牌）：心跳周期 HeartbeatIntervalMs 不能为负");
+            if (m.PollIntervalMs < 0) r.Errors.Add("PLC（多品牌）：轮询周期 PollIntervalMs 不能为负");
+            if (m.HeartbeatIntervalMs > 0 && m.HeartbeatIntervalMs < 1000)
+                r.Warnings.Add("PLC（多品牌）：心跳周期小于 1000ms 运行时会按 1s 下限处理，建议直接配 ≥1000");
+            if (!string.IsNullOrWhiteSpace(m.HeartbeatAddress)
+                && !System.Enum.IsDefined(typeof(PlcDataType), m.HeartbeatDataType))
+                r.Errors.Add($"PLC（多品牌）：心跳数据类型 {m.HeartbeatDataType} 非法");
+
+            // 西门子型号字符串提示（运行时非法值回退 S1200，不阻断）
+            if (m.Brand == MultiBrandPlcBrand.SiemensS7)
+            {
+                var valid = new[] { "S1200", "S1500", "S300", "S400", "S200Smart", "S200" };
+                bool ok = false;
+                foreach (var v in valid)
+                    if (string.Equals(v, m.SiemensModel?.Trim(), System.StringComparison.OrdinalIgnoreCase)) { ok = true; break; }
+                if (!ok)
+                    r.Warnings.Add($"PLC（多品牌）：西门子型号 [{m.SiemensModel}] 无法识别（可选 S1200/S1500/S300/S400/S200Smart/S200），运行时将回退 S1200");
+            }
+
+            if (m.PollItems != null)
+            {
+                for (int i = 0; i < m.PollItems.Count; i++)
+                {
+                    MultiBrandPlcPollItem item = m.PollItems[i];
+                    if (item == null) { r.Errors.Add($"PLC（多品牌）：轮询项 #{i + 1} 为 null"); continue; }
+                    if (string.IsNullOrWhiteSpace(item.Name))
+                        r.Errors.Add($"PLC（多品牌）：轮询项 #{i + 1} 缺少名称（Name）");
+                    if (string.IsNullOrWhiteSpace(item.Address))
+                        r.Errors.Add($"PLC（多品牌）：轮询项 [{item.Name}] 缺少起始地址（Address，填品牌地址语法如 D100）");
+                    if (item.Count < 1)
+                        r.Errors.Add($"PLC（多品牌）：轮询项 [{item.Name}] 的读取数量 Count 至少为 1");
+                    if (item.Count > 1000)
+                        r.Warnings.Add($"PLC（多品牌）：轮询项 [{item.Name}] 的读取数量 Count={item.Count} 过大" +
+                                       "（多数协议单帧上限远小于此，过大会导致每次轮询都失败并反复断线重连，建议 ≤1000）");
+                    if (!System.Enum.IsDefined(typeof(PlcDataType), item.DataType))
+                        r.Errors.Add($"PLC（多品牌）：轮询项 [{item.Name}] 的数据类型 {item.DataType} 非法");
+                }
+            }
+
+            // 轮询项名称重复会让结果缓存/事件互相覆盖，必须提醒
+            if (m.PollItems != null)
+            {
+                var seen = new HashSet<string>(System.StringComparer.Ordinal);
+                foreach (var item in m.PollItems)
+                {
+                    if (item == null || string.IsNullOrWhiteSpace(item.Name)) continue;
+                    if (!seen.Add(item.Name))
+                        r.Warnings.Add($"PLC（多品牌）：轮询项名称 [{item.Name}] 重复（缓存与事件将互相覆盖，请改名区分）");
                 }
             }
         }
@@ -230,13 +305,22 @@ namespace Kaleidoscope.Configuration
 
                 bool tcp = string.Equals(s.Mode, "Tcp", System.StringComparison.OrdinalIgnoreCase);
                 bool serial = string.Equals(s.Mode, "Serial", System.StringComparison.OrdinalIgnoreCase);
-                if (!tcp && !serial)
-                    r.Errors.Add($"{label}：通讯方式 Mode [{s.Mode}] 非法（仅支持 Tcp / Serial）");
+                bool eip = string.Equals(s.Mode, "Eip", System.StringComparison.OrdinalIgnoreCase);
+                if (!tcp && !serial && !eip)
+                    r.Errors.Add($"{label}：通讯方式 Mode [{s.Mode}] 非法（仅支持 Tcp / Serial / Eip）");
 
-                if (tcp)
+                if (tcp || eip)
                 {
                     CheckIp(s.IpAddress, label + " 的 IP", r);
                     CheckPort(s.Port, label + " 的端口", r);
+                    if (eip)
+                    {
+                        // EIP 专属参数：读取字节数/轮询周期有下限（服务内部也会兜底，这里提前暴露）
+                        if (s.EipReadLengthBytes < 2 || s.EipReadLengthBytes > 500)
+                            r.Warnings.Add($"{label}：EIP 读取字节数 [{s.EipReadLengthBytes}] 异常（正常为条码最大长度，如 64）");
+                        if (s.EipPollingMs < 50)
+                            r.Warnings.Add($"{label}：EIP 轮询周期 [{s.EipPollingMs}]ms 过小（运行时按 50ms 下限处理），建议 ≥200");
+                    }
                 }
                 else if (serial)
                 {
@@ -363,9 +447,11 @@ namespace Kaleidoscope.Configuration
         private static void ValidateGlobal(DeviceHubConfig config, ConfigValidationResult r)
         {
             // PLC 角色选从站但主站配置被填了轮询项之类不冲突，无需强校验；
-            // 但两模式二选一是明确语义，提醒别两头都配。
+            // 但各角色"配置段必须存在"是明确语义，缺了就报错。
             if (config.PlcRole == PlcRole.Master && config.PlcMaster == null)
                 r.Errors.Add("全局：PLC 角色为 Master（主站）但未配置 PlcMaster 参数");
+            if (config.PlcRole == PlcRole.MultiBrand && config.MultiBrandPlc == null)
+                r.Errors.Add("全局：PLC 角色为 MultiBrand（多品牌）但未配置 MultiBrandPlc 参数");
 
             // 从站模式写型号要 ProductModel 非空，否则 PLC 建站不写型号（有型号需求时才算问题）
             if (config.PlcRole == PlcRole.Slave && string.IsNullOrWhiteSpace(config.ProductModel))

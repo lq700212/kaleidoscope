@@ -38,6 +38,7 @@ namespace Kaleidoscope.Configuration
             Register(typeof(DeviceHubConfig), "全局设备配置（DeviceHub 入参）");
             Register(typeof(PlcConfig), "PLC 从站");
             Register(typeof(PlcMasterConfig), "PLC 主站");
+            Register(typeof(MultiBrandPlcConfig), "PLC 多品牌主站（三菱/欧姆龙/西门子/汇川，HSL）");
             Register(typeof(CameraConfig), "相机");
             Register(typeof(ScanConfig), "扫码枪");
             Register(typeof(ImageConfig), "图像存储");
@@ -46,6 +47,7 @@ namespace Kaleidoscope.Configuration
             Register(typeof(FanConfig), "送风机");
             Register(typeof(IoOutputChannelRemap), "IO 备用通道映射（子表）");
             Register(typeof(PlcPollItem), "PLC 轮询项（子表）");
+            Register(typeof(MultiBrandPlcPollItem), "多品牌 PLC 轮询项（子表）");
             Register(typeof(StationProgramItem), "相机点位→程序号（子表）");
             Register(typeof(ModelStationPrograms), "相机型号程序分表（子表）");
         }
