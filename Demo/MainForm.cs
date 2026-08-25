@@ -965,7 +965,7 @@ namespace KaleidoscopeDemo
         }
 
         /// <summary>连接（重连）按钮：后台线程 Connect，完成后刷新状态灯。
-        /// 连接前顺带确保 HSL 授权已从 hsl.auth 加载（未激活不阻断，但受限流，日志明确提示）。</summary>
+        /// 连接前顺带确保 HSL 授权已从 hsl.dat 加载（未激活不阻断，但受限流，日志明确提示）。</summary>
         private void BtnHslConnect_Click(object sender, EventArgs e)
         {
             SetBusy(true);
@@ -979,7 +979,7 @@ namespace KaleidoscopeDemo
                     AppendLog((ok ? "← 多品牌 PLC 连接成功" : "← 多品牌 PLC 连接失败（详见日志）")
                         + (authOk
                             ? "（HSL 授权：有效）"
-                            : "（HSL 授权：未激活受限流——请把 hsl.auth 放到本程序目录，或参照配置编辑器输入授权码）"));
+                            : "（HSL 授权：未激活受限流——请把 hsl.dat 放到本程序目录，或参照配置编辑器输入授权码）"));
                     RefreshHslState();
                     FinishOp();
                 });

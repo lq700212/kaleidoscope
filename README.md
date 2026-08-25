@@ -8,7 +8,7 @@
 
 - .NET Framework 4.7.2，C# LangVersion 7.3（WinForms 项目直接引用）
 - NModbus 3.0.83（Modbus TCP 从站 + Modbus RTU 主站 + Modbus TCP 主站），`libs/NModbus.dll` + `libs/NModbus.Serial.dll` 本地引用，**离线可编译**，不依赖 NuGet
-- HslCommunication 12.6.0.0（V1.6.0 起集成的商业通讯库）：**多品牌 PLC 主站**（三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U）与 **EtherNet/IP 扫码枪**；`libs/HslCommunication.dll` 本地引用离线可编译。**商业授权，授权码需自行购买**：授权码经 AES 加密后存 exe 同目录 `hsl.auth` 文件（文件内容为密文、不入 git），由 `Utils/HslAuthorization.cs` 统一加载/验签/落盘；ConfigEditor 选中多品牌 PLC / EIP 扫码枪节点时未激活会自动弹窗引导输入，已保存的授权码可随时在弹窗中查看明文/一键复制（仅 Services 层依赖 HSL，Models/Configuration 不碰）
+- HslCommunication 12.6.0.0（V1.6.0 起集成的商业通讯库）：**多品牌 PLC 主站**（三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U）与 **EtherNet/IP 扫码枪**；`libs/HslCommunication.dll` 本地引用离线可编译。**商业授权，授权码需自行购买**：授权码经 AES 加密后存 exe 同目录 `hsl.dat` 文件（文件内容为密文、不入 git），由 `Utils/HslAuthorization.cs` 统一加载/验签/落盘；ConfigEditor 选中多品牌 PLC / EIP 扫码枪节点时未激活会自动弹窗引导输入，已保存的授权码可随时在弹窗中查看明文/一键复制（仅 Services 层依赖 HSL，Models/Configuration 不碰）
 - System.Management（WMI 自动识别 CH340 串口 / 扫码枪串口，见 `Utils/SerialPortHelper.cs`）
 - Newtonsoft.Json **不需要**：配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，**零第三方依赖**），业务项目读/写设备配置一行搞定，只吃强类型配置对象；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），可视化配置编辑器 `ConfigEditor/` 据此自动渲染参数界面（库加新字段界面自动出现）
 
@@ -204,7 +204,7 @@ hub.ApplyConfig(newConfig);
 ## 六、对接要点
 
 - **PLC**：现场汇川 PLC 可作**主站**（上位机作从站，监听本机 502，"请求-结果-复位"三拍握手，寄存器 40001~40012，配置存 **DataStore 索引**，协议号 = 索引 + 40000）或**从站**（上位机作主站，`PlcRole=Master`，用 `hub.PlcMaster` 主动读写 + 自动轮询）。完整协议见业务项目文档。
-- **多品牌 PLC**（`PlcRole=MultiBrand`，V1.6.0）：经三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U 主动读写（`hub.PlcMultiBrand`），地址填品牌语法、端口 0=按品牌默认；**HSL 为商业授权，授权码需自行购买**，经 ConfigEditor 弹窗输入后 AES 加密存于 exe 同目录 `hsl.auth` 文件（可查看/复制/多机共用，详见使用说明 6.1c）。
+- **多品牌 PLC**（`PlcRole=MultiBrand`，V1.6.0）：经三菱 MC/A1E、欧姆龙 FINS/CIP、西门子 S7、汇川 H5U 主动读写（`hub.PlcMultiBrand`），地址填品牌语法、端口 0=按品牌默认；**HSL 为商业授权，授权码需自行购买**，经 ConfigEditor 弹窗输入后 AES 加密存于 exe 同目录 `hsl.dat` 文件（可查看/复制/多机共用，详见使用说明 6.1c）。
 - **相机**：基恩士 IV4 无协议 TCP，触发 + 判定（T2），判定即写 PLC 结果、图异步归档；FTP 取图扫目录取最新 jpeg+iv4p 对，归档后删源。
 - **扫码枪**：基恩士 SR 无协议 TCP（`Mode=Tcp`），连上后需发触发指令（`ScanConfig.TriggerCommand`，默认 `LON`）才开始读码；串口枪（`Mode=Serial`）PortName 留空时按 `DeviceKeyword` 用 WMI 自动识别串口；EtherNet/IP 扫码枪（`Mode=Eip`，V1.6.0）作 EIP Adapter 由上位机周期读 Assembly 取码，无需触发指令，保持型数据自动去重（码变化或出现过空才上报）。
 - **气压表**（Modbus RTU 主站）：72 台真空负压表挂 RS485→USB（CH340），读压力（0x04 @ 0x0001，2 寄存器，kPa，压力地址/读数量可配）、写报警阈值（0x06 @ 0x0010，**阈值地址可配 `BarometerThresholdRegisterAddress`**）；串口自动识别见 `Utils/SerialPortHelper.cs`。

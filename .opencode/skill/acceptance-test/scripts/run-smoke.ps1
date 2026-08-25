@@ -1,4 +1,4 @@
-﻿﻿#Requires -Version 5.1
+﻿﻿﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Kaleidoscope 测试用例集一键运行：编译（Roslyn）→ 拷依赖 → 运行 54 用例 → 透传结果。
@@ -47,7 +47,7 @@ foreach ($d in @("Kaleidoscope.dll", "HslCommunication.dll", "NModbus.dll", "NMo
     Copy-Item (Join-Path $lib $d) $outDir -Force
 }
 # 授权文件探测两处（库工程目录 / ConfigEditor 目录——现场跑编辑器生成在后者）
-$auth = @((Join-Path $lib "hsl.auth"), (Join-Path $root "ConfigEditor/bin/Debug/hsl.auth")) | Where-Object { Test-Path $_ } | Select-Object -First 1
+$auth = @((Join-Path $lib "hsl.dat"), (Join-Path $root "ConfigEditor/bin/Debug/hsl.dat")) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($auth) { Copy-Item $auth $outDir -Force }
 
 # ── 运行（退出码透传：0=全过，1=有失败）──

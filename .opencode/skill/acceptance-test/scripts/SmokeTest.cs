@@ -10,7 +10,7 @@
 //     /r:System.Drawing.dll
 //     SmokeTest.cs
 // 【运行】SmokeTest.exe（需同目录有 Kaleidoscope.dll / HslCommunication.dll / NModbus.dll /
-//   NModbus.Serial.dll；HSL 授权用例环境自适应：exe 目录有 hsl.auth 才断言激活，无则 SKIP）。
+//   NModbus.Serial.dll；HSL 授权用例环境自适应：exe 目录有 hsl.dat 才断言激活，无则 SKIP）。
 // 【退出码】0=全部通过，1=有失败（可接入 CI）。
 // 【覆盖】配置序列化/校验、Mock 三件套、PLC 从站（三拍握手/型号/清零/重建）、Modbus 主站
 //   （读写/轮询/断线自愈/并发）、IO 耦合器（映射/读改写/越界）、送风机（解析/命令/回退）、
@@ -131,7 +131,7 @@ internal static class Smoke
         Run("ImageStore.1 SaveImage 归档结构", T9_Save);
         Run("ImageStore.2 FindLatestPair + DeleteSourceFile", T9_Cleanup);
 
-        Run("HSL.1 授权从 hsl.auth 激活（无授权环境自动跳过）", T10_Auth);
+        Run("HSL.1 授权从 hsl.dat 激活（无授权环境自动跳过）", T10_Auth);
         Run("HSL.2 连接失败自愈 + Dispose 干净", T10_Lifecycle);
         Run("HSL.3 错误授权码不破坏已激活状态", T10_BadCode);
         Run("HSL.4 Dispose 后调用读写安全返回失败", T10_AfterDispose);
@@ -1029,11 +1029,11 @@ internal static class Smoke
     // ══════════ 10. HSL ══════════
     static void T10_Auth()
     {
-        // 环境自适应：本仓库不含 hsl.auth（授权码需自行购买）——无授权环境跳过本用例，
+        // 环境自适应：本仓库不含 hsl.dat（授权码需自行购买）——无授权环境跳过本用例，
         // 不影响其它用例验证；有授权文件时才断言激活成功。
         string authFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, HslAuthorization.FileName);
-        if (!File.Exists(authFile)) { SkipCase("HSL.1（本机无 hsl.auth）"); return; }
-        AssertTrue(HslAuthorization.EnsureRegistered(), "授权未激活（检查 exe 目录 hsl.auth）");
+        if (!File.Exists(authFile)) { SkipCase("HSL.1（本机无 hsl.dat）"); return; }
+        AssertTrue(HslAuthorization.EnsureRegistered(), "授权未激活（检查 exe 目录 hsl.dat）");
     }
     static void T10_Lifecycle()
     {
@@ -1067,7 +1067,7 @@ internal static class Smoke
     }
     static void T10_EncryptRoundTrip()
     {
-        // 需已激活环境（有 hsl.auth）：验证落盘为加密格式、文件不含明文码、解密往返一致
+        // 需已激活环境（有 hsl.dat）：验证落盘为加密格式、文件不含明文码、解密往返一致
         string code = HslAuthorization.LoadFromFile();
         if (string.IsNullOrEmpty(code)) { SkipCase("HSL.5（本机无授权）"); return; }
         string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, HslAuthorization.FileName);

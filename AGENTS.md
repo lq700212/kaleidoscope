@@ -12,7 +12,7 @@
 ## 技术栈
 
 - .NET Framework **4.7.2**，C# `LangVersion=7.3`（WinForms 业务项目引用，勿引入 .NET Core 语法/API）
-- 通讯：**NModbus 3.0.83**（Modbus TCP 从站/主站，汇川 PLC）+ **NModbus.Serial 3.0.83**（Modbus RTU 主站，气压表）+ **HslCommunication 12.6.0.0（V1.6.0 起集成的商业通讯库：多品牌 PLC 主站三菱/欧姆龙/西门子/汇川 + EtherNet/IP 扫码枪；商业授权、授权码需自行购买，统一放 exe 同目录 hsl.auth 文件由 Utils/HslAuthorization.cs 加载，仅 Services 层依赖，Models/Configuration 零 HSL 引用）**+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口/EIP + IO 耦合器/送风机 Modbus TCP 主站
+- 通讯：**NModbus 3.0.83**（Modbus TCP 从站/主站，汇川 PLC）+ **NModbus.Serial 3.0.83**（Modbus RTU 主站，气压表）+ **HslCommunication 12.6.0.0（V1.6.0 起集成的商业通讯库：多品牌 PLC 主站三菱/欧姆龙/西门子/汇川 + EtherNet/IP 扫码枪；商业授权、授权码需自行购买，统一放 exe 同目录 hsl.dat 文件由 Utils/HslAuthorization.cs 加载，仅 Services 层依赖，Models/Configuration 零 HSL 引用）**+ 基恩士 IV4 相机 TCP 无协议 + 基恩士 SR 扫码枪 TCP/串口/EIP + IO 耦合器/送风机 Modbus TCP 主站
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
 - 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），供 `ConfigEditor/` 可视化编辑器自动渲染参数界面
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
@@ -40,7 +40,7 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 
 1. **文件编码 UTF-8**。写文件用 write 工具，中文内容写后自查 `[IO.File]::ReadAllText(path, UTF8).Contains("预期中文")`。
 2. **不提交运行时数据与机密，且每次改动后主动复查 .gitignore**（不要等提醒）：
-   - `bin/`、`obj/`、日志、`hsl.auth`（授权码）、`*.kcfg`（现场配置）一律 gitignore；
+   - `bin/`、`obj/`、日志、`hsl.dat`（授权码）、`*.kcfg`（现场配置）一律 gitignore；
    - **新增会落盘的运行时产物/机密/本地状态时，同步补 .gitignore 规则并跑 `git check-ignore <路径>` 验证命中**；
    - **每轮任务收尾前跑一次 `git status --short`**：出现非预期的 `??`（未跟踪）文件 = 疑似遗漏忽略或垃圾文件，先甄别再决定忽略或删除；
    - 2026-08 复盘：HSL 授权码曾差点因"只加了规则没复查实体文件位置"产生遗漏——规则与实体要两头验证。
@@ -109,7 +109,7 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
   寄存器地址一律填 Modbus 协议地址（0x0000 起），**不要**混用从站的 DataStore 索引约定。
 - **相机"判定即写"（V2.13.7）**：T2 判定一返回立即写 PLC 结果（1/2），不等 FTP 取图归档；通道释放必须等"PLC 已复位请求 **且** `_taskDone`"，否则下一拍请求进来开新 Task 造成同相机并发取图/删源混图。
 - **扫码枪 TCP 非连上即回**：连上后必须发触发指令（`ScanConfig.TriggerCommand`，默认 `LON`）才读码，连接/重连成功自动发一次；串口上电即读码、`SendTrigger` 为空操作。
-- **多品牌 PLC（HSL，V1.6.0 集成）**：`HslPlcClient` 一个 `IReadWriteNet` 接口吃掉所有品牌——**新增品牌只在 CreateDevice 工厂加一个 case + MultiBrandPlcBrand 枚举末尾追加值**（枚举按名序列化只许追加），读写/轮询/事件链路零改动。地址填**品牌语法字符串**（三菱 D100/欧姆龙 W10/西门子 DB1.DBW0），  与 Modbus 主站的纯数字协议地址、从站的 DataStore 索引是三套约定，勿混用；端口填 0=按品牌默认（三菱 6000/FINS 9600/CIP 44818/汇川 502/西门子 102）。读写失败一律标记断线（朴素策略：PLC 协议报错也会触发一次重连，代价小换来逻辑简单），由自带心跳 Timer 按 ReconnectIntervalMs 节流自愈。**HSL 授权码不入源码、不入 git**：商业授权、授权码需自行购买，经 ConfigEditor 的"HSL 授权"输入窗（或业务代码 `SaveToFile`）写入 exe 同目录 `hsl.auth` 文件——**AES 加密存储**（文件为密文，防现场顺手拷走直接使用；安全边界见类注释），统一由 `Utils/HslAuthorization.cs` 加载/验签/落盘，禁止在代码里硬编码。
+- **多品牌 PLC（HSL，V1.6.0 集成）**：`HslPlcClient` 一个 `IReadWriteNet` 接口吃掉所有品牌——**新增品牌只在 CreateDevice 工厂加一个 case + MultiBrandPlcBrand 枚举末尾追加值**（枚举按名序列化只许追加），读写/轮询/事件链路零改动。地址填**品牌语法字符串**（三菱 D100/欧姆龙 W10/西门子 DB1.DBW0），  与 Modbus 主站的纯数字协议地址、从站的 DataStore 索引是三套约定，勿混用；端口填 0=按品牌默认（三菱 6000/FINS 9600/CIP 44818/汇川 502/西门子 102）。读写失败一律标记断线（朴素策略：PLC 协议报错也会触发一次重连，代价小换来逻辑简单），由自带心跳 Timer 按 ReconnectIntervalMs 节流自愈。**HSL 授权码不入源码、不入 git**：商业授权、授权码需自行购买，经 ConfigEditor 的"HSL 授权"输入窗（或业务代码 `SaveToFile`）写入 exe 同目录 `hsl.dat` 文件——**AES 加密存储**（文件为密文，防现场顺手拷走直接使用；安全边界见类注释），统一由 `Utils/HslAuthorization.cs` 加载/验签/落盘，禁止在代码里硬编码。
 - **扫码枪 EIP 保持型去重（V1.6.0）**：EtherNet/IP 的 Assembly 是保持型数据——扫到一条码会一直保留到下一条覆盖，必须做"条码变化或中间出现过空才上报"的去重；**读到空数据要清去重缓存**，否则"同码→空→同码"第二次扫不触发。EIP 无需触发指令（SendTrigger 为空操作返回 true）；IsOpen 以最近一次 CIP 通讯结果为准（无空闲判活手段）。
 - **图片显示不等归档**：FTP 取图"jpeg 一到目录 → 后台解码缩略图 → 提前塞事件"与"归档复制+删源"解耦，UI 不等 iv4p 复制。
 - **PW 同程序号跳过（V2.14.19）**：相机 `SwitchProgram` 缓存上次成功程序号，目标一致直接 return，省 200~390ms；**连接重建必须在 `EnsureConnected` 成功处把缓存重置 -1**，否则相机恢复默认程序后缓存骗过跳过、错拍。

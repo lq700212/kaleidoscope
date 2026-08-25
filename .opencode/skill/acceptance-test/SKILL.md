@@ -25,7 +25,7 @@ powershell -ExecutionPolicy Bypass -File .opencode/skill/smoke-test/scripts/run-
 - **PASS=54 FAIL=0** = 全部稳定（本仓库基线）；
 - 出现 FAIL：用例名即定位（如 `从站.4 相机结果寄存器上电清零` = PlcService 的重建清零场景），
   先复现再看对应服务的实现；
-- **SKIP 是正常现象**：HSL 授权用例（HSL.1/3/5）在本机无 `hsl.auth` 时自动跳过（开源仓库不含
+- **SKIP 是正常现象**：HSL 授权用例（HSL.1/3/5）在本机无 `hsl.dat` 时自动跳过（开源仓库不含
   授权文件）；有授权环境（ConfigEditor 跑过一次弹窗输入后）会真实执行；
 - 注意汇总行 `PASS=x FAIL=0 SKIP=y` 中 FAIL 必须为 0，SKIP 不算失败。
 

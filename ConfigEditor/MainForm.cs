@@ -98,7 +98,7 @@ namespace Kaleidoscope.ConfigEditor
         /// 授权检查结果缓存（3 秒 TTL）：EnsureRegistered 在未激活状态下每次都会读授权文件，
         /// 本地 SSD 上微秒级，但为防极端情况（文件被杀软锁定/程序被放到网络盘）拖慢 UI 线程，
         /// 树节点高频切换时用缓存兜底——3 秒内重复选中 HSL 节点不再读文件，
-        /// 现场放入 hsl.auth 后最多 3 秒自动识别（通讯侧服务本就独立检测，不受此影响）。
+        /// 现场放入 hsl.dat 后最多 3 秒自动识别（通讯侧服务本就独立检测，不受此影响）。
         /// </summary>
         private DateTime _authCheckedAt = DateTime.MinValue;
         private bool _authCheckedResult;
@@ -260,7 +260,7 @@ namespace Kaleidoscope.ConfigEditor
                 ForeColor = AccentDark,
                 Visible = false,
             };
-            _authBtn = MakeButton("输入授权码", "输入/更换 HslCommunication 授权码（保存在本机 hsl.auth 文件）", PromptHslAuth);
+            _authBtn = MakeButton("输入授权码", "输入/更换 HslCommunication 授权码（保存在本机 hsl.dat 文件）", PromptHslAuth);
             _authBtn.Visible = false;
             _presetPanel.Controls.Add(_presetLabel);
             _presetPanel.Controls.Add(_presetCombo);

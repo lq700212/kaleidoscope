@@ -31,7 +31,7 @@ namespace Kaleidoscope.Utils
     public static class HslAuthorization
     {
         /// <summary>授权码文件名（位于 exe 同目录）。</summary>
-        public const string FileName = "hsl.auth";
+        public const string FileName = "hsl.dat";
 
         /// <summary>加密格式版本前缀（数据行以此开头标识密文）。</summary>
         private const string EncPrefix = "ENC1:";
@@ -60,7 +60,7 @@ namespace Kaleidoscope.Utils
         /// <summary>
         /// 确保已注册（服务连接前调用，幂等快路径：已激活直接返回）。
         /// 未激活时**每次调用都重新读授权文件并尝试激活**——本地小文件 IO 微秒级、连接频率
-        /// 又受重连节流约束，开销可忽略；换来的是"现场运行中把 hsl.auth 放进/修正到程序目录，
+        /// 又受重连节流约束，开销可忽略；换来的是"现场运行中把 hsl.dat 放进/修正到程序目录，
         /// 无需重启，下一个心跳周期自动恢复授权"。未激活不抛异常、不阻断通讯（受限流），
         /// 仅按 30s 节流记 Warn 日志，由界面/日志引导补授权。
         /// </summary>
@@ -75,12 +75,12 @@ namespace Kaleidoscope.Utils
                 if (string.IsNullOrWhiteSpace(code))
                 {
                     WarnThrottled($"HSL 未授权：未找到有效授权文件 {AuthFilePath}，将按未授权版受限流运行" +
-                                  "（请在配置编辑器中输入授权码，或手工放置 hsl.auth 文件——放入后无需重启自动生效）");
+                                  "（请在配置编辑器中输入授权码，或手工放置 hsl.dat 文件——放入后无需重启自动生效）");
                     return false;
                 }
                 if (TryActivate(code)) return true;   // 文件已是加密格式且内容未变，激活后无需重写
-                WarnThrottled("HSL 授权失败：授权文件中的授权码无效（或为本机无法解密的文件），将按未授权版受限流运行" +
-                              "（请核对 hsl.auth 内容，或在配置编辑器中重新输入）");
+                WarnThrottled("HSL 授权失败：授权文件中的授权码无效（或文件格式非法），将按未授权版受限流运行" +
+                              "（请核对 hsl.dat 内容，或在配置编辑器中重新输入）");
                 return false;
             }
         }
@@ -131,7 +131,7 @@ namespace Kaleidoscope.Utils
         }
 
         /// <summary>
-        /// 把授权码加密后写入本地授权文件（exe 同目录 hsl.auth，AES 混淆格式；
+        /// 把授权码加密后写入本地授权文件（exe 同目录 hsl.dat，AES 混淆格式；
         /// 目录不存在自动创建）。写入失败抛 IO 异常由调用方提示。
         /// 【为什么加密】多机部署场景授权文件会随程序落到客户现场——明文文件被拷走即可直接
         /// 使用；加密后文件内容不可读，拷走无法直接识别/使用（安全边界见类头声明）。

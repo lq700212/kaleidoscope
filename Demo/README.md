@@ -44,7 +44,7 @@ HSL 通道通不通。该区独立于上方从站演示（直接实例化 HslPlc
 `PlcRole=MultiBrand` + `hub.PlcMultiBrand`。扫码枪 EIP 模式：配置 `Mode=Eip` 后在
 扫码枪区正常收码（无需触发指令）。
 
-> HSL 为商业授权（授权码需自行购买）：授权码放本程序 exe 同目录 `hsl.auth` 文件即可，
+> HSL 为商业授权（授权码需自行购买）：授权码放本程序 exe 同目录 `hsl.dat` 文件即可，
 > 配置方法详见使用说明.md 6.1c。
 
 ## 三、验证清单（前期联调用）
