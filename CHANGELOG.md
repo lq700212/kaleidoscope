@@ -7,6 +7,16 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.6.1（2026-09-05）ui-layout-debug 并入全局 winforms-ui-debug
+
+- 删除 `.opencode/skill/ui-layout-debug/`（矩形枚举与真实截图方法论 + 四脚本原型已
+  合并进全局技能 `winforms-ui-debug` §十与 `scripts/`，业务默认值已参数化）；
+  `AGENTS.md` 脚本路径引用与技能说明改指全局版本；`README.md` 目录树同步删除该行。
+- **为什么这么改**：四项目 UI 调试 skill 合并为同一个全局版本，防分叉；本项目构建
+  命令与对照窗体已收录进全局 skill 附录 A 项目档案。
+- 验证：无代码改动；全局 skill 内四脚本 `py_compile`/BOM/参数三态已验证。
+- 附带机制：AGENTS 加"改构建输出同步改全局 skill 附录 A"一行（防表漂移）。
+
 ## V1.6.0（2026-08-24）集成 HslCommunication：多品牌 PLC + EtherNet/IP 扫码枪
 
 ### 新增

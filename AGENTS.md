@@ -153,14 +153,15 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
   盖在 Fill 上面），但 Fill 实际占满全客户区、内部全按全尺寸布局——底部内容被边缘条遮挡，平时难察觉
   （ConfigEditor 实测：split 后 Add 导致树/属性网格被状态条静默遮挡 30px 达数个版本，直到贴底的预设条
   出现才暴露）。
-- **一行检查法**：跑 `.opencode/skill/ui-layout-debug/scripts/Get-ControlTree.ps1`（或 Python 版）枚举子窗口实际矩形——**Dock=Fill 容器的底边 ==
+- **一行检查法**：跑全局技能 `winforms-ui-debug` 的 `scripts/Get-ControlTree.ps1`（或 Python 版）枚举子窗口实际矩形——**Dock=Fill 容器的底边 ==
   父容器底边 = 没让位 = Add 顺序错误**。排查界面"显示不全/被遮挡/错位"问题，第一步就跑脚本拿数据，
   不要从表层症状开始推测（本次先怀疑布局算法/事件时序/控件库绕了三轮，最后 30 秒靠矩形数据定位）。
-- **GUI 自动化调试脚本已固化为项目专属技能**（`.opencode/skill/ui-layout-debug/`，SKILL.md 含完整用法与判据，scripts/ 下 Python 与 PowerShell 双版本同功能）：
+- **GUI 自动化调试脚本已固化为全局技能**（`winforms-ui-debug`，SKILL.md §十含完整用法与判据，scripts/ 下 Python 与 PowerShell 双版本同功能）：
   `Get-ControlTree.py/.ps1`（枚举子窗口实际矩形=决定性证据，支持 --click/-ClickX/Y 先点树节点、
   --topmost/-Topmost、--attach/-Attach 附加已运行进程）、`Get-WindowShot.py/.ps1`（置顶+可选点击+
-  真实屏幕截图）。Python 版依赖 pywin32（截图版另需 Pillow）；PowerShell 版零依赖（现场无 Python
-  环境时用），**.ps1 必须 UTF-8 带 BOM** 否则 PowerShell 5.1 中文乱码解析失败。
+   真实屏幕截图）。Python 版依赖 pywin32（截图版另需 Pillow）；PowerShell 版零依赖（现场无 Python
+   环境时用），**.ps1 必须 UTF-8 带 BOM** 否则 PowerShell 5.1 中文乱码解析失败。
+- 改 ConfigEditor 构建输出或主 exe 名时，同步改全局技能 `winforms-ui-debug` 附录 A 的 Kaleidoscope 行（防开工查表拿到旧值）。
 - **截图验证两不要**：① 不要用 PrintWindow——SunnyUI 自绘控件在 WM_PRINT 下渲染不全（只画顶部一条），
   会产生"控件被裁"的假象；必须 SetWindowPos(TOPMOST) + CopyFromScreen 真实屏幕截图。② 不要用
   SetForegroundWindow——会被系统前台锁静默拒绝（截到别的窗口），用 TOPMOST 置顶。
