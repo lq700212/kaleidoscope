@@ -7,6 +7,51 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.6.2（2026-09-10）全面测试 54→152 例 + 修四处真实缺陷
+
+> 全面代码审查 + 测试盲区清零：验收用例从 54 例扩到 152 例（新增 16 组 98 例，
+> 覆盖校验器全分支/序列化边角/描述符/映射解析/各服务失败路径与释放语义）。
+> 首轮新用例即抓出 3 处库真实缺陷 + 1 处校验器崩溃，全部已修并回归全绿。
+> 另补 `.gitignore` 运行期缓存规则（送风机/气压表 IP 记忆文件）。
+
+### 修复（均为新用例抓出的真实问题）
+
+- **`DeviceHubConfigValidator` 相机 null 项崩溃**：`ValidateCameras` 先取 `cam.Name`
+  组 label 再判 null——`Cameras` 含 null 项时抛 NullReferenceException，
+  校验器本身崩溃。改为先判空返回错误再组装 label。
+- **`DeviceHubConfigValidator` 从站地址重叠判死自己**：重叠检测用 Dictionary
+  初始化器装四个地址——两地址相等时初始化器抛"相同键"异常，本想告警重叠
+  反而崩溃。改为先装成对列表再逐个判重（0=预留跳过语义不变）。
+- **`ConnectionMonitor.Dispose` 非幂等**：重复释放时 `_timer.Change` 抛
+  "无法访问已释放的对象"。补 `_disposed` 早退（与全库"重复 Dispose 安全"约定对齐）。
+- **Dispose 后连接复活（与 HslPlcClient 契约对齐）**：`ModbusTcpMasterClient`
+  的 `EnsureConnected`/`ReconnectNow`/`Connect` 缺 `_disposed` 拦截——Dispose 后
+  一次读写即悄悄重连成功（HSL 侧 V1.6.0 已拦截，行为不一致）；`FanControllerClient`/
+  `ModbusRtuBarometerReader`/`ModbusTcpIoController` 的 `Connect` 与
+  `ScannerService.Open` 同理补拦截。DeviceHub 热更只建新实例，无复用旧实例
+  流程，不受影响。
+- **测试侧**：`T17_ModelMap` 曾误删 `EnsureConnected` 致主站被拒（已补回）；
+  新增 `NModbusMasterRetry` 覆盖从站监听线程启动的毫秒级 accept 窗口。
+
+### 测试（16 组 98 例，详见技能 SKILL.md 用例清单）
+
+- 配扩 8（缺文件/空文本/未知成员/中文无 BOM/反斜杠 u/深层兜底/类型错配）、
+  校验 14（校验器此前仅多品牌 3 例，现全段全分支）、描述 4、映射 8
+  （ParseAll/八进制/预留/异常）、从扩 5、主扩 6、IO扩 5、风扩 5、枪扩 6、
+  相扩 8（含详细格式/BR 读图，模拟器加 `_camPwFail/_camPrBad/_camBrBad` 开关）、
+  图扩 8（含脏 SubDirs/清理日期与 KeepDays=0/盘符根护栏）、HSL扩 5
+  （品牌端口表/全类型失败路径）、Hub扩 5（三角色装配）、监控 3（空安全/边沿）、
+  表Mock 4、工具 4。
+- 无真机仍盲区（技能已知边界）：串口协议层、EIP CIP 协议去重（仅契约）、相机 FTP 链路。
+
+### 文档同步
+
+- `AGENTS.md`：测试基线 54→152；`.gitignore` 补 `FanLastIp.cache`/
+  `BarometerPort.cache`（`git check-ignore` 三文件均命中）。
+- `README.md` 仓库结构测试行；技能 `SKILL.md` 用例清单/基线/模拟器说明；
+  `run-smoke.ps1` 概要行；`SmokeTest.cs` 头注释。
+- 验证：MSBuild 三工程（库/Demo/编辑器）通过；`PASS=152 FAIL=0 SKIP=0`。
+
 ## V1.6.1（2026-09-05）ui-layout-debug 并入全局 winforms-ui-debug
 
 - 删除 `.opencode/skill/ui-layout-debug/`（矩形枚举与真实截图方法论 + 四脚本原型已

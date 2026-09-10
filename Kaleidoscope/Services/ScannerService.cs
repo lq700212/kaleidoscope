@@ -146,6 +146,7 @@ namespace Kaleidoscope.Services
         /// </summary>
         public bool Open()
         {
+            if (_disposed) return false;   // 已释放拒绝重启（防 Dispose 后心跳线程复活）
             if (!_cfg.Enabled) return false;
 
             // 后台心跳线程：负责断连检测 + 静默重连（见 HeartbeatLoop）

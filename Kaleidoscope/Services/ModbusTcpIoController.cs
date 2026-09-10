@@ -45,6 +45,9 @@ namespace Kaleidoscope.Services
         /// <summary>连接状态。volatile：ConnectionMonitor 心跳线程在锁外读 IsConnected 决定是否重连。</summary>
         private volatile bool _isConnected;
 
+        /// <summary>已释放标记：Dispose 后拒绝一切重建（防读写复活连接，对齐 HslPlcClient）。</summary>
+        private volatile bool _disposed;
+
         public bool IsConnected => _isConnected;
 
         public event EventHandler<string> OnError;
@@ -71,6 +74,7 @@ namespace Kaleidoscope.Services
         /// <summary>连接 IO 设备（断开旧连 → BeginConnect 手动超时 → 建 Modbus 主站）。</summary>
         public bool Connect(IoConfig config)
         {
+            if (_disposed) return false;   // 已释放拒绝重建（见字段注释）
             _config = config;
             // 用 _syncRoot 串行化"连接/断开/读写"，防止后台自动重连与采集线程并发访问 _client/_master
             // 导致空引用（C# lock 可重入，内部再调 Disconnect 不冲突）。
@@ -509,9 +513,10 @@ namespace Kaleidoscope.Services
             }
         }
 
-        /// <summary>释放资源（断开连接）。</summary>
+        /// <summary>释放资源（断开连接）。重复调用安全；释放后读写一律失败不再复活。</summary>
         public void Dispose()
         {
+            _disposed = true;
             Disconnect();
         }
     }

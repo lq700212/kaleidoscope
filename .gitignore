@@ -20,6 +20,12 @@ Config/
 # HSL 授权文件（AES 加密存储，运行时生成在 exe 同目录，绝不入库）
 hsl.dat
 
+# ────────── 运行时 IP/端口记忆缓存（设备自动识别落盘，exe 同目录，绝不入库）──────────
+# 送风机上次连上 IP（FanControllerClient.SaveCachedIp 落盘 FanLastIp.cache）
+FanLastIp.cache
+# 气压表上次连上串口（ModbusRtuBarometerReader.SaveCachedPort 落盘 BarometerPort.cache）
+BarometerPort.cache
+
 # ────────── 测试编译产物（SmokeTest.cs 编译到仓库根时的产物）──────────
 /SmokeTest.exe
 /SmokeTest.pdb

@@ -69,6 +69,9 @@ namespace Kaleidoscope.Services
         /// <summary>重连节流间隔（毫秒）：两次连接尝试之间至少间隔 10 秒，避免对死设备频繁发起连接。</summary>
         private const int ReconnectIntervalMs = 10000;
 
+        /// <summary>已释放标记：Dispose 后拒绝一切重建（防读写复活连接，对齐 HslPlcClient/ModbusTcpMasterClient）。</summary>
+        private volatile bool _disposed;
+
         /// <summary>磁盘缓存文件名（程序 exe 所在目录）：一行文本 = 本工控机最近一次连接成功的送风机 IP。</summary>
         private const string IpCacheFileName = "FanLastIp.cache";
 
@@ -82,6 +85,7 @@ namespace Kaleidoscope.Services
         /// <summary>连接送风机控制屏（设计约定：不向外抛异常，统一用 OnError 通知上层）。</summary>
         public bool Connect(FanConfig config)
         {
+            if (_disposed) return false;   // 已释放拒绝重建（见字段注释）
             if (config == null)
             {
                 OnError?.Invoke(this, "配置为空，无法连接");
@@ -338,6 +342,7 @@ namespace Kaleidoscope.Services
         /// <returns>重连后是否已连接（异步重连下为发起时的当前状态，可能仍 false）</returns>
         public bool ReconnectNow()
         {
+            if (_disposed) return false;   // 已释放拒绝重连（见字段注释）
             if (_isConnected) return true;
             var cfg = _config;
             if (cfg == null) return false;
@@ -481,9 +486,10 @@ namespace Kaleidoscope.Services
             }
         }
 
-        /// <summary>释放资源（关闭连接）。</summary>
+        /// <summary>释放资源（关闭连接）。重复调用安全；释放后读写一律失败不再复活。</summary>
         public void Dispose()
         {
+            _disposed = true;
             Disconnect();
         }
     }

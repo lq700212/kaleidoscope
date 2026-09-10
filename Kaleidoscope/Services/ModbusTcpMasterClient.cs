@@ -101,6 +101,7 @@ namespace Kaleidoscope.Services
         /// <returns>true=连接成功</returns>
         public bool Connect(PlcMasterConfig config)
         {
+            if (_disposed) return false;   // 已释放拒绝重建（防 Dispose 后读写复活连接，对齐 HslPlcClient）
             lock (_syncRoot)
             {
                 // _config 必须在锁内赋值：否则轮询线程（锁内读 _config.PollItems）可能在
@@ -181,6 +182,7 @@ namespace Kaleidoscope.Services
         /// </summary>
         private bool EnsureConnected()
         {
+            if (_disposed) return false;   // 废弃后不再自愈（防 in-flight 回调复活连接，见 HslPlcClient）
             if (_isConnected && _master != null && _client != null) return true;
             // 重连节流：刚失败过 ReconnectIntervalMs 内不再重试，避免对死设备频繁无效连接
             if ((DateTime.Now - _lastConnectAttempt).TotalMilliseconds < _config.ReconnectIntervalMs)
@@ -192,6 +194,7 @@ namespace Kaleidoscope.Services
         /// <summary>立即重连一次（业务层"重试"按钮等按需场景，不等节流）。</summary>
         public bool ReconnectNow()
         {
+            if (_disposed) return false;   // 已释放拒绝重连（同上）
             if (_isConnected) return true;
             lock (_syncRoot) { _lastConnectAttempt = DateTime.MinValue; return ConnectInternal(); }
         }

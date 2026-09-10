@@ -63,7 +63,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │       ├── HslAuthorization.cs  #     HSL 授权管理（加载/验签/加密落盘，V1.6.0）
 │       └── IoMapBuilder.cs      #     IO 点位 → 三菱八进制物理地址映射（X000~X107/Y000~Y217）
 ├── .opencode/skill/              # 项目专属 AI 技能
-│   └── acceptance-test/scripts/  #   验收测试用例集（54 用例，run-smoke.ps1 一键运行）
+│   └── acceptance-test/scripts/  #   验收测试用例集（152 用例，run-smoke.ps1 一键运行）
 └── Demo/                        # WinForms 测试台（引用 Kaleidoscope bin 输出）
     ├── KaleidoscopeDemo.csproj     #   构建后自动拷 Kaleidoscope/NModbus/Newtonsoft.Json 到输出目录
     ├── MainForm.cs              #   标准接入方式的最小界面模板（可直接抄接入骨架）

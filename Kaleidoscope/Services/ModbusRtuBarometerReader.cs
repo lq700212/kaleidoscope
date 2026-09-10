@@ -66,6 +66,9 @@ namespace Kaleidoscope.Services
         /// <summary>是否已尝试从磁盘缓存恢复 _cachedPort（防止每次构建候选列表都读一次磁盘）。</summary>
         private bool _cachedPortLoadedFromDisk;
 
+        /// <summary>已释放标记：Dispose 后拒绝一切重建（防读写复活连接，对齐 HslPlcClient）。</summary>
+        private volatile bool _disposed;
+
         public bool IsConnected => _isConnected;
 
         public event EventHandler<string> OnError;
@@ -79,6 +82,7 @@ namespace Kaleidoscope.Services
             // 但不干净）。串口 Open/建 RTU 主站是瞬时操作（无 TCP 超时阻塞），锁内安全。
             lock (_syncRoot)
             {
+                if (_disposed) return false;   // 已释放拒绝重建（见字段注释）
                 _config = config;
                 return ConnectInternal();
             }
@@ -547,9 +551,10 @@ namespace Kaleidoscope.Services
             }
         }
 
-        /// <summary>释放资源（关闭串口连接）。</summary>
+        /// <summary>释放资源（关闭串口连接）。重复调用安全；释放后读写一律失败不再复活。</summary>
         public void Dispose()
         {
+            _disposed = true;
             Disconnect();
         }
     }

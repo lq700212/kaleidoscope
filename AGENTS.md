@@ -135,10 +135,10 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 
 ## 测试（验收测试用例集固化于 acceptance-test 技能）
 
-- **54 个回归用例**固化在 `.opencode/skill/acceptance-test/scripts/SmokeTest.cs`，
+- **152 个回归用例**固化在 `.opencode/skill/acceptance-test/scripts/SmokeTest.cs`，
   **一键运行**：`powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1`
   （自动 Roslyn 编译 → 拷依赖 → 运行，退出码 0=全过/1=有失败，可接 CI）。
-- **判据**：`PASS=54 FAIL=0` 为基线（SKIP=HSL 授权用例无授权环境自动跳过，正常）；
+- **判据**：`PASS=152 FAIL=0` 为基线（SKIP=HSL 授权用例无授权环境自动跳过，正常）；
   FAIL 的用例名即定位（组.序号+场景描述）。改动库代码后、提交前必须跑一遍全 PASS。
 - **扩展用例**：对应分组加方法 + Main 注册 Run()；模拟设备复用现成基建
   （MockSlave 从站 / StartSim 扫码枪 / StartCamSim 相机，用法见技能 SKILL.md）。

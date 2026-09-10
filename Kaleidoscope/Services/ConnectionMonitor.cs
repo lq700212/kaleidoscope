@@ -359,6 +359,7 @@ namespace Kaleidoscope.Services
 
         public void Dispose()
         {
+            if (_disposed) return;   // 幂等：重复释放直接返回（Timer 已停，再 Change 会抛已释放异常）
             _disposed = true;
             _timer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
             _timer.Dispose();

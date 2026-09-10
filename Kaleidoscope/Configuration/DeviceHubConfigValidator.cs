@@ -92,22 +92,24 @@ namespace Kaleidoscope.Configuration
             if (plc.ProductModelLen < 1)
                 r.Errors.Add("PLC 从站：ProductModelLen（型号寄存器数）至少为 1");
 
-            // PLC 从站四个寄存器地址若互相重叠，读写会串位，必须提醒
-            var addrs = new Dictionary<int, string>
+            // PLC 从站四个寄存器地址若互相重叠，读写会串位，必须提醒。
+            // 注意不能用 Dictionary 初始化器直接装（地址重复时初始化器抛"相同键"异常，
+            // 校验器本身崩溃）——先装成对列表，再逐个与 owner 比对判重。
+            var addrs = new[]
             {
-                { plc.ScanRequestAddress, "ScanRequestAddress" },
-                { plc.ScanResultAddress, "ScanResultAddress" },
-                { plc.ProductModelIndexAddress, "ProductModelIndexAddress" },
-                { plc.ProductModelAddress, "ProductModelAddress" },
+                new { Addr = plc.ScanRequestAddress, Field = "ScanRequestAddress" },
+                new { Addr = plc.ScanResultAddress, Field = "ScanResultAddress" },
+                new { Addr = plc.ProductModelIndexAddress, Field = "ProductModelIndexAddress" },
+                new { Addr = plc.ProductModelAddress, Field = "ProductModelAddress" },
             };
             var owner = new Dictionary<int, string>();
             foreach (var kv in addrs)
             {
-                if (kv.Key == 0) continue; // 0 在 PLC 从站语义里=未配置/预留，不算重叠
-                if (owner.ContainsKey(kv.Key))
-                    r.Warnings.Add($"PLC 从站：寄存器地址 {kv.Key} 被字段 [{owner[kv.Key]}] 与 [{kv.Value}] 重复占用（读写会互相覆盖，请核对梯形图）");
+                if (kv.Addr == 0) continue; // 0 在 PLC 从站语义里=未配置/预留，不算重叠
+                if (owner.ContainsKey(kv.Addr))
+                    r.Warnings.Add($"PLC 从站：寄存器地址 {kv.Addr} 被字段 [{owner[kv.Addr]}] 与 [{kv.Field}] 重复占用（读写会互相覆盖，请核对梯形图）");
                 else
-                    owner[kv.Key] = kv.Value;
+                    owner[kv.Addr] = kv.Field;
             }
 
             if (plc.ModelIndexes != null)
@@ -238,8 +240,8 @@ namespace Kaleidoscope.Configuration
             for (int i = 0; i < config.Cameras.Count; i++)
             {
                 CameraConfig cam = config.Cameras[i];
-                string label = "相机 #" + (i + 1) + (string.IsNullOrEmpty(cam.Name) ? "" : $"（{cam.Name}）");
                 if (cam == null) { r.Errors.Add("相机列表里存在 null 项"); continue; }
+                string label = "相机 #" + (i + 1) + (string.IsNullOrEmpty(cam.Name) ? "" : $"（{cam.Name}）");
 
                 if (string.IsNullOrWhiteSpace(cam.Name))
                     r.Warnings.Add($"{label}：名称（Name）为空，界面与日志不便区分");

@@ -1,7 +1,7 @@
-﻿﻿﻿#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  Kaleidoscope 测试用例集一键运行：编译（Roslyn）→ 拷依赖 → 运行 54 用例 → 透传结果。
+  Kaleidoscope 测试用例集一键运行：编译（Roslyn）→ 拷依赖 → 运行 152 用例 → 透传结果。
   （acceptance-test 验收测试技能沉淀，用法见本目录 SKILL.md 与 AGENTS.md「测试」节）
 
 .EXAMPLE
