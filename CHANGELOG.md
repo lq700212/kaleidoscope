@@ -7,6 +7,41 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.7.0（2026-10-25）自 HJVision 生产工程下沉 PLC/TCP 通讯队列
+
+> 首个「生产工程反哺」版本：华际视觉检测系统（HJVision-WPF）把现场多轮迭代验证过的
+> PLC/通用 TCP 通讯队列与裸 TCP 通道**原样下沉**进库（行为与原实现一字不差，仅
+> FlashLogger→LogHelper、MockMode→MockBridge 两类出口替换），主工程经 ProjectReference
+> + 文件级 using 别名**调用点零改动**接入。库从此补上「高频、多来源、要求严格顺序」的
+> **队列范式**——与既有 HslPlcClient 的锁范式互补（队列适合生产节拍读写，锁适合配置期
+> 低频操作），PlcNetCommQue 文件头有两者取舍的完整论述。
+
+### 新增
+
+- **`Services/PlcNetCommQue.cs`**：多品牌 PLC（HSL 三菱 MC/A1E、欧姆龙 FINS/CIP、西门子
+  S7、汇川 H5U、自由口）+ 裸 TCP/EIP 外发**统一读写队列**——常驻消费线程按到达顺序串行
+  执行（天然规避多线程共用一条 PLC 连接的竞态）、读请求结果槽回填 + 句柄唤醒（发起方
+  永不死等）、读写失败即断连标记、去重 + 5 秒退避重连、心跳真探针旁路退避（防活锁）、
+  热更 Rebuild 保槽位、脚本同步读写 API（PlcSyncRead*/Write* 全家族）。
+- **`Services/TcpChannel.cs`**：通用 TCP / EtherNet-IP 双模式通道（自 HJVision 的
+  TCP_Client 改名下沉）——裸 Socket 按行切帧（CR/LF/CRLF 全兼容）/ EIP 走
+  AllenBradleyNet 周期读 Assembly、收发断线三事件、BeginConnect 强制超时、
+  **禁自重连红线**（断线只抛事件，重连策略交上层统一管，防多业务入口各自重连打满对端）。
+- **`Utils/MockBridge.cs`**：宿主演示模式桥——库内短路判断不再依赖任何业务工程的
+  Mock 实现，宿主注入 IsEnabled/FakePlcRead/FakePlcWrite 三个委托；未注入恒为
+  「未启用」= 真实通讯。配套日志桥走既有 `LogHelper.LogAction`（HJVision 侧已接
+  FlashLogger，库日志与主程序并成一条流）。
+
+### 接入（HJVision-WPF 侧，供其它工程抄）
+
+- 引用方式：SDK 风格主工程直接 `ProjectReference` 本库 csproj（断点可跨工程打进库源码），
+  库 DLL 随主工程落盘；
+- 旧名兼容：主工程在原命名空间留「文件级 using 别名」壳文件（如
+  `using PlcNetCommQue = Kaleidoscope.Services.PlcNetCommQue;`），全项目几十处调用点
+  一字不改；
+- 桥接线：宿主在自身 MockMode/日志类的静态构造里把三委托/LogAction 接上，任何进程
+  （主程序/回归探针/测试宿主）碰到宿主类即自动完成接线。
+
 ## V1.6.2（2026-09-10）全面测试 54→152 例 + 修四处真实缺陷
 
 > 全面代码审查 + 测试盲区清零：验收用例从 54 例扩到 152 例（新增 16 组 98 例，

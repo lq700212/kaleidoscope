@@ -1,6 +1,6 @@
 # Kaleidoscope — 设备通讯与图片存储通用库
 
-> 从 CommandCenter + AgingTestSystem 项目抽取封装的 **PLC（Modbus TCP 从站）+ Modbus TCP 主站 + 多品牌 PLC（三菱/欧姆龙/西门子/汇川，V1.6.0）+ 基恩士 IV4 相机 + 基恩士 SR 扫码枪（TCP/串口/EtherNet-IP）+ 图片存储 + 气压表（Modbus RTU 主站）+ IO 耦合器（Modbus TCP 主站）+ 冷却送风机（Modbus TCP）** 底层服务。目标是：**换新客户、做新界面时，底层服务一行不改，只写 UI 和业务编排**。
+> 从 CommandCenter + AgingTestSystem 项目抽取封装的 **PLC（Modbus TCP 从站）+ Modbus TCP 主站 + 多品牌 PLC（三菱/欧姆龙/西门子/汇川，V1.6.0）+ 生产级 PLC/TCP 统一读写队列（V1.7.0 自 HJVision 生产工程下沉）+ 基恩士 IV4 相机 + 基恩士 SR 扫码枪（TCP/串口/EtherNet-IP）+ 通用 TCP / EtherNet-IP 通道（V1.7.0）+ 图片存储 + 气压表（Modbus RTU 主站）+ IO 耦合器（Modbus TCP 主站）+ 冷却送风机（Modbus TCP）** 底层服务。目标是：**换新客户、做新界面时，底层服务一行不改，只写 UI 和业务编排**。
 >
 > **📖 完整接入手册见 [`使用说明.md`](./使用说明.md)**（配置逐项、业务层写法、热更、FAQ）；本文是速查。GitHub 预览渲染不出中文文件名时直接点仓库里的 `使用说明.md`。
 
@@ -46,6 +46,8 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   ├── PlcService.cs        #     Modbus TCP 从站监听 + 寄存器读写 + 上电复位
 │   │   ├── ModbusTcpMasterClient.cs #  通用 Modbus TCP 主站（主动读写 + 自动轮询，PLC 主站模式用）
 │   │   ├── HslPlcClient.cs      #     多品牌 PLC 主站（三菱/欧姆龙/西门子/汇川，HSL，V1.6.0）
+│   │   ├── PlcNetCommQue.cs     #     生产级 PLC/TCP 统一读写队列（消费线程串行+结果槽+心跳退避重连+脚本同步读写，V1.7.0 自 HJVision 下沉）
+│   │   ├── TcpChannel.cs        #     通用 TCP / EtherNet-IP 通道（裸收发/按行切帧/禁自重连，V1.7.0 自 HJVision 下沉）
 │   │   ├── KeyenceIV4Camera.cs  #     相机触发/判定/切程序（PW/OF/T1/T2/RT 指令）
 │   │   ├── ScannerService.cs    #     串口扫码枪（IScanner 实现，WMI 自动识别 + 心跳重连）
 │   │   ├── ScannerTcpService.cs #     TCP 扫码枪（IScanner 实现，自动发触发指令）
@@ -58,6 +60,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   └── DeviceHub.cs         #     ★ 门面：建/启/事件聚合/热更/释放 全链路封装
 │   └── Utils/
 │       ├── LogHelper.cs         #     可替换出口的日志（默认写 Logs 文件，可注入文件/界面）
+│       ├── MockBridge.cs        #     宿主 Mock 演示桥（库不依赖业务工程，三委托注入短路，V1.7.0）
 │       ├── TcpKeepAlive.cs      #     TCP KeepAlive 短间隔配置（拔网线/断电快速检测）
 │       ├── SerialPortHelper.cs  #     CH340 串口 WMI 自动识别（气压表 RS485→USB）
 │       ├── HslAuthorization.cs  #     HSL 授权管理（加载/验签/加密落盘，V1.6.0）

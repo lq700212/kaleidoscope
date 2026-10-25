@@ -58,6 +58,12 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 - **配置模型元数据（V1.3.0 起，可视化编辑器地基）**：`Models/*.cs` 每个公开属性必须带 `[DisplayName(中文名)]` + `[Description(说明)]`；顶层聚合配置（如 `DeviceHubConfig`）按业务语义再加 `[Category]` 分组。**新增配置字段时同步补**，否则编辑器/业务界面/自动说明书只显示英文属性名，视为遗漏返工。
 - 服务层事件一律**工作线程触发**，UI 订阅方自行 `Invoke`；库内不做 UI 线程跳转。
 - 日志只记边沿（连上/断开各一次），连续失败中间静默节流，防刷屏。
+- **宿主桥接（V1.7.0 起，生产工程反哺件适用）**：库内需要「业务侧状态/出口」的能力一律走
+  注入桥，**库不引用任何业务工程**——演示模式短路走 `Utils/MockBridge` 三委托
+  （IsEnabled/FakePlcRead/FakePlcWrite）、日志出口走 `LogHelper.LogAction`；未注入时的
+  行为=真实通讯/默认文件日志。宿主推荐在自身 Mock/日志类的**静态构造**里接线（进程内
+  首次触碰即生效，主程序/测试宿主无需各自记得接）。自业务工程下沉的服务类（如
+  PlcNetCommQue/TcpChannel）保持原行为与 API 不动，宿主侧用文件级 using 别名做旧名兼容。
 
 ## 注释要求（本库第一红线，必须遵守）
 

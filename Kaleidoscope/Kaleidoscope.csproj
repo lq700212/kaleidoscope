@@ -65,6 +65,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Utils\LogHelper.cs" />
+    <Compile Include="Utils\MockBridge.cs" />
     <Compile Include="Utils\TcpKeepAlive.cs" />
     <Compile Include="Utils\SerialPortHelper.cs" />
     <Compile Include="Utils\IoMapBuilder.cs" />
@@ -108,6 +109,8 @@
     <Compile Include="Services\MockFanController.cs" />
     <Compile Include="Services\ConnectionMonitor.cs" />
     <Compile Include="Services\DeviceHub.cs" />
+    <Compile Include="Services\PlcNetCommQue.cs" />
+    <Compile Include="Services\TcpChannel.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
