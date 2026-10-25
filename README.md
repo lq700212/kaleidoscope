@@ -48,6 +48,14 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │   │   ├── HslPlcClient.cs      #     多品牌 PLC 主站（三菱/欧姆龙/西门子/汇川，HSL，V1.6.0）
 │   │   ├── PlcNetCommQue.cs     #     生产级 PLC/TCP 统一读写队列（消费线程串行+结果槽+心跳退避重连+脚本同步读写，V1.7.0 自 HJVision 下沉）
 │   │   ├── TcpChannel.cs        #     通用 TCP / EtherNet-IP 通道（裸收发/按行切帧/禁自重连，V1.7.0 自 HJVision 下沉）
+│   │   ├── DeviceServiceBase.cs #     设备服务基类（停止旗/LogSink 注入/节流日志/限时 Join/MockOk，V1.8.0 自 HJVision 下沉）
+│   │   ├── HipottestService.cs  #     耐压绝缘/微电阻 SCPI 服务（GPT-9500 完成边沿+GOM 指纹判批，V1.8.0）
+│   │   ├── CodeReaderClient.cs  #     IDMVS 读码器 TCP 客户端（单次/持续双触发+自动重连；实现 ICodeReader，V1.8.0）
+│   │   ├── ICodeReader.cs / KeyenceScannerReader.cs # 读码统一抽象（IDMVS 与基恩士 SR 归一，触发式一次调用换一次码，V1.8.0）
+│   │   ├── LedControl.cs        #     瑞视串口光源驱动（S+通道+4位亮度+# 协议，V1.8.0 自 HJVision 下沉）
+│   │   ├── AirtightService.cs   #     气密测试（IO经PLC/Modbus直连希立双分支+结果邮箱+延时通知，V1.8.0）
+│   │   ├── VibFeederController.cs #   柔性供料震动盘（MODBUS TCP 同步版+断连自愈冷却+纯时长制补料，V1.8.0）
+│   │   ├── LaserMarkService.cs / MarkContentHub.cs # 激光打码（TCP/串口双传输+完成信号判定）+ 打码内容交接中心（V1.8.0）
 │   │   ├── KeyenceIV4Camera.cs  #     相机触发/判定/切程序（PW/OF/T1/T2/RT 指令）
 │   │   ├── ScannerService.cs    #     串口扫码枪（IScanner 实现，WMI 自动识别 + 心跳重连）
 │   │   ├── ScannerTcpService.cs #     TCP 扫码枪（IScanner 实现，自动发触发指令）
@@ -63,6 +71,7 @@ Kaleidoscope/                       # 仓库根（本文档 + 库工程 + Demo �
 │       ├── MockBridge.cs        #     宿主 Mock 演示桥（库不依赖业务工程，三委托注入短路，V1.7.0）
 │       ├── TcpKeepAlive.cs      #     TCP KeepAlive 短间隔配置（拔网线/断电快速检测）
 │       ├── SerialPortHelper.cs  #     CH340 串口 WMI 自动识别（气压表 RS485→USB）
+│       ├── SerialPortNameResolver.cs # 串口名动态识别（缓存→配置→WMI关键词→全口兜底，V1.8.0 自 HJVision 下沉）
 │       ├── HslAuthorization.cs  #     HSL 授权管理（加载/验签/加密落盘，V1.6.0）
 │       └── IoMapBuilder.cs      #     IO 点位 → 三菱八进制物理地址映射（X000~X107/Y000~Y217）
 ├── .opencode/skill/              # 项目专属 AI 技能

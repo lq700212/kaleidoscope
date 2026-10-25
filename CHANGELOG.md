@@ -7,6 +7,58 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.0（2026-10-25）自 HJVision 生产工程下沉仪器设备全家 + 读码器统一抽象
+
+> 第二轮「生产工程反哺」：把 HJVision 的九类仪器设备通讯服务**原样下沉**进库
+> （耐压/气密/震动盘/激光打码/光源/IDMVS 读码器 + 设备服务基类 + 两件连带工具件），
+> 出口替换口径与 V1.7.0 完全一致（MockMode→MockBridge、FlashLogger→LogHelper），
+> 主工程照旧「类型别名壳 + 调用点零改动」。同时按 HJVision 侧明确的三点决策之三，
+> 新增 **ICodeReader 统一读码抽象**：IDMVS（触发式）与库内基恩士 SR 家族（被动事件流）
+> 归一到同一个「一次调用换一次读码结果」的接口，换读码设备不改业务代码。
+
+### 新增（自 HJVision 下沉，行为一字不差）
+
+- **`Services/DeviceServiceBase.cs`**：设备服务基类（volatile 停止旗 / LogSink 日志注入 /
+  时间节流日志 / 限时 Join / MockOk 演示短路 / 泛型配置层）。MockOk 内部改走
+  MockBridge.IsEnabled，宿主注入后演示模式自动生效。
+- **`Services/HipottestService.cs`**：耐压绝缘/微电阻测试服务（固纬 GPT-9500 + GOM-80x，
+  RS-232 SCPI：GPT 完成边沿状态机 + COMP? 二道确认、GOM 指纹变化判批、判定码全表、
+  高压哨兵、Mock 演示批、ReadBatchOnce 按需读、经现有连接测试）。
+- **`Services/CodeReaderClient.cs`**：IDMVS 读码器 TCP 客户端（三命令协议、换行切帧 +
+  80ms 静默兜底、指令串行、单次/持续双触发模式、指数退避自动重连、SynchronizationContext
+  事件回投、ReaderFrameParser 纯函数切帧器）。
+- **`Services/LedControl.cs`**：瑞视串口光源驱动（S+通道字母+4 位亮度+# 协议，六通道）。
+- **`Services/AirtightService.cs`**：气密测试服务（IO 经 PLC / Modbus 直连希立双分支，
+  结果邮箱 + 序号认领、独立/统一启动、凑批等待、上位机启动检查握手、完成信号延时通知
+  队列、双四通道"先 1 后 2"完成边沿、泄漏状态、实时快照；PLC 分支走静态委托注入）。
+- **`Services/VibFeederController.cs`**：柔性供料震动盘控制器（以太网 MODBUS TCP 同步版，
+  两轮重连、断连自愈 + 5 秒冷却、纯时长制补料 RunActionOnce、停必验证 StopVerified、
+  寄存器表全覆盖；日志的 DateTime.Now 前缀去掉——宿主日志自带时间戳，正文未动）。
+- **`Services/LaserMarkService.cs`**：激光打码机通讯服务（TCP 监听/串口多口双传输、
+  三工作模式、完成信号关键词+后缀判定、串口名动态识别 + 缓存、MarkDoneHub 静态中继）。
+- **`Services/MarkContentHub.cs`**：打码内容交接中心（来源三选一/无货策略三选一，随
+  LaserMarkService 连带下沉）。
+- **`Utils/SerialPortNameResolver.cs`**：串口名动态识别器（缓存→配置→WMI 关键词→全口
+  兜底四层候选组装，随 LaserMarkService 连带下沉，与 SerialPortHelper 同层）。
+
+### 新增（本轮新设计）
+
+- **`Services/ICodeReader.cs`**：统一读码抽象（接口 + CodeReadRequest 请求参数）。
+  语义是业务视角的「现在给我读一次码」：IDMVS 与基恩士 SR 两族对上层暴露的同一个
+  业务动作。返回值复用 IDMVS 侧既有 ReaderAcquireResult（Success/Code/RawFrame/IsNoRead/Error）。
+- **`Services/KeyenceScannerReader.cs`**：基恩士 SR 家族（IScanner 被动事件流）→
+  ICodeReader 适配器。SendTrigger 后等下一条 SerialNumberScanned 或超时；单飞行者口径
+  与 IDMVS 一致；只订阅事件不拥有连接（枪的 Open/Dispose 归宿主管）。
+- **CodeReaderClient 实现 ICodeReader**（追加实现，既有公共面一行未动）：
+  ConnectionChanged(bool) 由四态 StateChanged 边沿去重转发；AcquireAsync 按请求参数
+  分流到既有 AcquireSingleAsync/AcquireContinuousAsync。
+
+### 依赖
+
+- 新增 libs/NModbus4.dll（命名空间 `Modbus.Device`，与既有 NModbus 3.0.83 的
+  `NModbus` 命名空间不同、可并存）：VibFeederController 原工程即引 NModbus4
+  （ModbusIpMaster.CreateIp），按「原样下沉」红线不改协议层代码，把该 DLL 随迁入库。
+
 ## V1.7.0（2026-10-25）自 HJVision 生产工程下沉 PLC/TCP 通讯队列
 
 > 首个「生产工程反哺」版本：华际视觉检测系统（HJVision-WPF）把现场多轮迭代验证过的

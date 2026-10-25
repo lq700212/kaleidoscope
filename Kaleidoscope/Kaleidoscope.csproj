@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -48,6 +48,12 @@
     <!-- 本地引用的第三方库（libs 目录，离线可编译）：
          NModbus：Modbus 主站/从站（CreateMaster / CreateSlaveNetwork / CreateRtuMaster）
          NModbus.Serial：RTU 主站（factory.CreateRtuMaster(SerialPort)），气压表 RS485 用 -->
+    <Reference Include="NModbus4">
+      <HintPath>libs\NModbus4.dll</HintPath>
+      <!-- NModbus4（命名空间 Modbus.Device，与上方 NModbus 3.0.83 命名空间不同可并存）；
+           2026-10-25 随 VibFeederController 自 HJVision 生产工程下沉引入
+           （HJVision 引 00_ExeBuild\NModbus4.dll，本文件为同一拷贝） -->
+    </Reference>
     <Reference Include="NModbus">
       <HintPath>libs\NModbus.dll</HintPath>
       <!-- NuGet: NModbus 3.0.83（git 2023 fork，命名空间 NModbus，工厂方法 CreateMaster/CreateSlaveNetwork） -->
@@ -66,6 +72,7 @@
   <ItemGroup>
     <Compile Include="Utils\LogHelper.cs" />
     <Compile Include="Utils\MockBridge.cs" />
+    <Compile Include="Utils\SerialPortNameResolver.cs" />
     <Compile Include="Utils\TcpKeepAlive.cs" />
     <Compile Include="Utils\SerialPortHelper.cs" />
     <Compile Include="Utils\IoMapBuilder.cs" />
@@ -111,6 +118,16 @@
     <Compile Include="Services\DeviceHub.cs" />
     <Compile Include="Services\PlcNetCommQue.cs" />
     <Compile Include="Services\TcpChannel.cs" />
+    <Compile Include="Services\DeviceServiceBase.cs" />
+    <Compile Include="Services\HipottestService.cs" />
+    <Compile Include="Services\CodeReaderClient.cs" />
+    <Compile Include="Services\LedControl.cs" />
+    <Compile Include="Services\AirtightService.cs" />
+    <Compile Include="Services\VibFeederController.cs" />
+    <Compile Include="Services\LaserMarkService.cs" />
+    <Compile Include="Services\MarkContentHub.cs" />
+    <Compile Include="Services\ICodeReader.cs" />
+    <Compile Include="Services\KeyenceScannerReader.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
