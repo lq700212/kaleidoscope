@@ -223,7 +223,13 @@ namespace Kaleidoscope.Services
             StopOnFirstCode = true;
         }
 
-        /// <summary>建立 TCP 连接（带超时）。已连接则直接返回。</summary>
+        /// <summary>
+        /// 建立 TCP 连接（带超时）。已连接则直接返回。
+        /// 失败不抛异常（2026-10-26 零异常化改造，见实现内注释）：连接超时/取消/Socket
+        /// 失败统一走 SetState(ReaderState.Error, "连接失败：…"，文案与原异常 Message
+        /// 一字不差)+ EnsureReconnectLoop() 自动重连，任务正常完成结束；调用方按
+        /// StateChanged/IsConnected 判定成败，勿再依赖 try/catch 感知连接失败。
+        /// </summary>
         public async Task ConnectAsync(CancellationToken ct)
         {
             await _connectLock.WaitAsync(ct);
@@ -247,8 +253,20 @@ namespace Kaleidoscope.Services
                     if (winner != connectTask)
                     {
                         SafeClose(tcp);
-                        if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
-                        throw new TimeoutException("连接 " + _ip + ":" + _port + " 超时（" + _connectTimeoutMs + "ms）");
+                        //【2026-10-26 零异常改造】原实现 throw new TimeoutException/eCancel（调用方
+                        // Wait().Wait(8000) catch{} 或 ReconnectLoop catch 里重试），失败语义全靠异常
+                        // 传播——但 VS 调试器对每个 first-chance 异常逐条通知，启动/现场设备不在线时
+                        // 每槽连上超时都刷"引发的异常"，还叠加 Wait 转 AggregateException、重连循环
+                        // 每 backoff 一轮再刷，调试输出整片爆红。改造为"失败走状态边沿不抛异常"：
+                        // SetState(Error) + EnsureReconnectLoop() + 正常 return，与原 throw→catch
+                        // 链路最终状态一字不差（Error 文案用原 ex.Message 原样拼"连接失败："前缀）。
+                        // 首个 first-chance 噪声归零，重连节律/状态机/调用方判定全部不变。
+                        string failMsg = ct.IsCancellationRequested
+                            ? "操作已取消。"
+                            : "连接 " + _ip + ":" + _port + " 超时（" + _connectTimeoutMs + "ms）";
+                        SetState(ReaderState.Error, "连接失败：" + failMsg);
+                        EnsureReconnectLoop();
+                        return;
                     }
                     await connectTask;
 
@@ -263,9 +281,11 @@ namespace Kaleidoscope.Services
                 catch (Exception ex)
                 {
                     SafeClose(tcp);
+                    // 原此分支 SetState 后 re-throw；SocketException/取消等同为"连接失败"信号
+                    //，统一走状态边沿（Error 文案保持"连接失败：" + ex.Message 原样），不再外抛。
                     SetState(ReaderState.Error, "连接失败：" + ex.Message);
                     EnsureReconnectLoop();
-                    throw;
+                    return;
                 }
             }
             finally
@@ -274,7 +294,7 @@ namespace Kaleidoscope.Services
             }
         }
 
-        /// <summary>建立 TCP 连接（带超时）。已连接则直接返回。</summary>
+        /// <summary>建立 TCP 连接（无参转发版：失败同样不抛异常，语义见有参重载注释）。</summary>
         public Task ConnectAsync()
         {
             return ConnectAsync(default(CancellationToken));
@@ -716,7 +736,13 @@ namespace Kaleidoscope.Services
                     int n = await _stream.ReadAsync(buf, 0, buf.Length, ct);
                     if (n == 0)
                     {
-                        throw new SocketException((int)SocketError.ConnectionReset);
+                        //【2026-10-26 零异常改造】原实现 throw new SocketException(ConnectionReset)
+                        // 让外层 catch 统一出"接收循环异常：…"日志再 finally OnConnectionLost——
+                        // 对端主动断开是常态路径（设备掉电/拔线/超时踢人），first-chance 会通知调试器
+                        // 刷屏。改"直接 break"，日志与断连状态与原实现一字不差（文案沿用 Socket
+                        // 10054 的 .NET 默认消息）。真 Socket 异常（RST 半关闭等）仍走原 catch 通道。
+                        EmitLog("接收循环异常：远程主机强迫关闭了一个现有连接。");
+                        break;
                     }
 
                     int charCount = decoder.GetChars(buf, 0, n, chars, 0, false);
@@ -838,20 +864,18 @@ namespace Kaleidoscope.Services
 
         private async Task ReconnectLoopAsync()
         {
+            //【2026-10-26 零异常改造】原实现 catch ConnectAsync 的异常再 backoff 重试——配套
+            // ConnectAsync 改"失败走状态边沿不抛"后，本循环同样零异常化：不再 catch，直接
+            // 按 IsConnected 判定重试。失败重试节律（backoff 2s→30s 指数退避）与原版一字不差。
             int backoff = 2000;
             while (AutoReconnect && !_disposed && !IsConnected)
             {
-                try
-                {
-                    EmitLog("自动重连中...（下次间隔 " + backoff + "ms）");
-                    await ConnectAsync();
-                    return;
-                }
-                catch
-                {
-                    await Task.Delay(backoff);
-                    backoff = Math.Min(backoff * 2, 30000);
-                }
+                EmitLog("自动重连中...（下次间隔 " + backoff + "ms）");
+                await ConnectAsync();               // 失败内部已 SetState(Error)+不再抛异常
+                if (IsConnected || _disposed) return;
+                if (!AutoReconnect) return;         // 连接尝试中被主动断开/Dispose 时退场
+                await Task.Delay(backoff);
+                backoff = Math.Min(backoff * 2, 30000);
             }
         }
 

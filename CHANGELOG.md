@@ -7,6 +7,37 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.1（2026-10-26）CodeReaderClient 连接失败/对端断开零异常化
+
+### 改法（失败一律走状态边沿，状态机/重连节律/调用方判定全部不变）
+
+- **背景**：宿主 HJVision-WPF 调试启动时设备不在线，读码器每槽连接超时都会从
+  `ConnectAsync` 抛 `TimeoutException`（含取消 OCE），或 Socket 失败 re-throw；调用方
+  `Wait()` 再转 `AggregateException`，自动重连循环每 backoff 一轮再抛一轮——VS 调试器对
+  每个 first-chance 异常逐条通知，启动调试输出整片"引发的异常"刷屏、且被放大成可感启动
+  卡顿。**「预期的失败路径用异常做控制流」在调试器下是噪声放大器，改为零异常等价通道。**
+- ① `ConnectAsync`：连接超时/取消（原 `throw new TimeoutException|OperationCanceledException`）
+  与 Socket 失败（原 catch 内 `throw;` re-throw）两条路统一改为
+  `SetState(ReaderState.Error, "连接失败：" + 原文案) + EnsureReconnectLoop() + return`
+  ——Error 文案与原异常 Message 一字不差（含 OCE 默认消息"操作已取消。"）；
+- ② `ReconnectLoopAsync`：配套去掉 `catch` 重试体，改 `IsConnected` 条件轮询，
+  backoff 2s→30s 指数退避节律原样保留；
+- ③ `ReceiveLoopAsync`：`n==0`（对端正常关闭，常态断连路径）不再模拟
+  `throw new SocketException(ConnectionReset)`，改 `break`（补原等价日志文案，走
+  finally `OnConnectionLost` 同终点）——真实 RST/IO 异常路径仍走原 catch 通道；
+- ④ `SendRawAndWaitAsync` 的指令等待超时（`tcs.TrySetException`）**保留不改**：那是
+  运行期协议层反馈（已连接半死状态下发指令收不到回包），异常文案是准确失败信息
+  （"等待回包超时（指令：X，…ms）"），且调用方（AcquireSingleAsync/SetAcqAsync）
+  统一转 `Fail 结果`，量低频不刷屏——再动它要动公共 API 语义，一比一红线不划算。
+
+### 验证与提交顺序
+
+- 库 csproj 构建 0 error；宿主 12 批回归全 PASS（W9 读码器批覆盖）；宿主冒烟
+  装配期读码器失败日志以状态边沿出口正常落盘、无异常刷屏。
+- **提交顺序（红线，本版即执行）**：本改动随 kaleidoscope V1.8.1 先行 commit/push，
+  宿主主仓 V0.9.24 再记录子模块新指针推主仓——主仓先推会把别人 fetch 不到的
+  子模块指针发上去（宿主 AGENTS 子模块提交顺序红线）。
+
 ## V1.8.0（2026-10-25）自 HJVision 生产工程下沉仪器设备全家 + 读码器统一抽象
 
 > 第二轮「生产工程反哺」：把 HJVision 的九类仪器设备通讯服务**原样下沉**进库
