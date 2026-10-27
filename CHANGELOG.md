@@ -7,6 +7,40 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.2（2026-10-27）PLC 连接态记账与查询 + 五处半开连接根治（宿主现场反哺）
+
+> 宿主 HJVision-WPF 现场两轮血泪：① 主窗/测试页 PLC 恒判"未连接"② 欧姆龙 FINS 会话槽
+> 被半开连接占死。根因与修法都沉淀在库侧，宿主只做查询消费。
+
+### 改法（真相源集中 s_lastReconnOk 记账 + 失败必关 socket）
+
+- **`IsPlcConnectedAt(index)` 静态查询**：真相源=`s_lastReconnOk` 记账（`s_reconnLock` 保护）。
+  为什么需要查询而不只靠事件：首连成功按原设计不发事件（"启动组终算已刷过 UI"的
+  WinForms 口径），事件订阅方若晚于首连才订阅（如测试页打开时机）会错过初值——字典无
+  记录时必须能问库实时态，否则恒判未连接（主窗灯绿、测试页红）。断线瞬间的短窗口
+  （TCP 已死、首次重连失败未记账）可能短暂报 true，与原版状态灯滞后同口径；翻红由
+  重连失败记账保证，不额外加探活 IO。Mock 开启恒 true。
+- **首连成败记账**（`ConnPlcDevAt` 尾）：原来首连成功无人记 `s_lastReconnOk=true`（设计假设
+  "启动组终算已刷过 UI"）。成败都记：成功 true（后续读通不再重复触发"恢复"边沿，保持
+  日常零事件收敛），失败 false（与既有失败记账同口径）。
+- **失败必关 socket（三处同口径）**：`ConnPlcDevAt` 首连失败分支 / 重连失败点 /
+  `AddPlcDev` 建连失败分支——`ConnectServer` 失败（FINS 握手超时等）时 TCP 可能已建连，
+  不关就留一个半开连接挂在 PLC 会话槽上。欧姆龙 FINS/TCP 会话槽有限，反复失败重试
+  （启动/热更每轮 2 连试）把槽占满后，PLC 对一切新连接的握手一律不响应：能 ping 通、
+  TCP 能连、FINS 通讯全断，只有重启 PLC 才能救。`ConnectClose` 幂等无害；对象本身仍留
+  槽（重连链 `RunReconnect` 按 `ConnectClose+ConnectServer` 复用，不换引用）。
+- **退出逐槽主动断开**（Dispose）：进程退出 OS 兜底会关 socket，但主动关时序确定——
+  尤其 FINS/Modbus 这类对端有会话槽上限的设备，process 退出时对端未感知 FIN 会滞留
+  连接占死 PLC 侧会话，下次启动明明 PLC 正常却永远连不上。逐槽 `(as DeviceTcpNet)?.ConnectClose()`。
+
+### 验证与提交顺序
+
+- 库随宿主主工程级联构建 0 error；宿主 14 批回归全 PASS；真机热更日志恒
+  "保留/连上 1/1 台"零断线。
+- **提交顺序（红线，本版即执行）**：本改动随 kaleidoscope V1.8.2 先行 commit/push，
+  宿主主仓再记录子模块新指针推主仓——主仓先推会把别人 fetch 不到的子模块指针发上去
+  （宿主 AGENTS 子模块提交顺序红线）。
+
 ## V1.8.1（2026-10-26）CodeReaderClient 连接失败/对端断开零异常化
 
 ### 改法（失败一律走状态边沿，状态机/重连节律/调用方判定全部不变）

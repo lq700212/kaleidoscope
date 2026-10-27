@@ -143,6 +143,13 @@ namespace Kaleidoscope.Services
                 if (nd != null) ret = nd.ConnectServer().IsSuccess;
             }
             catch { ret = false; }
+            // 失败对象立即关 socket（与 ConnPlcDevAt 首连失败分支同口径，2026-10-27 现场
+            // 血泪）：半开连接占 PLC 会话槽；ConnectClose 幂等无害，对象本身仍 Add 占槽。
+            if (!ret)
+            {
+                try { DeviceTcpNet ndFail = dev as DeviceTcpNet; if (ndFail != null) ndFail.ConnectClose(); }
+                catch { }
+            }
             _PlcDevices.Add(dev);
             return ret;
         }
@@ -305,6 +312,14 @@ namespace Kaleidoscope.Services
                 // 离线种子：首连失败记"已知离线"，心跳/业务读通后的成功边沿才认得这是"恢复"。
                 try { lock (s_reconnLock) { s_lastReconnOk[index] = false; } }
                 catch { }
+                // 失败对象立即关 socket（2026-10-27 现场血泪）：ConnectServer 失败（FINS 握手
+                // 超时等）时 TCP 可能已经建连，不关就留一个半开连接挂在 PLC 上——欧姆龙
+                // FINS/TCP 会话槽有限，反复失败重试（启动/热更每轮 2 连试）把槽占满后，PLC
+                // 对一切新连接的握手帧一律不响应：能 ping 通、TCP 能连、FINS 通讯全断，
+                // 只有重启 PLC 才能救。ConnectClose 幂等，无害；对象本身仍留槽（重连链
+                // RunReconnect 按"ConnectClose+ConnectServer"复用，不换引用）。
+                try { DeviceTcpNet ndFail = dev as DeviceTcpNet; if (ndFail != null) ndFail.ConnectClose(); }
+                catch { }
             }
             lock (_PlcDevices)
             {
@@ -325,6 +340,11 @@ namespace Kaleidoscope.Services
                     return false;
                 }
             }
+            // 首连结果记账（2026-10-27 现场血泪）：原来首连成功无人记 s_lastReconnOk=true
+            // （设计假设"启动组终算已刷过 UI"——WinForms 口径，WPF 测试页查库拿不到 true）。
+            // 成败都记：成功=true（后续读通不再重复触发"恢复"边沿，保持日常零事件收敛），
+            // 失败=false（与既有失败记账同口径）。
+            try { lock (s_reconnLock) { s_lastReconnOk[index] = ret; } } catch { }
             return ret;
         }
 
@@ -396,6 +416,21 @@ namespace Kaleidoscope.Services
             catch
             {
             }
+            // 退出时逐槽主动断开（2026-10-27 现场血泪）：进程退出虽然 OS 兜底会关 socket，
+            // 但主动关时序确定——尤其 FINS/Modbus 这类对端有会话槽上限的设备，滞留连接
+            // 会占死 PLC 侧会话，下次启动明明 PLC 正常却永远连不上。
+            try
+            {
+                lock (_PlcDevices)
+                {
+                    for (int i = 0; i < _PlcDevices.Count; i++)
+                    {
+                        try { (_PlcDevices[i] as DeviceTcpNet)?.ConnectClose(); }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
         }
 
         private void WriteReadPlc()
@@ -1104,6 +1139,33 @@ namespace Kaleidoscope.Services
             catch { }
         }
 
+        /// <summary>
+        /// 查询某 PLC 槽当前应用层连接态（设置/测试页兜底用，2026-10-27 现场血泪）。
+        /// 真相源=s_lastReconnOk 记账（首连成败 ConnPlcDevAt 记、日常读通记 true、
+        /// 重连成败/热更重建记——断线后心跳触发重连，失败即记 false 翻红）。
+        /// 为什么需要查询而不只靠事件：首连成功按原设计不发事件（"启动组终算已刷过 UI"
+        /// 的 WinForms 口径），事件订阅方若晚于首连才订阅（如测试页打开时机）会错过
+        /// 初值——字典无记录时必须能问库实时态，否则恒判未连接（主窗灯绿、测试页红）。
+        /// 断线瞬间的短窗口（TCP 已死、首次重连失败未记账）可能短暂报 true，与原版
+        /// 状态灯滞后同口径；翻红由重连失败记账保证，不额外加探活 IO。
+        /// </summary>
+        /// <param name="index">槽下标（设备表行号）。</param>
+        /// <returns>true=最近记账为已连接；越界/无记录/Mock 关闭下失败一律 false。</returns>
+        public static bool IsPlcConnectedAt(int index)
+        {
+            try
+            {
+                if (MockBridge.IsEnabled) return true;
+                lock (s_reconnLock)
+                {
+                    bool ok;
+                    if (s_lastReconnOk.TryGetValue(index, out ok)) return ok;
+                    return false;
+                }
+            }
+            catch { return false; }
+        }
+
         #endregion
 
         private void RunPlcWrite(FlashPlcWRDataInfo PlcObj)
@@ -1328,6 +1390,12 @@ namespace Kaleidoscope.Services
                             catch { ok = false; }
                             if (!ok) Thread.Sleep(500);
                         }
+                        // 重连失败也关 socket（2026-10-27 现场血泪同源补漏）：ConnectServer
+                        // 失败（FINS 握手超时等）时 TCP 可能已建连，不关就留半开连接挂占
+                        // PLC 会话槽——心跳旁路重连每轮都再试，失败一轮多一条，几小时就能
+                        // 占死 PLC 侧全部会话槽（能 ping 通、TCP 能连、FINS 通讯全断）。
+                        // 与 ConnPlcDevAt 首连失败分支同口径；成功时保持连接，此处不碰。
+                        if (!ok) { try { nd.ConnectClose(); } catch { } }
                     }
                 }
             }
