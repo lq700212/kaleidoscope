@@ -452,6 +452,40 @@ namespace Kaleidoscope.Services
         }
 
         /// <summary>
+        /// 读取连续多个输入寄存器（功能码 0x04）—— 共享连接上的"原始寄存器读"（DI 侧任意地址）。
+        /// 【为什么需要】ReadAllInputs 假设 DI 寄存器从起始地址**连续**排布；而部分耦合器/远程 IO
+        /// 是"扩展块"布局（如每块 16 入 + 16 出占 0x20 地址空间，DI 仅在块首寄存器），
+        /// 连续整读会把无效地址读出 Modbus 异常。宿主侧点表寻址场景（Audi cover module 远程 IO）
+        /// 需要按"块首地址"逐点读，特补本方法与 ReadHoldingRegisters 对称。
+        /// 线程：内部用 _syncRoot 串行化，可在任意线程调用；断连时返回 null 并走自动重连。
+        /// </summary>
+        /// <param name="startAddress">起始寄存器地址（Modbus 协议地址 0x0000 起）</param>
+        /// <param name="count">寄存器数量（1~125）</param>
+        /// <returns>寄存器值数组；未连接/异常返回 null（连接层异常会触发断连标记+自动重连）</returns>
+        public ushort[] ReadInputRegisters(ushort startAddress, ushort count)
+        {
+            if (!_isConnected || _config == null || _master == null)
+            {
+                OnError?.Invoke(this, "设备未连接");
+                return null;
+            }
+
+            try
+            {
+                lock (_syncRoot)
+                {
+                    return _master.ReadInputRegisters(_config.IoUnitId, startAddress, count);
+                }
+            }
+            catch (Exception ex)
+            {
+                MarkDisconnectedOnFailure(ex);
+                OnError?.Invoke(this, ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
         /// 读取连续多个保持寄存器（功能码 0x03）—— 共享连接上的"原始寄存器读"。
         /// 供业务通讯测试复用主程序**同一条** Modbus TCP 连接读写 DO 原始寄存器（0x2000~0x2009），
         /// 不再自建第二条连接。内部用 _syncRoot 串行化，多线程并发安全。

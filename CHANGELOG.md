@@ -7,6 +7,32 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.3（2026-10-28）IO 耦合器原始读输入寄存器方法（宿主 PlcMesBridge 反哺）
+
+> 宿主 PlcMesBridge 现场（苏州毅嘉 Audi cover module 固化程控）IO 表是**块状
+> 布局**：10 块扩展、每块 0x20=32 个寄存器地址（16DI 占 0x10 + 16DO 占 0x10），
+> 块间地址**不连续**——用库内连续读会按 16DI 依序打包假设拿错位数据。为宿主
+> "逐块精确读 1 个 DI 寄存器"补原始方法（FC04 任意地址），与既有
+> `ReadHoldingRegisters`（FC03 任意地址）对称，不改变既有行为。
+
+### 改动
+
+- `ModbusTcpIoController.ReadInputRegisters(ushort startAddress, ushort count)`：
+  读输入寄存器（FC04）原始方法——与 `ReadHoldingRegisters` 同款实现路径
+  （`_syncRoot` 锁串行化、失败 `MarkDisconnectedOnFailure` 断连标记 +
+  OnError 边沿、未连接/未配置直接回 null）。业务用它按块地址精确读取
+  （如 Audi 布局 DI@0x1000+(K-1)×0x20、DO@0x1010+(K-1)×0x20，
+  每块 16DI+16DO 各占 0x10）。
+
+### 验证与提交顺序（红线，本版即执行）
+
+- 子模块 MSBuild 编译 0 error（net472）；宿主 PlcMesBridge 全量测试
+  156/156 PASS（宿主 `IoBusTests`/`PointTableTests` 直接消费本方法链）。
+- **提交顺序（红线，本版即执行）**：本改动随 kaleidoscope V1.8.3 先行
+  commit/push（子模块仓库 main）；宿主主仓随后 `git add extern/kaleidoscope`
+  （更新指针）并 commit/push——宿主引用的是 `bin\Debug` 产物，指针与源码
+  必须保持对应。
+
 ## V1.8.2（2026-10-27）PLC 连接态记账与查询 + 五处半开连接根治（宿主现场反哺）
 
 > 宿主 HJVision-WPF 现场两轮血泪：① 主窗/测试页 PLC 恒判"未连接"② 欧姆龙 FINS 会话槽
