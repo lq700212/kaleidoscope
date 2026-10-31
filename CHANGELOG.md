@@ -7,6 +7,25 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.4（2026-10-31）重新生成 README：补齐生产工程反哺件与 V1.7/V1.8 结构（文档）
+
+> README 作为速查层在 V1.8.x 期间只零星补过能力清单，本轮全量重写：技术栈、目录树、
+> 反哺件章节、测试与文档体系一次性补齐到位，并修正若干陈旧/不准确描述。
+
+### 改动
+
+- **技术栈**：补 NModbus4.dll（`Modbus.Device` 命名空间，V1.8.0 随震动盘原样下沉，与 NModbus 3.0.83 命名空间不同、可并存）。
+- **目录树**：补 `libs/NModbus4.dll`、Models 数据类五个（BarometerData/FanData/IoStatus/IoPointDefinition/IoOutputChannelRemap）、`ConfigEditor/HslAuthDialog.cs`、`Demo/Program.cs`；ConnectionMonitor 描述修正为"覆盖全部设备（PLC 三种模式聚合为一类）"。
+- **新增「四、生产工程反哺件」章节**：表格式列全独立服务族——`PlcNetCommQue`（统一读写队列，队列范式 vs 锁范式取舍、`IsPlcConnectedAt` 静态连接态查询）、`TcpChannel`（TCP/EIP 双模式、禁自重连红线）、`DeviceServiceBase` 基类与九类仪器服务（耐压/气密/震动盘/激光打码/光源/IDMVS 读码器）、`ICodeReader` 统一读码抽象（IDMVS 触发式与基恩士 SR 事件流归一）；写明宿主桥接注入点（MockBridge 三委托 / LogHelper.LogAction / DeviceServiceBase.LogSink，宿主静态构造接线）与接入方式（ProjectReference + 文件级 using 别名壳）。
+- **对接要点**：IO 耦合器补 `ReadInputRegisters(start, count)`（FC04 任意地址原始读，V1.8.3，Audi 块状布局逐块精确读）；存图清理补防误删要点。
+- **红线补第 6 条**：宿主桥接方向——库需要"业务侧状态/出口"一律走注入桥，库不引用任何业务工程。
+- **新增「九、测试」与「十、文档体系」**：152 用例一键回归（run-smoke.ps1、PASS=152 FAIL=0 基线），六份文档分层定位表。
+- 日志出口章节补 `DeviceServiceBase.LogSink` 注入点说明。
+
+### 验证
+
+- 纯文档改动，无代码变更；UTF-8 落盘自查通过（标题/表格中文读回比对 OK）。
+
 ## V1.8.3（2026-10-28）IO 耦合器原始读输入寄存器方法（宿主 PlcMesBridge 反哺）
 
 > 宿主 PlcMesBridge 现场（苏州毅嘉 Audi cover module 固化程控）IO 表是**块状
