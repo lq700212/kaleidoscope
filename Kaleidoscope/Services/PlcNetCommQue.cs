@@ -59,6 +59,39 @@ namespace Kaleidoscope.Services
         /// </summary>
         public static event Action<int, bool> PlcConnChanged;
 
+        /// <summary>
+        /// 队列当前待处理条数（只读快照，V4.4.348 PLC 测试页状态胶囊"队列 N 条"用）：
+        /// ConcurrentQueue.Count 本身线程安全，这里包一层防御（实例未建/异常回 0，不让状态
+        /// 刷新反噬调用方）。这是"瞬时值"不是水位监控——消费线程空闲时恒 0，有积压才涨。
+        /// </summary>
+        public static int QueuedCount
+        {
+            get
+            {
+                try { return Instance()._quePLC.Count; }
+                catch { return 0; }
+            }
+        }
+
+        /// <summary>
+        /// PLC 型号中文名（V4.4.348 PLC 测试页设备下拉"PLC通讯1（欧姆龙FINS ip:端口）"用）：
+        /// 枚举 ToString（OmronFinsNet）是代码名，现场看不懂；这里给品牌中文。
+        /// 原版在 mFormPlcTest 内部（internal static），下沉库改 public 供跨程序集 UI 复用。
+        /// </summary>
+        public static string PlcTypeName(PlcType type)
+        {
+            switch (type)
+            {
+                case PlcType.OmronFinsNet: return "欧姆龙FINS";
+                case PlcType.OmronCipNet: return "欧姆龙CIP";
+                case PlcType.MelsecMcNet: return "三菱MC";
+                case PlcType.MelsecA1ENet: return "三菱A1E";
+                case PlcType.InovanceTcpNet: return "汇川";
+                case PlcType.SiemensS7Net: return "西门子S7";
+                default: return type.ToString();
+            }
+        }
+
         private static readonly HashSet<int> s_reconnecting = new HashSet<int>();
         private static readonly Dictionary<int, DateTime> s_lastReconn = new Dictionary<int, DateTime>();
         private static readonly object s_reconnLock = new object();
