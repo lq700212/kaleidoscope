@@ -140,6 +140,13 @@ namespace Kaleidoscope.Services
             return "D0";
         }
 
+        /// <summary>
+        /// 连续块读长度上限（V4.4.358 同步由 64 放宽）：125=Modbus TCP 单次读寄存器的协议硬上限
+        /// （全品牌最小者——FINS 199 / S7 200 / MC 960 都更宽），按 125 钳一处通吃各品牌。
+        /// 公开供探针锁死（W19 批）与欧姆龙现场握手字批量快照共用（脚本侧经 ScriptCompat 转发）。
+        /// </summary>
+        public const int ReadBlockLengthMax = 125;
+
         private PlcNetCommQue()
         {
             _quePLC = new ConcurrentQueue<FlashPlcWRDataInfo>();
@@ -903,6 +910,77 @@ namespace Kaleidoscope.Services
             catch { value = 0; return false; }
         }
 
+        /// <summary>
+        /// 同步连续读 Int16 块（一帧多字：起始字起连续 length 字；失败回 false，调用方本轮跳过）。
+        /// 对标原版 SubClass/PlcNetComm_Que.cs 同名方法（V4.4.358 同步）：触发字批量扫描用
+        /// W101×9 + W200×6 两帧代替 15 帧，采样周期 287ms→60ms；V4.4.358 欧姆龙现场握手字
+        /// 批量扫描同样靠它（D 区 15 站握手字 15 帧并成 8 片，PlcHeartbeat.BuildSnapSegments 分段）。
+        /// 长度钳 1–ReadBlockLengthMax(125)：125=Modbus TCP 单次读寄存器协议硬上限（全品牌最小者，
+        /// FINS 199/S7 200/MC 960 都更宽），按 125 钳一处通吃各品牌不触协议顶；回数不足按失败处理，
+        /// 调用方可回落逐位读。Mock 下返回全零块（触发位缺省 0，脚本空转不忙循环）。
+        /// </summary>
+        public static bool PlcSyncReadInt16Block(int devID, string startAddress, int length, out short[] values, int timeoutMs = 5000)
+        {
+            values = null;
+            try
+            {
+                if (length < 1) length = 1;
+                if (length > ReadBlockLengthMax) length = ReadBlockLengthMax;
+                // Mock演示：内存块全零（触发位缺省 0，脚本空转不忙循环，见 MockBridge.FakePlcRead 注释）。
+                if (MockBridge.IsEnabled)
+                {
+                    values = new short[length];
+                    return true;
+                }
+                if (timeoutMs < 500) timeoutMs = 500;
+                if (timeoutMs > 30000) timeoutMs = 30000;
+                try
+                {
+                    PlcNetCommQue q0 = Instance();
+                    if (q0 != null && q0.t != null && ReferenceEquals(Thread.CurrentThread, q0.t)) return false;
+                }
+                catch { /* 原因：重入预检自身异常按"未重入"继续，下面的入队/等待照常，不挡读写 */ }
+                if (!IsConsumerAlive() && !WaitForConsumer(15000)) return false;
+                PlcSyncBox box = new PlcSyncBox();
+                AutoResetEvent wh = new AutoResetEvent(false);
+                try
+                {
+                    Instance().EnqueuePlcInfo(new FlashPlcWRDataInfo
+                    {
+                        CamName = HeartbeatSlotIndex,
+                        ThreadWaitHandle = wh,
+                        SyncBox = box,
+                        PlcWRswitch = PlcWRswitchStr.Read,
+                        PlcAddress = startAddress,
+                        PlcDataTypeWR = DataTypeWR.IsInt16Block,
+                        ReadBlockLength = length,
+                        DevID = devID,
+                    });
+                }
+                catch { return false; }
+                bool signaled = false;
+                try { signaled = wh.WaitOne(timeoutMs); }
+                catch { signaled = false; }
+                finally { try { wh.Close(); } catch { /* 原因：等待句柄关闭失败无后续动作，结果已取/超时已定 */ } }
+                if (!signaled) return false;
+                if (box == null || !box.Success) return false;
+                string raw = (box.Data ?? "").Trim();
+                if (string.IsNullOrEmpty(raw) || raw == "Error") return false;
+                string[] parts = raw.Split(',');
+                if (parts == null || parts.Length < length) return false;
+                short[] vals = new short[length];
+                for (int i = 0; i < length; i++)
+                {
+                    short one;
+                    if (!short.TryParse(parts[i].Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out one)) return false;
+                    vals[i] = one;
+                }
+                values = vals;
+                return true;
+            }
+            catch { values = null; return false; }
+        }
+
         /// <summary>同步读 UInt32（失败回 false）。</summary>
         public static bool PlcSyncReadUInt32(int devID, string address, out uint value, int timeoutMs = 5000)
         {
@@ -1324,6 +1402,26 @@ namespace Kaleidoscope.Services
                     ReadStatus = PlcReadStatus9.IsSuccess;
                     data = PlcReadStatus9.Content.ToString();
                     break;
+                case DataTypeWR.IsInt16Block:
+                    // 连续字块读（一帧多字：触发字批量扫描/握手字批量快照靠它；长度钳 1–125，
+                    // 超长截断防误配刷爆帧；125=Modbus TCP 单次读寄存器协议硬上限，见 PlcSyncReadInt16Block 注释）。
+                    int mBlockLen = PlcObj.ReadBlockLength;
+                    if (mBlockLen < 1) mBlockLen = 1;
+                    if (mBlockLen > ReadBlockLengthMax) mBlockLen = ReadBlockLengthMax;
+                    OperateResult<short[]> PlcReadStatusB = _PlcDevices[_DevID].ReadInt16(PlcObj.PlcAddress, (ushort)mBlockLen);
+                    ReadStatus = PlcReadStatusB.IsSuccess && PlcReadStatusB.Content != null && PlcReadStatusB.Content.Length > 0;
+                    if (ReadStatus)
+                    {
+                        System.Text.StringBuilder mSb = new System.Text.StringBuilder();
+                        for (int mBi = 0; mBi < PlcReadStatusB.Content.Length; mBi++)
+                        {
+                            if (mBi > 0) mSb.Append(',');
+                            mSb.Append(PlcReadStatusB.Content[mBi].ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                        data = mSb.ToString();
+                    }
+                    else data = "0";
+                    break;
                 case DataTypeWR.IsInt64:
                     OperateResult<Int64> PlcReadStatus5 = _PlcDevices[_DevID].ReadInt64(PlcObj.PlcAddress);
                     ReadStatus = PlcReadStatus5.IsSuccess;
@@ -1519,6 +1617,16 @@ namespace Kaleidoscope.Services
         }
 
         /// <summary>
+        /// 心跳探针成败记账公开口（V4.4.358 双向心跳同步）：心跳线程改用 PlcSyncReadInt16 同步读
+        /// "PLC 心跳字"后，失败不再走 RunPlcRead 的 IsHeartbeatProbe 分支——由调用方在结果返回处
+        /// 显式调本方法补记账（失败计"假连上"连续次数、成功清零），语义与队列内路径完全一致。
+        /// </summary>
+        public static void NoteHeartbeatProbeResult(int devID, bool ok)
+        {
+            NoteHeartbeatResult(devID, true, ok);
+        }
+
+        /// <summary>
         /// PLC 单槽重建执行（消费线程串行）：先拿新配置建新对象并连通，
         /// 连通了才 Close 旧对象并替换——热更失败不断现有连接。
         /// </summary>
@@ -1597,7 +1705,10 @@ namespace Kaleidoscope.Services
         IsUlong,
         IsLong,
         /// <summary>无符号 32 位（请求ID/回显ID 类 UDINT；占 2 字，与 Int32 同字序）。</summary>
-        IsUInt32
+        IsUInt32,
+        /// <summary>连续 Int16 块读（一帧多字：触发字批量扫描/握手字批量快照用；
+        /// 长度经 ReadBlockLength 传，消费侧钳 1–125，串格式"逗号分隔十进制"，见 PlcSyncReadInt16Block）。</summary>
+        IsInt16Block
     }
 
     public class PlcDevInfo
@@ -1666,6 +1777,10 @@ namespace Kaleidoscope.Services
         public ushort[] WriteDataUShort { get; set; }
         public ulong[] WriteDataULong { get; set; }
         public ushort DataLength { get; set; }
+        /// <summary>连续字块读长度（仅 IsInt16Block 读项用：PlcAddress=起始字，读连续 N 字；
+        /// 缺省 0=消费侧按 1 处理；PlcSyncReadInt16Block 钳 1–125 后填入）。</summary>
+        public int ReadBlockLength { get; set; }
+
         public string TcpData { get; set; }
         /// <summary>热更目标类型（仅 Rebuild 项用）。</summary>
         public PlcType NewPlcType { get; set; }

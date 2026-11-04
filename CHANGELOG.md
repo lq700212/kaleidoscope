@@ -7,6 +7,34 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.7（2026-11-05）PLC 块读口整套 + 心跳记账公开口（宿主 V4.4.358 同步反哺）
+
+> 宿主 HJVision-WPF 同步原版 V4.4.358（PLC 双向心跳 + ST12 节拍优化）：欧姆龙现场脚本要把
+> 15 个握手字贪心并成 ≤125 字连续块读、宿主心跳线程要读"PLC 心跳字"判停跳。WPF 库侧此前
+> 从未有过块读整套（原版 V4.4.2x 的触发字批量扫描功能下沉时未包含 PlcSyncReadInt16Block），
+> 本轮一并补齐。
+
+### 新增（PlcNetCommQue 六处）
+
+- **`ReadBlockLengthMax = 125` 公开常量**：连续块读长度上限，125=Modbus TCP 单次读寄存器的
+  协议硬上限（全品牌最小者——FINS 199 / S7 200 / MC 960 都更宽），按 125 钳一处通吃各品牌。
+  公开供宿主探针锁死与脚本侧 `PlcNetComm_Que.ReadBlockLengthMax` const 转发共用。
+- **`PlcSyncReadInt16Block` 连续块读口**（对标原版 SubClass/PlcNetComm_Que.cs 同名方法一比一）：
+  起始字起连续 length 字一帧读回，长度钳 1–125；消费侧 `DataTypeWR.IsInt16Block` 枚举成员 +
+  `RunPlcRead` 块读 case（`ReadInt16(addr, len)` 结果拼逗号串）+ `FlashPlcWRDataInfo.ReadBlockLength`
+  属性整套；Mock 下回全零块（触发位缺省 0，脚本空转不忙循环）；回数不足按失败处理，
+  调用方可回落逐字读。同步等回执路径与 PlcSyncReadInt16 同款（重入预检/消费线程存活等待/
+  12 号槽/PlcSyncBox 拆盒）。
+- **`NoteHeartbeatProbeResult(int devID, bool ok)` 记账公开口**：宿主心跳线程改用
+  `PlcSyncReadInt16` 同步读"PLC 心跳字"后，失败不再走 `RunPlcRead` 的 IsHeartbeatProbe 分支——
+  由调用方在结果返回处显式调本方法补记账（失败计"假连上"连续次数、成功清零），内部转发
+  私有 `NoteHeartbeatResult(devID, true, ok)`，语义与队列内路径完全一致。
+
+### 兼容面
+
+- 零破坏：枚举只加尾成员、数据类只加属性、新增两个静态口，既有公共面一字未动；
+  `PlcSyncReadInt16Block` 的 W101×9+W200×6 两帧老用途注释随方法头一并入册（历史口径保留）。
+
 ## V1.8.6（2026-11-05）PLC 测试页两个只读公共口（宿主 V4.4.348 同步反哺）
 
 > 宿主 HJVision-WPF 同步原版 V4.4.348 PLC 测试页重排：状态胶囊要显示"队列 N 条"、
