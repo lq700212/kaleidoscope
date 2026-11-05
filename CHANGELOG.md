@@ -7,6 +7,42 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.8（2026-11-05）PLC 设备抽象 IKxPlcDevice + NModbus 设备端（宿主全协议心跳反哺）
+
+> 宿主 HJVision-WPF 同步原版 V4.4.359/360（心跳配置界面化 + 全协议支持）：PLC 队列原先绑死
+> HSL（IReadWriteNet 家族），用户要求"不只胡工的库，Modbus 也要支持、底层库可切换"。库内已有
+> NModbus 3.0.83（气密/震动盘同款依赖，零新增引用），本轮以**窄接口抽象**让 HSL 与 NModbus
+> 平起平坐进同一队列——心跳/握手字批量快照/脚本同步读写/重连链/热更重建整条链零改动获得
+> Modbus TCP 能力。
+
+### 新增
+
+- **`Services/IKxPlcDevice.cs` 队列设备窄接口**：只收 PLC 队列真正用到的方法面——
+  ConnectServer/ConnectClose + 10 种单值/块读（bool/int16/uint16/int32/uint32/int64/uint64/
+  float/double + int16 块读）+ 9 种数组写，签名逐成员对齐 HSL 公有方法（编译期保证桥接最薄）。
+  新增第三家底层库只需实现本接口 + BuildPlcDevice 加一个 case。
+- **`Services/NModbusPlcDevice.cs` NModbus 3.0.83 设备端**：IKxPlcDevice 的 Modbus TCP 实现——
+  地址纯数字 0 基（与 HSL ModbusTcpNet 同口径）；字读写走 FC03/06/16 保持寄存器、位读写走
+  FC01/05/15 线圈；多字类型大端字序（regs[0] 高字，int/uint/float 两字、long/ulong/double 四字）；
+  连接 BeginConnect+WaitOne(2000) 手动超时 + `Transport.Retries=0`（超时语义由队列侧管，不在
+  传输层静默重试）；读写异常即 MarkDown() 断连标记，交给队列既有重连链自愈；从站号 0~247
+  （越界回 1），失败统一回 OperateResult 体系（宿主 .IsSuccess/.Content 消费口径不变）。
+- **`Services/HslPlcDeviceWrap.cs` HSL 家族桥接包装**：六品牌（基恩士/欧姆龙/三菱两枚举/汇川/
+  西门子/CIP）公有方法与接口签名逐成员一致，但 C# 隐式接口判定对 HSL 家族 IReadWriteNet 实现
+  形态不认（反射核对+转发编译全过、直接 cast 失败，2026-11-05 实测）——逐成员一行转发桥接，
+  BuildPlcDevice 六分支统一包 wrap。
+
+### PlcNetCommQue 改动
+
+- 槽位 `List<DeviceTcpNet>` → `List<IKxPlcDevice>`；ConnNewPLCDev/ConnPlcDevAt/RunReconnect/
+  TruncatePlcSlots/DisconnectPlcSlotAt/FlashPlcNetThreadClose 全部改接口直调，不再
+  `as DeviceTcpNet` 类型探测；ConnPlcDevAt/RequestRebuild 加 slaveId 参数（ModbusTcp 从站号），
+  FlashPlcWRDataInfo 加 NewPlcSlaveId 属性（热更重建透传）。
+- `PlcType` 枚举末尾追加 `ModbusTcp`（INI 按枚举名存储，新值只许加末尾）+ `PlcTypeName`
+  加 "ModbusTCP" + `HeartbeatAddress` 加 ModbusTcp 回 "0"（0 基纯数字首地址）。
+- `BuildPlcDevice` 返回类型改 IKxPlcDevice：六 HSL 分支 `return new HslPlcDeviceWrap(...)`，
+  新增 `case PlcType.ModbusTcp: return new NModbusPlcDevice(PlcIP, PlcPort, slaveId);`。
+
 ## V1.8.7（2026-11-05）PLC 块读口整套 + 心跳记账公开口（宿主 V4.4.358 同步反哺）
 
 > 宿主 HJVision-WPF 同步原版 V4.4.358（PLC 双向心跳 + ST12 节拍优化）：欧姆龙现场脚本要把

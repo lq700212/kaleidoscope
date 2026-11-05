@@ -110,6 +110,9 @@
     <Compile Include="Services\FanControllerClient.cs" />
     <Compile Include="Services\ModbusTcpMasterClient.cs" />
     <Compile Include="Services\HslPlcClient.cs" />
+    <Compile Include="Services\IKxPlcDevice.cs" />
+    <Compile Include="Services\HslPlcDeviceWrap.cs" />
+    <Compile Include="Services\NModbusPlcDevice.cs" />
     <Compile Include="Services\ScannerEipService.cs" />
     <Compile Include="Services\MockBarometerReader.cs" />
     <Compile Include="Services\MockIoController.cs" />

@@ -50,7 +50,9 @@ namespace Kaleidoscope.Services
         private volatile bool _mShut;
         Thread t;
 
-        List<IReadWriteNet> _PlcDevices = new List<IReadWriteNet>();
+        // 槽位设备抽象（IKxPlcDevice，V0.9.55 底层库切换）：不再绑死 IReadWriteNet+类型探测——
+        // HSL 设备经 HslPlcDeviceWrap 进槽，NModbusPlcDevice 等第三方实现同接口进同一队列。
+        List<IKxPlcDevice> _PlcDevices = new List<IKxPlcDevice>();
         List<TcpChannel> _TcpDevices = new List<TcpChannel>();
 
         /// <summary>
@@ -88,6 +90,7 @@ namespace Kaleidoscope.Services
                 case PlcType.MelsecA1ENet: return "三菱A1E";
                 case PlcType.InovanceTcpNet: return "汇川";
                 case PlcType.SiemensS7Net: return "西门子S7";
+                case PlcType.ModbusTcp: return "ModbusTCP";
                 default: return type.ToString();
             }
         }
@@ -131,12 +134,14 @@ namespace Kaleidoscope.Services
         /// <summary>
         /// PLC 心跳读取地址（纯函数）：各品牌通用无害单字 D0（只读不写）；
         /// 欧姆龙 CIP 按标签读写、无通用地址，回 null 表跳过；
-        /// 西门子 S7 无 D0，读 M0（只读 MW0 无副作用）。
+        /// 西门子 S7 无 D0，读 M0（只读 MW0 无副作用）；
+        /// Modbus TCP 纯数字 0 基地址，读 0 号保持寄存器（只读不写）。
         /// </summary>
         public static string HeartbeatAddress(PlcType type)
         {
             if (type == PlcType.OmronCipNet) return null;
             if (type == PlcType.SiemensS7Net) return "M0";
+            if (type == PlcType.ModbusTcp) return "0";
             return "D0";
         }
 
@@ -173,21 +178,20 @@ namespace Kaleidoscope.Services
 
         public bool ConnNewPLCDev(PlcType DveType, string PlcIP, int PlcPort)
         {
-            IReadWriteNet dev = BuildPlcDevice(DveType, PlcIP, PlcPort);
+            IKxPlcDevice dev = BuildPlcDevice(DveType, PlcIP, PlcPort);
             if (dev == null) return false;
             bool ret = false;
             // 无论连上与否都 Add（DevID=列表下标，跳过会后继错位）。
             try
             {
-                DeviceTcpNet nd = dev as DeviceTcpNet;
-                if (nd != null) ret = nd.ConnectServer().IsSuccess;
+                ret = dev.ConnectServer().IsSuccess;
             }
             catch { ret = false; }
             // 失败对象立即关 socket（与 ConnPlcDevAt 首连失败分支同口径，2026-10-27 现场
             // 血泪）：半开连接占 PLC 会话槽；ConnectClose 幂等无害，对象本身仍 Add 占槽。
             if (!ret)
             {
-                try { DeviceTcpNet ndFail = dev as DeviceTcpNet; if (ndFail != null) ndFail.ConnectClose(); }
+                try { dev.ConnectClose(); }
                 catch { }
             }
             _PlcDevices.Add(dev);
@@ -252,8 +256,7 @@ namespace Kaleidoscope.Services
                         int tail = _PlcDevices.Count - 1;
                         try
                         {
-                            DeviceTcpNet nd = _PlcDevices[tail] as DeviceTcpNet;
-                            if (nd != null) nd.ConnectClose();
+                            if (_PlcDevices[tail] != null) _PlcDevices[tail].ConnectClose();
                         }
                         catch { }
                         _PlcDevices.RemoveAt(tail);
@@ -291,8 +294,7 @@ namespace Kaleidoscope.Services
                     if (index < 0 || index >= _PlcDevices.Count) return;
                     try
                     {
-                        DeviceTcpNet nd = _PlcDevices[index] as DeviceTcpNet;
-                        if (nd != null) nd.ConnectClose();
+                        if (_PlcDevices[index] != null) _PlcDevices[index].ConnectClose();
                     }
                     catch { }
                     _PlcDevices[index] = null;
@@ -309,8 +311,9 @@ namespace Kaleidoscope.Services
         /// 按下标建连 PLC（启动并行用：不 Add 改按 index 赋值；首连失败就地再试一次，
         /// 间隔 500ms。PLC 网口协议栈晚就绪时单次试即判死是"Ping 通但未连接"来源之一）。
         /// siemensSeries：西门子系列名（缺省 null 即 S1500）。
+        /// slaveId：Modbus 从站号（仅 PlcType=ModbusTcp 时用，缺省 1，其它品牌忽略）。
         /// </summary>
-        public bool ConnPlcDevAt(int index, PlcType DveType, string PlcIP, int PlcPort, string siemensSeries = null)
+        public bool ConnPlcDevAt(int index, PlcType DveType, string PlcIP, int PlcPort, string siemensSeries = null, int slaveId = 1)
         {
             // Mock演示：免建连直接判通（演示机无 PLC，建连重试只会拖慢启动）。
             if (MockBridge.IsEnabled)
@@ -319,8 +322,8 @@ namespace Kaleidoscope.Services
                 catch { }
                 return true;
             }
-            IReadWriteNet dev = null;
-            try { dev = BuildPlcDevice(DveType, PlcIP, PlcPort, siemensSeries); }
+            IKxPlcDevice dev = null;
+            try { dev = BuildPlcDevice(DveType, PlcIP, PlcPort, siemensSeries, slaveId); }
             catch (Exception exBuild)
             {
                 try { LogHelper.Info(" PLC设备" + index + "建对象失败：" + exBuild.Message); }
@@ -331,18 +334,14 @@ namespace Kaleidoscope.Services
             bool ret = false;
             try
             {
-                DeviceTcpNet nd = dev as DeviceTcpNet;
-                if (nd != null)
+                for (int r = 0; r < 2 && !ret; r++)
                 {
-                    for (int r = 0; r < 2 && !ret; r++)
+                    try { ret = dev.ConnectServer().IsSuccess; }
+                    catch { ret = false; }
+                    if (!ret && r == 0)
                     {
-                        try { ret = nd.ConnectServer().IsSuccess; }
-                        catch { ret = false; }
-                        if (!ret && r == 0)
-                        {
-                            try { Thread.Sleep(500); }
-                            catch { }
-                        }
+                        try { Thread.Sleep(500); }
+                        catch { }
                     }
                 }
             }
@@ -358,7 +357,7 @@ namespace Kaleidoscope.Services
                 // 对一切新连接的握手帧一律不响应：能 ping 通、TCP 能连、FINS 通讯全断，
                 // 只有重启 PLC 才能救。ConnectClose 幂等，无害；对象本身仍留槽（重连链
                 // RunReconnect 按"ConnectClose+ConnectServer"复用，不换引用）。
-                try { DeviceTcpNet ndFail = dev as DeviceTcpNet; if (ndFail != null) ndFail.ConnectClose(); }
+                try { dev.ConnectClose(); }
                 catch { }
             }
             lock (_PlcDevices)
@@ -404,40 +403,49 @@ namespace Kaleidoscope.Services
 
         /// <summary>
         /// 按配置建 PLC 客户端对象（只建不连）。品牌分支只收敛在这里，加新品牌改这一处。
+        /// 返回类型是设备抽象 IKxPlcDevice（V0.9.55 底层库切换）：HSL 六分支包
+        /// HslPlcDeviceWrap（逐成员转发桥接——HSL 公有方法签名与接口逐个一致但 C#
+        /// 隐式接口判定不认，见包装类头注释），ModbusTcp 分支走 NModbusPlcDevice。
         /// ConnectTimeOut 一律 2 秒（HSL 默认约 10 秒，不在线时启动期每台卡 10 秒）。
+        /// slaveId：Modbus 从站号（仅 ModbusTcp 用，缺省 1）。
         /// </summary>
-        private static IReadWriteNet BuildPlcDevice(PlcType DveType, string PlcIP, int PlcPort, string siemensSeries = null)
+        private static IKxPlcDevice BuildPlcDevice(PlcType DveType, string PlcIP, int PlcPort, string siemensSeries = null, int slaveId = 1)
         {
             switch (DveType)
             {
                 case PlcType.MelsecA1ENet:
                     MelsecA1ENet mPlcA1E = new MelsecA1ENet(PlcIP, PlcPort);
                     mPlcA1E.ConnectTimeOut = 2000;
-                    return mPlcA1E;
+                    return new HslPlcDeviceWrap(mPlcA1E);
                 case PlcType.MelsecMcNet:
                     MelsecMcNet mPlcMc = new MelsecMcNet(PlcIP, PlcPort);
                     mPlcMc.ConnectTimeOut = 2000;
-                    return mPlcMc;
+                    return new HslPlcDeviceWrap(mPlcMc);
                 case PlcType.InovanceTcpNet:
                     InovanceTcpNet mPlcInovanceAMTcp = new InovanceTcpNet(PlcIP, PlcPort);
                     mPlcInovanceAMTcp.Series = InovanceSeries.H5U;
                     mPlcInovanceAMTcp.ConnectTimeOut = 2000;
-                    return mPlcInovanceAMTcp;
+                    return new HslPlcDeviceWrap(mPlcInovanceAMTcp);
                 case PlcType.OmronFinsNet:
                     OmronFinsNet mPlcOmronFins = new OmronFinsNet(PlcIP, PlcPort);
                     mPlcOmronFins.ConnectTimeOut = 2000;
                     mPlcOmronFins.PlcType = OmronPlcType.CSCJ;
-                    return mPlcOmronFins;
+                    return new HslPlcDeviceWrap(mPlcOmronFins);
                 case PlcType.OmronCipNet:
                     OmronCipNet mPlcOmronCip = new OmronCipNet(PlcIP, PlcPort);
                     mPlcOmronCip.ConnectTimeOut = 2000;
                     mPlcOmronCip.Slot = 0;
-                    return mPlcOmronCip;
+                    return new HslPlcDeviceWrap(mPlcOmronCip);
                 case PlcType.SiemensS7Net:
                     // S7 协议端口固定 102（构造无端口参数，ini 照填 102）。
                     SiemensS7Net mPlcSiemens = new SiemensS7Net(ParseSiemensSeries(siemensSeries), PlcIP);
                     mPlcSiemens.ConnectTimeOut = 2000;
-                    return mPlcSiemens;
+                    return new HslPlcDeviceWrap(mPlcSiemens);
+                case PlcType.ModbusTcp:
+                    // 通用 Modbus TCP（V0.9.55 底层库切换）：非六品牌的纯 Modbus TCP 设备
+                    // （第三方控制器/远程 IO/仪表），底层走 NModbus 实现（非 HSL）——设备
+                    // 抽象 IKxPlcDevice 让它进同一队列，心跳/握手/脚本全链路无感。
+                    return new NModbusPlcDevice(PlcIP, PlcPort, slaveId);
                 default:
                     return null;
             }
@@ -465,7 +473,7 @@ namespace Kaleidoscope.Services
                 {
                     for (int i = 0; i < _PlcDevices.Count; i++)
                     {
-                        try { (_PlcDevices[i] as DeviceTcpNet)?.ConnectClose(); }
+                        try { if (_PlcDevices[i] != null) _PlcDevices[i].ConnectClose(); }
                         catch { }
                     }
                 }
@@ -1231,8 +1239,9 @@ namespace Kaleidoscope.Services
         /// <summary>
         /// 请求 PLC 单槽 surgical 重建（设置页/测试页按需调）：先连通新对象再换旧引用，
         /// 热更失败不断现有连接。行数增减不管（只管同槽换目标）。
+        /// newSlaveId：Modbus 从站号（仅 Type=ModbusTcp 时用，缺省 1，其它品牌忽略）。
         /// </summary>
-        public static void RequestRebuild(int devID, PlcType type, string ip, int port, string newPlcSeries = null)
+        public static void RequestRebuild(int devID, PlcType type, string ip, int port, string newPlcSeries = null, int newSlaveId = 1)
         {
             try
             {
@@ -1245,6 +1254,7 @@ namespace Kaleidoscope.Services
                     NewPlcIP = ip,
                     NewPlcPort = port,
                     NewPlcSeries = newPlcSeries,
+                    NewPlcSlaveId = newSlaveId,
                 });
             }
             catch { }
@@ -1511,23 +1521,20 @@ namespace Kaleidoscope.Services
             {
                 if (id >= 0 && id < _PlcDevices.Count && _PlcDevices[id] != null)
                 {
-                    DeviceTcpNet nd = _PlcDevices[id] as DeviceTcpNet;
-                    if (nd != null)
+                    IKxPlcDevice nd = _PlcDevices[id];
+                    try { nd.ConnectClose(); } catch { }
+                    for (int r = 0; r < 2 && !ok; r++)
                     {
-                        try { nd.ConnectClose(); } catch { }
-                        for (int r = 0; r < 2 && !ok; r++)
-                        {
-                            try { ok = nd.ConnectServer().IsSuccess; }
-                            catch { ok = false; }
-                            if (!ok) Thread.Sleep(500);
-                        }
-                        // 重连失败也关 socket（2026-10-27 现场血泪同源补漏）：ConnectServer
-                        // 失败（FINS 握手超时等）时 TCP 可能已建连，不关就留半开连接挂占
-                        // PLC 会话槽——心跳旁路重连每轮都再试，失败一轮多一条，几小时就能
-                        // 占死 PLC 侧全部会话槽（能 ping 通、TCP 能连、FINS 通讯全断）。
-                        // 与 ConnPlcDevAt 首连失败分支同口径；成功时保持连接，此处不碰。
-                        if (!ok) { try { nd.ConnectClose(); } catch { } }
+                        try { ok = nd.ConnectServer().IsSuccess; }
+                        catch { ok = false; }
+                        if (!ok) Thread.Sleep(500);
                     }
+                    // 重连失败也关 socket（2026-10-27 现场血泪同源补漏）：ConnectServer
+                    // 失败（FINS 握手超时等）时 TCP 可能已建连，不关就留半开连接挂占
+                    // PLC 会话槽——心跳旁路重连每轮都再试，失败一轮多一条，几小时就能
+                    // 占死 PLC 侧全部会话槽（能 ping 通、TCP 能连、FINS 通讯全断）。
+                    // 与 ConnPlcDevAt 首连失败分支同口径；成功时保持连接，此处不碰。
+                    if (!ok) { try { nd.ConnectClose(); } catch { } }
                 }
             }
             catch { ok = false; }
@@ -1637,25 +1644,22 @@ namespace Kaleidoscope.Services
             try
             {
                 if (id < 0 || id >= _PlcDevices.Count) return;
-                IReadWriteNet dev = null;
-                try { dev = BuildPlcDevice(info.NewPlcType, info.NewPlcIP, info.NewPlcPort, info.NewPlcSeries); } catch { dev = null; }
+                IKxPlcDevice dev = null;
+                try { dev = BuildPlcDevice(info.NewPlcType, info.NewPlcIP, info.NewPlcPort, info.NewPlcSeries, info.NewPlcSlaveId); } catch { dev = null; }
                 if (dev == null) return;
-                DeviceTcpNet nd = dev as DeviceTcpNet;
-                if (nd == null) return;
-                try { ok = nd.ConnectServer().IsSuccess; } catch { ok = false; }
+                try { ok = dev.ConnectServer().IsSuccess; } catch { ok = false; }
                 if (ok)
                 {
                     try
                     {
-                        DeviceTcpNet old = _PlcDevices[id] as DeviceTcpNet;
-                        if (old != null) old.ConnectClose();
+                        if (_PlcDevices[id] != null) _PlcDevices[id].ConnectClose();
                     }
                     catch { }
                     _PlcDevices[id] = dev;
                 }
                 else
                 {
-                    try { nd.ConnectClose(); } catch { }
+                    try { dev.ConnectClose(); } catch { }
                 }
             }
             finally
@@ -1679,6 +1683,10 @@ namespace Kaleidoscope.Services
         OmronCipNet,
         // 西门子 S7（S1200/S1500 等，系列见 PlcDevInfo.SiemensSeries，缺省 S1500；S7 端口固定 102）。
         SiemensS7Net,
+        // 通用 Modbus TCP（V0.9.55 底层库切换）：非六品牌的纯 Modbus TCP 设备，底层走
+        // NModbus 实现（NModbusPlcDevice）而非 HSL——设备抽象 IKxPlcDevice 接进同一队列。
+        // 注意 INI 按枚举名存储，新值只能加在末尾（既有 ini 的枚举序号不受影响）。
+        ModbusTcp,
     }
 
     public enum PlcWRswitchStr
@@ -1790,6 +1798,8 @@ namespace Kaleidoscope.Services
         public int NewPlcPort { get; set; }
         /// <summary>热更目标西门子系列（仅 Rebuild 且 Type=SiemensS7Net 时用；空即 S1500）。</summary>
         public string NewPlcSeries { get; set; }
+        /// <summary>热更目标 Modbus 从站号（仅 Rebuild 且 Type=ModbusTcp 时用；缺省 1）。</summary>
+        public int NewPlcSlaveId { get; set; }
     }
 
     /// <summary>
