@@ -7,6 +7,30 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.9（2026-11-05）激活体系沉库：LicenseCodec/LicenseGate/LicenseBridges/LicenseStateIni（宿主 V0.9.56 反哺）
+
+> 对应 HJVision-WPF V0.9.56：把 `HuaJiVision.Core.Security` 的激活门禁族搬进库
+> `Kaleidoscope.Security`——通讯库自认激活链，用库的软件产品（WinForms 原版 / WPF
+> 复刻版）共用一套激活/防回拨体系，不再各自私叉。新增四件：
+> LicenseCodec（编解码+ECDsa 验签，签发工具 LicenseIssuer 同链）、LicenseGate
+> （五态门禁状态机，RefreshCore 步骤 0=演示机免授权桥，未接线时从严处理）、
+> LicenseBridges（静态桥：SqliteWaterMarkGet/Set 贯通宿主 SQLite 水位口防时钟回拨、
+> IsMockLicensedProvider 接宿主 Mock 开关实时值——桥内自兜异常，宿主纯透传即可）、
+> LicenseStateIni（激活状态文件库内自管，目录缺自动建，宿主不再预建/注入）。
+> csproj 编译清单补四行（显式 Compile，守老 csproj 风格）。
+
+### 新增
+
+- `Kaleidoscope/Security/LicenseCodec.cs`：授权码编解码+ECDsa P-256 验签单一事实源
+  （对位宿主原 Core 同名件一比一下沉，注释口径同步"实现已沉库"）。
+- `Kaleidoscope/Security/LicenseGate.cs`：五态激活门禁（State/Rationale/Refresh/
+  IsProductionAllowed/Warmup 预热），防回拨三存储（ini/注册表/SQLite）经 Bridges 兜底。
+- `Kaleidoscope/Security/LicenseBridges.cs`：宿主桥三件（静态委托，库零业务耦合——
+  同 MockBridge/LogHelper 范式，宿主静态构造接线进程内首次触碰即生效）。
+- `Kaleidoscope/Security/LicenseStateIni.cs`：激活状态 ini 读写（默认
+  `exe\MainSetting\LicenseState.ini`，写时自动建目录；状态文件为运行时商业数据，
+  宿主侧 .gitignore 已控）。
+
 ## V1.8.8（2026-11-05）PLC 设备抽象 IKxPlcDevice + NModbus 设备端（宿主全协议心跳反哺）
 
 > 宿主 HJVision-WPF 同步原版 V4.4.359/360（心跳配置界面化 + 全协议支持）：PLC 队列原先绑死

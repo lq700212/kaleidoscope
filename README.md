@@ -85,6 +85,7 @@ kaleidoscope/
 │   ├── Configuration/     #   .kcfg 序列化 + 保存前校验 + 设备说明书自动导出
 │   ├── Services/          #   全部设备通讯服务（含生产工程反哺件）
 │   ├── Utils/             #   日志出口 / Mock 桥 / 串口识别 / TCP KeepAlive
+│   ├── Security/          #   激活体系（V1.8.9 沉库：LicenseCodec/LicenseGate/LicenseBridges/LicenseStateIni）
 │   └── libs/              #   NModbus / NModbus.Serial / NModbus4 / HslCommunication
 ├── Demo/                  # WinForms 测试台（按标准接入方式写的最小界面，可直接抄骨架）
 ├── ConfigEditor/          # 可视化配置编辑器（不进库、不启停设备，只产 .kcfg）

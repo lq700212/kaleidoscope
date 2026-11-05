@@ -131,6 +131,11 @@
     <Compile Include="Services\MarkContentHub.cs" />
     <Compile Include="Services\ICodeReader.cs" />
     <Compile Include="Services\KeyenceScannerReader.cs" />
+    <!-- 授权体系（V0.9.56 自 HuaJiVision.Core.Security 下沉：ECDsa 激活门禁，见各文件头注释） -->
+    <Compile Include="Security\LicenseCodec.cs" />
+    <Compile Include="Security\LicenseGate.cs" />
+    <Compile Include="Security\LicenseBridges.cs" />
+    <Compile Include="Security\LicenseStateIni.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
