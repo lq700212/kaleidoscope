@@ -44,6 +44,12 @@ namespace Kaleidoscope.Services
         OperateResult<short> ReadInt16(string address);
         /// <summary>连续字块读（触发字批量扫描/握手字批量快照用；长度调用方已钳 1–125）。</summary>
         OperateResult<short[]> ReadInt16(string address, ushort length);
+        /// <summary>
+        /// 原始字节块读（V4.4.379 EIP 读 SN 字符串标签用；长度调用方已钳 1–125 字节）：
+        /// HSL 实现直通 Read 原样字节零解释；Modbus 实现按寄存器大端拆字节兜底
+        /// （IsString 消费方当前只有 CIP 场景，此实现为接口完备性兜底）。
+        /// </summary>
+        OperateResult<byte[]> Read(string address, ushort length);
         OperateResult<ushort> ReadUInt16(string address);
         OperateResult<int> ReadInt32(string address);
         OperateResult<uint> ReadUInt32(string address);

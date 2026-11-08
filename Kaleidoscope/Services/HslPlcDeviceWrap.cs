@@ -43,6 +43,8 @@ namespace Kaleidoscope.Services
         public OperateResult<bool> ReadBool(string address) { return _d.ReadBool(address); }
         public OperateResult<short> ReadInt16(string address) { return _d.ReadInt16(address); }
         public OperateResult<short[]> ReadInt16(string address, ushort length) { return _d.ReadInt16(address, length); }
+        /// <summary>原始字节块读（V4.4.379 EIP 读 SN 用）：HSL Read 直通，原样字节零解释。</summary>
+        public OperateResult<byte[]> Read(string address, ushort length) { return _d.Read(address, length); }
         public OperateResult<ushort> ReadUInt16(string address) { return _d.ReadUInt16(address); }
         public OperateResult<int> ReadInt32(string address) { return _d.ReadInt32(address); }
         public OperateResult<uint> ReadUInt32(string address) { return _d.ReadUInt32(address); }

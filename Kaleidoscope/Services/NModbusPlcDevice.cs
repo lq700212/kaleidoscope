@@ -206,6 +206,35 @@ namespace Kaleidoscope.Services
             catch (Exception ex) { MarkDown(); return Fail<short[]>("读失败：" + ex.Message); }
         }
 
+        /// <summary>
+        /// 原始字节块读（V4.4.379 IsString 通道配套）：Modbus 没有字节粒度读，按寄存器
+        /// 大端拆（每寄存器高字节在前=线上原样）；length 是字节口径，寄存器数=向上取整。
+        /// IsString 消费方当前只有 CIP 场景（走 HSL 实现），本实现为接口完备性兜底
+        /// （探针/将来 Modbus 设备接字符串用）。
+        /// </summary>
+        public OperateResult<byte[]> Read(string address, ushort length)
+        {
+            ushort addr;
+            if (!ParseAddr(address, out addr)) return Fail<byte[]>("地址格式错误（ModbusTCP 需纯数字 0~65535）：" + address);
+            if (length < 1) length = 1;
+            try
+            {
+                lock (_lock)
+                {
+                    string why;
+                    if (!EnsureConnected(out why)) return Fail<byte[]>(why);
+                    int regCount = (length + 1) / 2;
+                    if (regCount > FrameRegsMax) regCount = FrameRegsMax;   // 协议硬上限再钳一道
+                    ushort[] regs = _master.ReadHoldingRegisters(_slaveId, addr, (ushort)regCount);
+                    byte[] vals = new byte[Math.Min(length, regs.Length * 2)];
+                    for (int i = 0; i < vals.Length; i++)
+                        vals[i] = (i % 2 == 0) ? (byte)(regs[i / 2] >> 8) : (byte)(regs[i / 2] & 0xFF);
+                    return OperateResult.CreateSuccessResult<byte[]>(vals);
+                }
+            }
+            catch (Exception ex) { MarkDown(); return Fail<byte[]>("读失败：" + ex.Message); }
+        }
+
         public OperateResult<ushort> ReadUInt16(string address)
         {
             ushort addr;

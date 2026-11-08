@@ -7,6 +7,27 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.8.10（2026-11-08）PLC 字节块读：IsString 通道 + PlcSyncReadBytes（宿主 V0.9.58 反哺）
+
+> 对应宿主 HJVision-WPF V0.9.58 同步原版 V4.4.379（欧姆龙 EIP 读 SN 字符串标签）：
+> 原版在 PlcNetCommQue 加了 `DataTypeWR.IsString` 枚举与同名消费 case——`Read(address,len)`
+> 原样取字节、零解释（长度前缀/字符集由调用方解码，见宿主 SnEipPoller.ParseSnBytes），
+> 与 PlcSyncReadInt16Block"只搬块不猜语义"同一分层。本次一比一搬进库：
+> ① `PlcSyncReadBytes` 静态方法（消费线程同步字节块读，钳 1–125 与块读同一协议上限，
+> Mock 回全零块兜底不崩）；② 消费 case `IsString`（字节→"逗号分隔十进制"串格式穿
+> string 通道，消费侧 split 还原 byte[]）；③ `IKxPlcDevice.Read` 接口 + 两实现
+> （HSL 直通 Read；NModbus 无字节粒度读，按寄存器大端拆兜底——IsString 消费方当前
+> 只有 CIP 场景，此实现为接口完备性兜底）。枚举加末尾（IsUInt32 先例：既有下标绝不动）。
+
+### 新增
+
+- `Kaleidoscope/Services/PlcNetCommQue.cs`：`PlcSyncReadBytes` 静态方法 +
+  `DataTypeWR.IsString` 枚举值（末尾追加）+ 消费 case（Read 原样字节穿 string 通道）。
+- `Kaleidoscope/Services/IKxPlcDevice.cs`：`Read(string, ushort)` 接口方法（原始字节块读）。
+- `Kaleidoscope/Services/HslPlcDeviceWrap.cs`：`Read` 直通 HSL `IReadWriteNet.Read`。
+- `Kaleidoscope/Services/NModbusPlcDevice.cs`：`Read` 按寄存器大端拆字节（高字节在前=线上原样），
+  寄存器数=字节向上取整，协议硬上限再钳一道。
+
 ## V1.8.9（2026-11-05）激活体系沉库：LicenseCodec/LicenseGate/LicenseBridges/LicenseStateIni（宿主 V0.9.56 反哺）
 
 > 对应 HJVision-WPF V0.9.56：把 `HuaJiVision.Core.Security` 的激活门禁族搬进库

@@ -989,6 +989,76 @@ namespace Kaleidoscope.Services
             catch { values = null; return false; }
         }
 
+        /// <summary>
+        /// 同步读原始字节块（V4.4.379 EIP 读 SN 新增，字符串标签用，对标原版同名方法一比一搬）：
+        /// PlcAddress 起连读 length 个字节（钳 1–125，与 IsInt16Block 同一协议上限），回 byte[]。
+        /// 消费线程用 IReadWriteNet.Read 原样取字节（不做任何编码/结构解释），
+        /// 编码与长度前缀由调用方自行解析（见宿主 SnEipPoller.ParseSnBytes）——
+        /// 和 PlcSyncReadInt16Block"只搬块不猜语义"同一分层。失败回 false，调用方本轮跳过。
+        /// Mock 下回全零块（消费模式不启动轮询器，这里只为探针/联调用法兜底不崩）。
+        /// </summary>
+        public static bool PlcSyncReadBytes(int devID, string address, int length, out byte[] values, int timeoutMs = 5000)
+        {
+            values = null;
+            try
+            {
+                if (length < 1) length = 1;
+                if (length > ReadBlockLengthMax) length = ReadBlockLengthMax;
+                if (MockBridge.IsEnabled)
+                {
+                    values = new byte[length];
+                    return true;
+                }
+                if (timeoutMs < 500) timeoutMs = 500;
+                if (timeoutMs > 30000) timeoutMs = 30000;
+                try
+                {
+                    PlcNetCommQue q0 = Instance();
+                    if (q0 != null && q0.t != null && ReferenceEquals(Thread.CurrentThread, q0.t)) return false;
+                }
+                catch { /* 原因：重入预检自身异常按"未重入"继续，下面的入队/等待照常，不挡读写 */ }
+                if (!IsConsumerAlive() && !WaitForConsumer(15000)) return false;
+                PlcSyncBox box = new PlcSyncBox();
+                AutoResetEvent wh = new AutoResetEvent(false);
+                try
+                {
+                    Instance().EnqueuePlcInfo(new FlashPlcWRDataInfo
+                    {
+                        CamName = HeartbeatSlotIndex,
+                        ThreadWaitHandle = wh,
+                        SyncBox = box,
+                        PlcWRswitch = PlcWRswitchStr.Read,
+                        PlcAddress = address,
+                        PlcDataTypeWR = DataTypeWR.IsString,
+                        ReadBlockLength = length,
+                        DevID = devID,
+                    });
+                }
+                catch { return false; }
+                bool signaled = false;
+                try { signaled = wh.WaitOne(timeoutMs); }
+                catch { signaled = false; }
+                finally { try { wh.Close(); } catch { /* 原因：等待句柄关闭失败无后续动作，结果已取/超时已定 */ } }
+                if (!signaled) return false;
+                if (box == null || !box.Success) return false;
+                string raw = (box.Data ?? "").Trim();
+                if (string.IsNullOrEmpty(raw) || raw == "Error") return false;
+                string[] parts = raw.Split(',');
+                byte[] vals = new byte[parts.Length];
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    int one;
+                    if (!int.TryParse(parts[i], System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out one)) return false;
+                    if (one < 0 || one > 255) return false;
+                    vals[i] = (byte)one;
+                }
+                values = vals;
+                return true;
+            }
+            catch { values = null; return false; }
+        }
+
         /// <summary>同步读 UInt32（失败回 false）。</summary>
         public static bool PlcSyncReadUInt32(int devID, string address, out uint value, int timeoutMs = 5000)
         {
@@ -1437,6 +1507,27 @@ namespace Kaleidoscope.Services
                     ReadStatus = PlcReadStatus5.IsSuccess;
                     data = PlcReadStatus5.Content.ToString();
                     break;
+                case DataTypeWR.IsString:
+                    // 原始字节块读（V4.4.379 EIP 读 SN 用，见 DataTypeWR.IsString 注释）：
+                    // Read(address,len) 原样拿字节 → "逗号分隔十进制"串格式穿 string 通道，
+                    // 消费侧（PlcSyncReadBytes）split 还原 byte[] 自行解码，消费线程不做编码猜测。
+                    int mStrLen = PlcObj.ReadBlockLength;
+                    if (mStrLen < 1) mStrLen = 1;
+                    if (mStrLen > ReadBlockLengthMax) mStrLen = ReadBlockLengthMax;
+                    OperateResult<byte[]> PlcReadStatusS = _PlcDevices[_DevID].Read(PlcObj.PlcAddress, (ushort)mStrLen);
+                    ReadStatus = PlcReadStatusS.IsSuccess && PlcReadStatusS.Content != null && PlcReadStatusS.Content.Length > 0;
+                    if (ReadStatus)
+                    {
+                        System.Text.StringBuilder mStrSb = new System.Text.StringBuilder();
+                        for (int mStri = 0; mStri < PlcReadStatusS.Content.Length; mStri++)
+                        {
+                            if (mStri > 0) mStrSb.Append(',');
+                            mStrSb.Append(PlcReadStatusS.Content[mStri].ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                        data = mStrSb.ToString();
+                    }
+                    else data = "0";
+                    break;
                 case DataTypeWR.IsShort:
                     OperateResult<short> PlcReadStatus6 = _PlcDevices[_DevID].ReadInt16(PlcObj.PlcAddress);
                     ReadStatus = PlcReadStatus6.IsSuccess;
@@ -1716,7 +1807,16 @@ namespace Kaleidoscope.Services
         IsUInt32,
         /// <summary>连续 Int16 块读（一帧多字：触发字批量扫描/握手字批量快照用；
         /// 长度经 ReadBlockLength 传，消费侧钳 1–125，串格式"逗号分隔十进制"，见 PlcSyncReadInt16Block）。</summary>
-        IsInt16Block
+        IsInt16Block,
+        /// <summary>
+        /// 原始字节块读（V4.4.379 EIP 读 SN 新增，字符串标签用，对标原版同枚举一比一搬）：
+        /// PlcAddress=标签名，长度经 ReadBlockLength 传（字节数，消费侧钳 1–125 与 IsInt16Block
+        /// 同一协议上限），消费侧调 IReadWriteNet.Read 原样拿字节再按"逗号分隔十进制"穿
+        /// string 通道——消费线程不做编码猜测（长度前缀/字符集都由调用方解码，见
+        /// 宿主 SnEipPoller.ParseSnBytes）。
+        /// 加在枚举末尾（照 IsUInt32 先例：既有成员下标绝不动，防任何按序号断点）。
+        /// </summary>
+        IsString
     }
 
     public class PlcDevInfo
