@@ -7,6 +7,53 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.10.0（2026-11-15）状态机引擎原语沉库：Flowing 四原语（宿主 V0.9.66 反哺）
+
+> 对应宿主 HJVision-WPF V0.9.66：状态机二期——宿主产品数据状态机 LineFlow 的发号三件套
+> 一比一下沉为泛型 EntityTracker，并把两个真实宿主的血泪契约固化为库级原语（CureLine
+> V0.0.64「先整拍换快照再发边沿」真机复位失效根因、EnsureLamp 期望值簿、7 个 Func provider
+> 增殖）。一期沉了调度器（V1.9.0 FlowGroupRunner），二期沉的是状态机引擎的四个通用件——
+> 引擎进库、图留宿主的路线继续：库件只管"机制与纪律"，业务图（字段/完备性判定）仍在宿主。
+
+### 新增
+
+- `Kaleidoscope/Flowing/EntityTracker.cs`：**实体发号器（发号三件套泛型化）**——Alloc/Release/
+  RestoreNext 三件套 + MarkOccupied 外部给号域登记（MES 派工号/扫码 SN 场景）+ 占用账本查询口
+  （IsOccupied/OccupiedCount/OccupiedSnapshot）。构造注入三参：种子→ID 工厂/无效哨兵判定/值域
+  上限（含回绕）；在制 k 个最多试 k+1 次必命中空号（鸽巢原理），耗尽返回 default(TKey) 按
+  fail-closed 处理。宿主 HJVision TrackId（1–2100000000 回绕，值域史见类头）一比一下沉。
+- `Kaleidoscope/Flowing/SignalSource.cs`：**轮询信号源**（`ISignalSource<TSnapshot,TEdge>` 接口
+  + `PollingSignalSource` 抽象基类）——**顺序契约第一红线「先整拍换快照引用，再统一发边沿」**
+  （边沿回调时 LatestSnapshot 必含本批边沿值；CureLine V0.0.63 真机复位失效根因的库级固化，
+  冒烟 T32.1 反向验证锁死）。宿主只实现 PollOnce/DiffEdges 两个纯函数；基类专属泵线程
+  （volatile 停止位/异常隔离节流记账/周期钳位/限时 Join，与 FlowGroupRunner 同款红线）+
+  首拍基线不发边沿（防"从无到有"假事件淹掉订阅方）+ LatestSnapshot 原子换引用读永不阻塞。
+- `Kaleidoscope/Flowing/EffectSink.cs`：**去重执行器**（`IEffectSink<TKey,TValue>` 接口 +
+  `DedupEffectSink` 缺省实现）——Ensure 三态：同值跳过（稳态零网络写）/执行成功记账/失败不
+  记账（下轮 Ensure 自动补写，断电/瞬断一轮心跳内自愈）+ Invalidate 强制重写 + 实写/跳过/
+  失败三计数器。执行口在锁外（锁内 IO=堵死其它 key），apply 必须幂等。CureLine
+  EnsureLamp/_writtenLamps 期望值簿一比一提炼。
+- `Kaleidoscope/Flowing/PolicySource.cs`：**政策源**——"每拍现取勿缓存"provider 统一口；
+  Current 异常透传（启动校验场景 fail-fast）/CurrentOrDefault 异常兜底（泵/心跳场景不炸线）。
+  CureLine 7 个 Func provider 逐个增殖的统一答案。
+
+### 测试
+
+- SmokeTest 新增「发号」6 例 +「信号」4 例 +「执行」3 例 +「政策」2 例（T31~T34 共 15 例），
+  基线 158→173。
+- 「信号.1 顺序契约」已做反向验证：临时把基类改成"先发边沿再换快照"（乱序）→ 信号.1/2/3
+  三例连锁抓红（边沿到达断言超时）→ 恢复正确顺序后 173 全绿——用例真的在锁顺序红线。
+  （反向验证还暴露并修正了一个基线语义：基线拍也必须换 _latest 引用，否则快照永远停在
+  null、每拍都被当基线短路——测试抓出来的真 bug。）
+
+### 兼容面
+
+- 纯新增，零破坏：四原语均为新类型，既有公共面未动，枚举未动。
+- 消费面现状：EntityTracker 已被宿主 HJVision LineFlow 消费（发号三件套实现转薄壳转发，
+  公共面签名零改动，模板脚本/生成器发射文本/探针全不动）；ISignalSource/EffectSink/
+  PolicySource 为供给侧沉淀——HJVision 现链（脚本轮询直读架构）暂不消费，CureLine
+  （DLL Reference 引用本库）三期重构立项时接入。
+
 ## V1.9.0（2026-11-15）业务流编排首件沉库：Flowing/FlowGroupRunner 处理线程组调度器（宿主 V0.9.65 反哺）
 
 > 对应宿主 HJVision-WPF V0.9.65：把宿主业务流调度器（原 SubClass/LineFlow/LineFlowGroupRunner.cs，

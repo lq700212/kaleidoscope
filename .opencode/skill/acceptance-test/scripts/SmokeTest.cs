@@ -274,6 +274,22 @@ internal static class Smoke
         Run("流组.5 圈异常隔离不冲循环 + 异常记账", T30_ExceptionIsolation);
         Run("流组.6 健康报告含组名/圈龄/圈数/资源", T30_HealthReport);
 
+        Run("发号.1 连号与占用账本", T31_SequentialAlloc);
+        Run("发号.2 发号跳过在制号", T31_SkipOccupied);
+        Run("发号.3 值域回绕", T31_WrapAround);
+        Run("发号.4 无效哨兵永不发放", T31_InvalidSentinel);
+        Run("发号.5 号池耗尽返默认值", T31_Exhausted);
+        Run("发号.6 回收复用/掉电续号/外部给号", T31_ReleaseRestoreExternal);
+        Run("信号.1 先换快照再发边沿（顺序契约）", T32_SnapshotEdgeOrder);
+        Run("信号.2 首拍基线不发边沿", T32_BaselineNoEdge);
+        Run("信号.3 采集异常隔离泵不死", T32_ExceptionIsolation);
+        Run("信号.4 Stop 停泵线程退出", T32_StopJoin);
+        Run("执行.1 同值跳过去重", T33_DedupSkip);
+        Run("执行.2 失败不记账下轮补写", T33_FailRewrite);
+        Run("执行.3 Invalidate 强制重写", T33_Invalidate);
+        Run("政策.1 缺省兜底与每拍现取", T34_DefaultAndLive);
+        Run("政策.2 异常兜底不炸线", T34_ExceptionFallback);
+
         Console.WriteLine();
         Console.WriteLine("=== 汇总：PASS=" + _pass + "  FAIL=" + _fail + "  SKIP=" + _skip + " ===");
         foreach (var r in _results) Console.WriteLine("  " + r);
@@ -2867,6 +2883,212 @@ internal static class Smoke
         int n = 0, ix = 0;
         while ((ix = text.IndexOf(sub, ix, StringComparison.Ordinal)) >= 0) { n++; ix += sub.Length; }
         return n;
+    }
+
+    // ══════════ V1.10.0 业务流编排原语（发号/信号/执行/政策，T31~T34） ══════════
+    // 每例独立 new（实例类无跨例状态）；线程类用例（信号.1~4）单独源实例，Stop 收尾。
+
+    /// <summary>发号标准构造：uint 直映、0 号哨兵、21 亿上限（与宿主 HJVision TrackId 同参）。</summary>
+    static EntityTracker<uint> NewTracker()
+    {
+        return new EntityTracker<uint>(id => (uint)id, id => id != 0, 2100000000L);
+    }
+
+    /// <summary>测试信号源：PollOnce 拍计数递增（可注入前 N 拍故障）；DiffEdges 值变即发边沿并自计数（不依赖订阅）。</summary>
+    private sealed class TestSignalSource : PollingSignalSource<int[], int>
+    {
+        public int PollCount; public int EdgeCount; public int FailRemaining;
+        public TestSignalSource(int periodMs) : base("测试源", periodMs, null) { }
+        protected override int[] PollOnce()
+        {
+            if (FailRemaining > 0) { FailRemaining--; throw new InvalidOperationException("采集模拟故障"); }
+            PollCount++;
+            return new int[] { PollCount };
+        }
+        protected override int[] DiffEdges(int[] oldSnap, int[] newSnap)
+        {
+            if (oldSnap == null) return new int[0];   // 首拍基线：宿主侧短路（基类也不发事件）
+            if (newSnap[0] == oldSnap[0]) return new int[0];
+            EdgeCount++;   // 返回非空=基类马上发 EdgesReady，此处自计数使断言不依赖订阅
+            return new[] { newSnap[0] };
+        }
+    }
+
+    static void T31_SequentialAlloc()
+    {
+        var t = NewTracker();
+        AssertTrue(t.Alloc() == 1 && t.Alloc() == 2 && t.Alloc() == 3, "新账本应连号发 1,2,3");
+        AssertTrue(t.OccupiedCount == 3, "发号即占用：水位应=3，实际 " + t.OccupiedCount);
+        AssertTrue(t.IsOccupied(2), "2 号应记在制");
+        AssertTrue(!t.IsOccupied(4), "未发出的 4 号不在表");
+    }
+
+    static void T31_SkipOccupied()
+    {
+        var t = NewTracker();
+        AssertTrue(t.Alloc() == 1, "先发 1 号");
+        t.SetNextSeedForTest(0);   // 种子回指 0：下一候选=1（已占用）
+        AssertTrue(t.Alloc() == 2, "种子回指已占用号应跳到 2（鸽巢 k+1 上限内命中）");
+    }
+
+    static void T31_WrapAround()
+    {
+        var t = NewTracker();
+        t.SetMaxSeedOverrideForTest(5);
+        AssertTrue(t.Alloc() == 1, "上限 5 时首号=1");
+        t.SetNextSeedForTest(5);   // 下一候选=6 > 上限 → 回绕
+        uint got = t.Alloc();
+        AssertTrue(got == 2, "回绕到 1 被 1 号占用 → 应跳发 2，实际 " + got);
+        AssertTrue(t.IsOccupied(1), "1 号占用不应被回绕影响");
+    }
+
+    static void T31_InvalidSentinel()
+    {
+        var t = new EntityTracker<uint>(id => (uint)id, id => id != 0 && id % 2 == 1, 2100000000L);
+        AssertTrue(t.Alloc() == 1 && t.Alloc() == 3, "偶数被哨兵拒（isValid=false 永不发放）：只发奇数 1,3");
+    }
+
+    static void T31_Exhausted()
+    {
+        var t = NewTracker();
+        t.SetMaxSeedOverrideForTest(2);
+        AssertTrue(t.Alloc() == 1 && t.Alloc() == 2, "占满 1,2");
+        AssertTrue(t.Alloc() == 0, "全值域在制应返回 default(uint)=0（调用方按无号 fail-closed）");
+    }
+
+    static void T31_ReleaseRestoreExternal()
+    {
+        var t = NewTracker();
+        uint a = t.Alloc();
+        AssertTrue(t.Release(a), "Release 应摘到占用");
+        AssertTrue(!t.IsOccupied(a), "释放后不在制");
+        AssertTrue(!t.Release(a), "重复释放幂等返回 false");
+        t.RestoreNext(100);
+        AssertTrue(t.Alloc() == 100, "掉电续号：种子=库水位+1，下一号应=100");
+        AssertTrue(t.MarkOccupied(500), "外部给号登记（MES/SN 域）");
+        AssertTrue(!t.MarkOccupied(500), "重复登记幂等返回 false");
+        AssertTrue(!t.MarkOccupied(0), "哨兵号不登记");
+        AssertTrue(t.IsOccupied(500), "登记后应记在制");
+        AssertTrue(t.OccupiedCount == 2, "100+500 两号在制");
+        uint[] snap = t.OccupiedSnapshot();
+        AssertTrue(snap.Length == 2 && Array.IndexOf(snap, 100u) >= 0 && Array.IndexOf(snap, 500u) >= 0,
+            "占用快照应含 100 与 500");
+    }
+
+    static void T32_SnapshotEdgeOrder()
+    {
+        var src = new TestSignalSource(30);
+        int lastSeen = 0, orderViolations = 0, callbackCount = 0;
+        src.EdgesReady += delegate(int[] edges, int[] snap)
+        {
+            // 顺序契约断言：回调内读 LatestSnapshot 必须就是本拍快照（同引用同值且不早于边沿值）
+            int[] latest = src.LatestSnapshot;
+            if (!ReferenceEquals(latest, snap) || latest[0] != snap[0] || latest[0] < edges[0]) orderViolations++;
+            lastSeen = snap[0];
+            callbackCount++;
+        };
+        src.Start();
+        Wait(() => src.EdgeCount >= 3, 5000, "边沿事件应持续到达（每拍值变必发）");
+        src.Stop();
+        AssertTrue(orderViolations == 0, "顺序契约违规 " + orderViolations + " 次：边沿发出前快照必须已换新（V0.0.63 真机事故红线）");
+        AssertTrue(callbackCount == src.EdgeCount, "回调次数应与边沿产生数一致，实际 回调=" + callbackCount + " 边沿=" + src.EdgeCount);
+        AssertTrue(lastSeen >= 3, "最后一次回调应看到 ≥3 拍快照，实际 " + lastSeen);
+    }
+
+    static void T32_BaselineNoEdge()
+    {
+        var src = new TestSignalSource(30);
+        src.Start();
+        Wait(() => src.RoundCount >= 3, 5000, "泵应已跑 3 拍");
+        src.Stop();
+        AssertTrue(src.EdgeCount >= 1, "正常运行应有边沿事件");
+        AssertTrue(src.PollCount > src.EdgeCount, "首拍基线只换快照不发边沿（Poll 数应恒大于边沿数）实际 " + src.PollCount + "/" + src.EdgeCount);
+    }
+
+    static void T32_ExceptionIsolation()
+    {
+        var src = new TestSignalSource(30);
+        src.FailRemaining = 2;   // 前两拍采集抛异常
+        src.Start();
+        Wait(() => src.ErrCount >= 2, 5000, "采集异常应逐拍记账");
+        Wait(() => src.EdgeCount >= 1, 5000, "故障恢复后边沿应继续到达（泵不死）");
+        long rc = src.RoundCount;
+        Wait(() => src.RoundCount > rc + 2, 3000, "泵应持续跑圈");
+        src.Stop();
+    }
+
+    static void T32_StopJoin()
+    {
+        var src = new TestSignalSource(30);
+        src.Start();
+        Wait(() => src.RoundCount >= 1, 3000, "泵应启动");
+        src.Stop();
+        long r1 = src.RoundCount;
+        Thread.Sleep(300);   // 30ms 周期下 300ms 足够 10 拍：泵若没停会明显增长
+        AssertTrue(src.RoundCount <= r1 + 1, "Stop 后泵应停（300ms 内拍数不应增长）实际 " + r1 + "→" + src.RoundCount);
+    }
+
+    static void T33_DedupSkip()
+    {
+        int calls = 0;
+        var sink = new DedupEffectSink<string, bool>(delegate(string k, bool v) { calls++; return true; }, null);
+        AssertTrue(sink.Ensure("L1", true), "首写成功");
+        AssertTrue(sink.Ensure("L1", true), "同值 Ensure 仍返回 true（已达成）");
+        AssertTrue(calls == 1, "同值跳过不重复执行（稳态零网络写）实际 " + calls);
+        AssertTrue(sink.Ensure("L1", false), "值变才真写");
+        AssertTrue(calls == 2, "值变实写第 2 次");
+        AssertTrue(sink.SkippedCount == 1, "跳过记账 1 次");
+        AssertTrue(sink.AppliedCount == 2, "实写记账 2 次");
+    }
+
+    static void T33_FailRewrite()
+    {
+        int calls = 0;
+        var sink = new DedupEffectSink<string, bool>(delegate(string k, bool v) { calls++; return calls >= 3; }, null);
+        AssertTrue(!sink.Ensure("L2", true), "第 1 次失败返回 false");
+        AssertTrue(!sink.Ensure("L2", true), "第 2 次仍失败");
+        AssertTrue(sink.FailedCount == 2, "失败应逐次记账");
+        AssertTrue(sink.Ensure("L2", true), "第 3 次成功");
+        AssertTrue(sink.ExpectedSnapshot().Length == 1 && sink.ExpectedSnapshot()[0] == "L2", "成功后应入簿");
+        int before = calls;
+        AssertTrue(sink.Ensure("L2", true), "补写成功后同值跳过");
+        AssertTrue(calls == before, "成功记账后不再重写（去重恢复）");
+    }
+
+    static void T33_Invalidate()
+    {
+        int calls = 0;
+        var sink = new DedupEffectSink<string, int>(delegate(string k, int v) { calls++; return true; }, null);
+        sink.Ensure("L3", 7);
+        int b = calls;
+        sink.Ensure("L3", 7);
+        AssertTrue(calls == b, "Invalidate 前同值跳过");
+        sink.Invalidate("L3");
+        sink.Ensure("L3", 7);
+        AssertTrue(calls == b + 1, "Invalidate 后强制重写（怀疑外部被改场景）");
+    }
+
+    static void T34_DefaultAndLive()
+    {
+        var p = new PolicySource<int>(null, 42);
+        AssertTrue(p.Current == 42, "provider 缺位回缺省值（未注入=安全缺省）");
+        AssertTrue(p.CurrentOrDefault() == 42, "兜底口同样");
+        var q = new PolicySource<string>(null);
+        AssertTrue(q.Current == null, "无缺省构造=引用类型缺省 null");
+        int calls = 0;
+        var live = new PolicySource<int>(delegate { calls++; return calls * 10; }, -1);
+        AssertTrue(live.Current == 10, "第 1 次现取");
+        AssertTrue(live.Current == 20, "第 2 次现取（绝不缓存——改配置即生效语义）");
+        AssertTrue(calls == 2, "provider 应被调 2 次");
+    }
+
+    static void T34_ExceptionFallback()
+    {
+        var bad = new PolicySource<int>(delegate { throw new InvalidOperationException("配置炸了"); }, 99);
+        bool threw = false;
+        try { bad.Current.GetHashCode(); } catch (InvalidOperationException) { threw = true; }
+        AssertTrue(threw, "Current 异常透传（启动校验场景 fail-fast）");
+        AssertTrue(bad.CurrentOrDefault() == 99, "CurrentOrDefault 异常回缺省不炸线（泵/心跳场景）");
     }
 
     // ══════════ 辅助 ══════════

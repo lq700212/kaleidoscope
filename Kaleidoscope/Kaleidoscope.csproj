@@ -139,6 +139,13 @@
     <!-- 业务流编排（Flowing，V1.9.0）：宿主业务流调度器下沉——多组常驻轮询线程统一管理
          （专属命名线程/防重入/独占资源冲突 fail-fast/异常隔离节流/健康报告），见文件头注释 -->
     <Compile Include="Flowing\FlowGroupRunner.cs" />
+    <!-- 业务流编排（Flowing，V1.10.0）：状态机引擎原语沉库——发号三件套泛型化/快照-边沿顺序契约/
+         期望值去重补写执行器/每拍现取政策源（宿主 V0.9.66 反哺；对齐 HJVision LineFlow 与
+         CureLine IoBus 血泪契约），见各文件头注释 -->
+    <Compile Include="Flowing\EntityTracker.cs" />
+    <Compile Include="Flowing\SignalSource.cs" />
+    <Compile Include="Flowing\EffectSink.cs" />
+    <Compile Include="Flowing\PolicySource.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -6,8 +6,8 @@
 
 ![.NET Framework 4.7.2](https://img.shields.io/badge/.NET_Framework-4.7.2-5C2D91?logo=dotnet)
 ![C# 7.3](https://img.shields.io/badge/C%23-7.3-239120?logo=csharp)
-![v1.9.0](https://img.shields.io/badge/版本-v1.9.0-2E7DD1)
-![tests 158 passing](https://img.shields.io/badge/测试-158用例回归-3FB950)
+![v1.10.0](https://img.shields.io/badge/版本-v1.10.0-2E7DD1)
+![tests 173 passing](https://img.shields.io/badge/测试-173用例回归-3FB950)
 
 从生产级 WinForms 上位机工程持续反哺沉淀的通讯库:PLC(三种模式)+ 基恩士 IV4 相机 + 扫码枪三通道
 + 图片存储 + 九类实验室/产线仪器,一台 `DeviceHub` 门面接完;PLC 三拍握手、半开连接根治、
@@ -27,7 +27,7 @@ msbuild Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyC
 # ② 构建后运行 Demo 测试台（引用库的 bin 输出；同样是 msbuild 构建 Demo/KaleidoscopeDemo.csproj）
 Demo\bin\Debug\KaleidoscopeDemo.exe
 
-# ③ 跑 158 用例一键回归（改任何库代码后、提交前必须全 PASS：PASS=158 FAIL=0）
+# ③ 跑 173 用例一键回归（改任何库代码后、提交前必须全 PASS：PASS=173 FAIL=0）
 powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
 ```
 
@@ -42,6 +42,11 @@ powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
 - **业务流编排（`Flowing`，V1.9.0 起）**：处理线程组调度器 `FlowGroupRunner`——按"硬件独占资源"
   把轮询站拆组并发（同相机/同 ToolBlock 拆两组启动即 fail-fast，绝不带病上线静默串台），
   专属命名线程 + 圈异常隔离 + 健康报告，轮询纪律代码化；
+- **状态机引擎原语（`Flowing`，V1.10.0 起）**：实体发号器 `EntityTracker<TKey>`（发号/回收/
+  掉电续号三件套 + 外部给号登记 + 值域回绕）、轮询信号源 `PollingSignalSource`（**先整拍换
+  快照再统一发边沿**顺序契约的库级固化）、去重执行器 `DedupEffectSink`（期望值去重 + 失败
+  不记账下轮补写）、政策源 `PolicySource<T>`（每拍现取勿缓存）——上位机状态机四个通用件
+  开箱即用，业务图留在宿主；
 - **配置即数据的工程化体验**：强类型配置 + 内置 `.kcfg` 序列化（零第三方依赖）+ 保存前校验
   + 配置自文档化（新增字段自动出现在说明书里）；
 - **配套工具箱**：`Demo/` 接入骨架测试台、`ConfigEditor/` 可视化配置编辑器（自动渲染参数界面
