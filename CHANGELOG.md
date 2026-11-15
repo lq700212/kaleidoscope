@@ -7,6 +7,27 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.11.0（2026-11-16）视觉检测核心沉库：YOLO 检测域入库（源自 YoloDetector 项目）
+
+- **新增 `Vision/Detection/` 核心库**（Kaleidoscope.Detection.dll，多目标 net472/netstandard2.0，
+  dotnet build 构建）：自 YoloDetector 项目 Detection 类库沉淀的通用视觉检测核心 19 个源文件——
+  YOLO ONNX 检测器（YoloV26Detector：letterbox 预处理/双格式输出解析/NMS）+ 姿态检测器
+  （YoloPoseDetector：逐人裁剪扩边→17 关键点）、RTSP 帧源（RtspFrameCapturer：断流两层自愈），
+  检测域接口六件套（IYoloDetector/IPoseDetector/IDetectionPipeline/IFrameSource/
+  IDetectionVisualizer/IDetectionResultProcessor 及后处理三实现），Mat↔SKBitmap 高性能互转
+  （MatExtensions），可视化双方案（Skia 红框/OpenCV 绿框），ROI 框选状态机 + Zoom 坐标换算
+  （RoiSelectionState/ZoomMapping/EsdRoiRect），分级日志门面（LogManager）。
+- **命名空间保持 `YoloDetection` 不改**：源宿主（YoloDetector）以 git submodule 引用本库，
+  同名命名空间类型无缝解析，两侧代码零 using 改动；接入指南见 `Vision/Detection/README.md`。
+- **依赖 vendor 入库（约 201MB）**：托管 DLL（OpenCvSharp/OnnxRuntime/SkiaSharp/System.*）
+  + native 运行库（Windows .dll + Linux .so），克隆即编译、运行全离线；与主库 MSBuild 老式
+  工程并存，Vision 子库用 `dotnet build Vision/Detection/Kaleidoscope.Detection.csproj`。
+- **管道实现留宿主**：YoloDetectionService（Monitor 生产者-消费者管道，带静电触摸/门监测
+  业务旁路）留在源宿主业务层，本库只出 `IDetectionPipeline` 契约——依赖方向是管道→业务
+  分析器，与"业务留宿主"的拆分一致，复用方按接口注释自行实现或参考源宿主。
+- 验收：独立编译双目标 0 error 0 warning；源宿主 submodule 引用改造后全量回归全绿
+  （记录见 YoloDetector 仓库 CHANGELOG）。
+
 ## V1.10.1（2026-11-15）使用说明 6.7 补双宿主回接先例（CureLine V0.0.106 回接落地）
 
 - **纯文档变更，零代码/零 API 变化**（用例基线 173 不变）：`使用说明.md` 6.7 节补

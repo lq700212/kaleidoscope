@@ -6,7 +6,7 @@
 
 ![.NET Framework 4.7.2](https://img.shields.io/badge/.NET_Framework-4.7.2-5C2D91?logo=dotnet)
 ![C# 7.3](https://img.shields.io/badge/C%23-7.3-239120?logo=csharp)
-![v1.10.1](https://img.shields.io/badge/版本-v1.10.1-2E7DD1)
+![v1.11.0](https://img.shields.io/badge/版本-v1.11.0-2E7DD1)
 ![tests 173 passing](https://img.shields.io/badge/测试-173用例回归-3FB950)
 
 从生产级 WinForms 上位机工程持续反哺沉淀的通讯库:PLC(三种模式)+ 基恩士 IV4 相机 + 扫码枪三通道
@@ -47,6 +47,10 @@ powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
   快照再统一发边沿**顺序契约的库级固化）、去重执行器 `DedupEffectSink`（期望值去重 + 失败
   不记账下轮补写）、政策源 `PolicySource<T>`（每拍现取勿缓存）——上位机状态机四个通用件
   开箱即用，业务图留在宿主；
+- **视觉检测核心（`Vision/Detection`，V1.11.0 起）**：自 YoloDetector 项目沉淀的 YOLO 检测域
+  ——ONNX 推理检测器（目标检测 + 姿态 17 点）、RTSP 帧源（断流两层自愈）、检测域接口契约、
+  Mat↔SKBitmap 高性能互转、可视化绘制、ROI 框选与 Zoom 坐标换算、日志门面；多目标
+  net472/netstandard2.0 跨平台，依赖 vendor 离线编译（详见 `Vision/Detection/README.md`）；
 - **配置即数据的工程化体验**：强类型配置 + 内置 `.kcfg` 序列化（零第三方依赖）+ 保存前校验
   + 配置自文档化（新增字段自动出现在说明书里）；
 - **配套工具箱**：`Demo/` 接入骨架测试台、`ConfigEditor/` 可视化配置编辑器（自动渲染参数界面
@@ -95,6 +99,9 @@ kaleidoscope/
 │   ├── Utils/             #   日志出口 / Mock 桥 / 串口识别 / TCP KeepAlive
 │   ├── Security/          #   激活体系（V1.8.9 沉库：LicenseCodec/LicenseGate/LicenseBridges/LicenseStateIni）
 │   └── libs/              #   NModbus / NModbus.Serial / NModbus4 / HslCommunication
+├── Vision/                # 视觉检测域（V1.11.0 自 YoloDetector 沉淀）
+│   └── Detection/         #   YOLO 检测核心库（多目标 net472/netstandard2.0，dotnet build；
+│                          #   检测器/帧源/接口/互转/可视化/ROI/日志，命名空间 YoloDetection）
 ├── Demo/                  # WinForms 测试台（按标准接入方式写的最小界面，可直接抄骨架）
 ├── ConfigEditor/          # 可视化配置编辑器（不进库、不启停设备，只产 .kcfg）
 ├── docs/                  # 设备协议文档（寄存器映射 / 坑点 / 排障）
@@ -224,6 +231,7 @@ powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
 | [`使用说明.md`](./使用说明.md) | 完整接入手册：配置逐项、业务层写法、HSL 授权、热更、FAQ |
 | [`docs/通讯接入.md`](docs/通讯接入.md) | 设备协议文档：寄存器映射、坑点、排障 |
 | [`Demo/README.md`](Demo/README.md) | 测试台使用与验收清单 |
+| [`Vision/Detection/README.md`](Vision/Detection/README.md) | YOLO 视觉检测核心库接入指南（检测器/帧源/契约/构建） |
 | [`ConfigEditor/README.md`](ConfigEditor/README.md) | 可视化配置编辑器说明 |
 | [`AGENTS.md`](AGENTS.md) | 维护 / AI 协作约定、已知通讯关键点（现场实测沉淀） |
 | [`CHANGELOG.md`](CHANGELOG.md) | 版本记录：每次改动都留痕 |

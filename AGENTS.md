@@ -104,6 +104,19 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 - **ConfigEditor（V1.3.0，独立工具不进库）**：`ConfigEditor/` 可视化配置编辑器只产 `.kcfg`、不启停设备；靠 Models 元数据自动渲染属性网格，**新增配置字段无需改编辑器代码**；`BrandPresets.cs` 品牌预设只收敛参数差异，协议差异仍需改库；产出文件经 `ConfigSerializer.Load` + `ApplyConfig` 接入。编辑器自身遵循"改动必须可编译"铁律（同库工程构建命令）。**界面（V1.5.0 起）用 SunnyUI 小清新**（`UIForm` + LayuiGreen 主题，`libs/` 离线引用 SunnyUI.dll + SunnyUI.Common.dll，构建自动拷输出目录；SunnyUI.dll 运行时依赖 Common，两个都要带）。
 - **设备自文档化（V1.4.0）**：`DeviceDescriptorRegistry` 基于 Models 元数据反射自动构建描述符（设备中文名 + 字段：中文名/说明/分组/类型/默认值/是否集合），`DeviceDescriptionExporter` 导出 Markdown 说明书（编辑器「导出说明书…」按钮同源）。**新增配置模型时只需在 Registry 静态构造里登记一行设备中文名**；字段清单自动跟上。校验规则仍手写在 `DeviceHubConfigValidator`（地址重叠等跨字段逻辑自动推导不了），两者职责互补。
 
+## Vision 视觉检测域（V1.11.0 起，独立子模块）
+
+- `Vision/Detection/` 是 **SDK 风格多目标类库**（net472;netstandard2.0，LangVersion 7.3），
+  **用 dotnet build 构建**（与主库 MSBuild 老式工程并存，需装 .NET SDK）：
+  `dotnet build Vision/Detection/Kaleidoscope.Detection.csproj -v q`，双目标 0 error 0 warning 为过关。
+- 命名空间固定 `YoloDetection`（源宿主 YoloDetector 经 git submodule 引用本库，改名会破坏
+  两侧引用）——**改本域公共 API 前先评估源宿主影响**。
+- 接入契约（Mat 所有权归订阅者、事件传不可变快照、检测器串行化、配置/日志注入）与依赖
+  约束见 `Vision/Detection/README.md`，**改本域前先读**。
+- 模型与现场运行配置不入库（ONNX 大二进制、阈值/IP/ROI 标定归源宿主维护）；依赖 vendor
+  在 `Vision/Detection/libs/`（托管 + native 双平台），更换 OpenCvSharp/OnnxRuntime/SkiaSharp
+  版本后需同步替换并验证双目标编译。
+
 ## 已知通讯关键点（改之前先读对应文件注释）
 
 - **PLC 从站网络释放（V2.14.23 血泪）**：重建/Dispose 时除 `_cts.Cancel()`/`_listener.Stop()` 外**必须 `_network?.Dispose()`**（NModbus `ModbusTcpSlaveNetwork` 实现了 IDisposable，会停止 TcpListener 并关闭所有已连入的 master TCP 会话；只 Stop listener 会让 PLC 主站认为旧连接还活着、不重连新从站 → 通讯假死）。三处清理点统一补。

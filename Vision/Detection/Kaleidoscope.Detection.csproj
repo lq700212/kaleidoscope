@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Kaleidoscope.Vision 视觉检测模块类库（自 YoloDetector 项目沉淀，可独立迁移，离线编译，跨平台）：
+    - 多目标编译，全平台能力一致（使用不变、效果不变）：
+        net472          → Windows .NET Framework 宿主
+        netstandard2.0  → .NET Core 2+/net5+/net8+/Mono（Windows/Linux/macOS）
+      Bitmap 后端统一采用 SkiaSharp（Google Skia 跨平台封装）：
+      MatToSKBitmap/SKBitmapToMat 与 YoloBuiltinVisualizer 在两大目标下
+      同一套 API、同一渲染效果，无任何条件编译差异
+    - 命名空间保持 YoloDetection（沉淀时原样保留，宿主接入零 using 改动）；
+      接入指南见同目录 README.md
+    - 离线编译：依赖 DLL 已 vendor 到 libs\（Reference HintPath），不依赖 NuGet 还原；
+      native 运行库随 libs\native 入库（含 Windows 的 .dll 与 Linux 的 .so，
+      不参与编译，仅运行时需要，经 ProjectReference 自动流转到宿主输出目录）
+    - 迁移方式：把本目录整个复制到目标解决方案 + 添加项目引用（或编译后引用 DLL）
+    - 依赖约束：本程序集禁止引用宿主业务代码，
+      日志与配置全部经委托/参数注入（见 LogManager.Initialize 与各接口注释）
+    - 构建：dotnet build Kaleidoscope.Detection.csproj（SDK 风格多目标，与仓库其余
+      MSBuild 老式工程并存；也可用 VS MSBuild 编译，需安装 .NET SDK 工作负载）
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net472;netstandard2.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>7.3</LangVersion>
+    <!-- MatExtensions 的整块内存拷贝使用 Buffer.MemoryCopy 指针重载（全平台 memmove） -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <!-- 离线依赖：vendor 的托管程序集（编译期引用，运行期随输出分发） -->
+  <ItemGroup>
+    <Reference Include="OpenCvSharp">
+      <HintPath>libs\OpenCvSharp.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>libs\Microsoft.ML.OnnxRuntime.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SkiaSharp">
+      <HintPath>libs\SkiaSharp.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+  <!-- Span/Memory 支撑程序集：OpenCvSharp/OnnxRuntime/SkiaSharp 的 netstandard2.0 版在
+       net472 与 netstandard2.0 目标下都需要（netstandard2.1+ 才内置 Span） -->
+  <ItemGroup>
+    <Reference Include="System.Memory"><HintPath>libs\System.Memory.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="System.Buffers"><HintPath>libs\System.Buffers.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="System.Numerics.Vectors"><HintPath>libs\System.Numerics.Vectors.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe"><HintPath>libs\System.Runtime.CompilerServices.Unsafe.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+  <!-- native 运行库：Link 平铺到输出根目录，
+       并经 ProjectReference 流转到宿主输出目录（运行时 DllImport 按 exe 目录解析） -->
+  <ItemGroup>
+    <None Include="libs\native\**\*.dll" CopyToOutputDirectory="PreserveNewest">
+      <Link>%(Filename)%(Extension)</Link>
+    </None>
+    <None Include="libs\native\**\*.so" CopyToOutputDirectory="PreserveNewest">
+      <Link>%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+</Project>
