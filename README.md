@@ -6,7 +6,7 @@
 
 ![.NET Framework 4.7.2](https://img.shields.io/badge/.NET_Framework-4.7.2-5C2D91?logo=dotnet)
 ![C# 7.3](https://img.shields.io/badge/C%23-7.3-239120?logo=csharp)
-![v1.10.0](https://img.shields.io/badge/版本-v1.10.0-2E7DD1)
+![v1.10.1](https://img.shields.io/badge/版本-v1.10.1-2E7DD1)
 ![tests 173 passing](https://img.shields.io/badge/测试-173用例回归-3FB950)
 
 从生产级 WinForms 上位机工程持续反哺沉淀的通讯库:PLC(三种模式)+ 基恩士 IV4 相机 + 扫码枪三通道
