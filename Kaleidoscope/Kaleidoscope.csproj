@@ -136,6 +136,9 @@
     <Compile Include="Security\LicenseGate.cs" />
     <Compile Include="Security\LicenseBridges.cs" />
     <Compile Include="Security\LicenseStateIni.cs" />
+    <!-- 业务流编排（Flowing，V1.9.0）：宿主业务流调度器下沉——多组常驻轮询线程统一管理
+         （专属命名线程/防重入/独占资源冲突 fail-fast/异常隔离节流/健康报告），见文件头注释 -->
+    <Compile Include="Flowing\FlowGroupRunner.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

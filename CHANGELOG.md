@@ -7,6 +7,42 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V1.9.0（2026-11-15）业务流编排首件沉库：Flowing/FlowGroupRunner 处理线程组调度器（宿主 V0.9.65 反哺）
+
+> 对应宿主 HJVision-WPF V0.9.65：把宿主业务流调度器（原 SubClass/LineFlow/LineFlowGroupRunner.cs，
+> 2026-11-14 V4.4.401 建立、2026-11-15 V4.4.402 复用封装）一比一下沉库内，语义零改动，只改
+> 命名空间（`Kaleidoscope.Flowing`）与类名（去 Line 业务前缀）。这是库第一个"业务流编排"组件
+> （此前只有设备通讯族），开启 `Flowing/` 目录：后续状态机引擎原语（实体跟踪器/信号源契约/
+> 执行器口）按二期计划继续沉淀。
+> 【为什么值得沉】多组常驻轮询线程的统一管理是上位机通用件：专属命名线程（不用 ThreadPool——
+> 长驻 while 会占死池 worker，拖累主程序全线异步任务）、同名防重入、独占资源标签冲突 fail-fast
+> （同相机/同 ToolBlock 的站拆两组=组间并发同时驱动同一硬件串台，启动即抛带修复指引的异常，
+> 绝不带病上线）、圈异常隔离与节流记账（单站/单圈故障绝不冲循环拖垮其它组）、健康报告
+> （最近圈龄异常变大=某站卡死/线程死锁的第一排查入口）——纪律代码化，接入即继承。
+
+### 新增
+
+- `Kaleidoscope/Flowing/FlowGroupRunner.cs`：处理线程组调度器（静态类，零业务依赖只 System.*）。
+  公共面：`LogSink`（日志口，缺省 Debug 兜底，宿主注入自己的日志门面让调度日志与业务日志同流）/
+  `StartGroup(组名, 一圈动作, 周期ms, params 独占资源标签)`（防重入+独占资源冲突 fail-fast，
+  periodMs 钳 10 下限防空转打满 CPU）/`StopAll()`（尽力 Join 500ms，停止即释放资源标签可重启）/
+  `HealthReport()`（一行一组：存活/最近圈龄/圈数/异常数/独占资源）。
+- `Kaleidoscope/Kaleidoscope.csproj`：Compile 清单加 `Flowing\FlowGroupRunner.cs`（显式 Compile，
+  守老 csproj 风格）。
+
+### 测试
+
+- SmokeTest 新增「流组」6 例（T30：冲突 fail-fast/同组重复标签去重与无标签不比对/StopAll 释放
+  可重启+同名防重入/周期钳位与日志口缺省注入/圈异常隔离记账/健康报告），基线 152→158。
+- 「流组.5 圈异常隔离」已做反向验证：临时删 LoopBody 的 try-catch（异常冲出线程）→ 测试进程
+  崩溃于圈异常（抓红），恢复后 158 全绿——用例真的在测隔离。
+
+### 兼容面
+
+- 纯新增，零破坏：宿主 HJVision 侧留 `HuaJiVision.Core.Flow.LineFlowGroupRunner` 转发壳
+  （公共面签名原样，存量脚本/生成器发射文本/W20 探针零改动）；CureLine 引用库 DLL 下次
+  子模块升级自动携带，无 breaking。
+
 ## V1.8.10（2026-11-08）PLC 字节块读：IsString 通道 + PlcSyncReadBytes（宿主 V0.9.58 反哺）
 
 > 对应宿主 HJVision-WPF V0.9.58 同步原版 V4.4.379（欧姆龙 EIP 读 SN 字符串标签）：

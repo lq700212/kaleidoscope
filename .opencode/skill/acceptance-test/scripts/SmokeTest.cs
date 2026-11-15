@@ -34,6 +34,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using Kaleidoscope.Configuration;
+using Kaleidoscope.Flowing;
 using Kaleidoscope.Models;
 using Kaleidoscope.Services;
 using Kaleidoscope.Utils;
@@ -265,6 +266,13 @@ internal static class Smoke
         Run("工具.2 TcpKeepAlive 空安全", T29_KeepAlive);
         Run("工具.3 串口识别无硬件安全", T29_SerialHelper);
         Run("工具.4 HSL 文件格式守卫", T29_HslFile);
+
+        Run("流组.1 同资源跨组启动必抛（fail-fast）", T30_ConflictFailFast);
+        Run("流组.2 同组重复标签去重 / 无标签不比对", T30_SameGroupDupAndNoTag);
+        Run("流组.3 StopAll 释放可重启 + 同名防重入", T30_StopReleaseAndReentry);
+        Run("流组.4 周期钳位不抛 + 日志口缺省与注入", T30_PeriodClampAndLogSink);
+        Run("流组.5 圈异常隔离不冲循环 + 异常记账", T30_ExceptionIsolation);
+        Run("流组.6 健康报告含组名/圈龄/圈数/资源", T30_HealthReport);
 
         Console.WriteLine();
         Console.WriteLine("=== 汇总：PASS=" + _pass + "  FAIL=" + _fail + "  SKIP=" + _skip + " ===");
@@ -2732,6 +2740,133 @@ internal static class Smoke
             string content = File.ReadAllText(HslAuthorization.AuthFilePath);
             AssertTrue(content.Contains("ENC1:"), "授权文件非加密格式");
         }
+    }
+
+    // ══════════ 30. 流组（Flowing/FlowGroupRunner：多组常驻轮询线程调度，V1.9.0 自宿主业务流下沉） ══════════
+    // 与宿主 W20 探针 LR 组同口径（防重入/冲突 fail-fast/去重/StopAll 释放/钳位/日志口/健康报告），
+    // 并补宿主未覆盖的圈异常隔离记账；每组用例前后 StopAll 清场，防残留存活组污染冲突判定。
+    static void T30_ConflictFailFast()
+    {
+        FlowGroupRunner.StopAll();   // 清场：冲突检测只比存活组，先确保无残留
+        bool threw = false; string msg = "";
+        try
+        {
+            FlowGroupRunner.StartGroup("T30组A", delegate { }, 50, "CamX");
+            FlowGroupRunner.StartGroup("T30组B", delegate { }, 50, "camx");   // 忽略大小写=同一台硬件
+        }
+        catch (InvalidOperationException ex) { threw = true; msg = ex.Message; }
+        AssertTrue(threw, "同资源跨组启动应抛 InvalidOperationException（fail-fast 不带病上线），实际没抛");
+        AssertTrue(msg.IndexOf("camx", StringComparison.OrdinalIgnoreCase) >= 0
+            && msg.IndexOf("T30组A", StringComparison.Ordinal) >= 0
+            && msg.IndexOf("T30组B", StringComparison.Ordinal) >= 0,
+            "异常消息应含冲突资源（归一标签）与两组名，实际：" + msg);
+        FlowGroupRunner.StopAll();
+    }
+    static void T30_SameGroupDupAndNoTag()
+    {
+        FlowGroupRunner.StopAll();
+        bool ok = true; string why = "";
+        try
+        {
+            // 同组重复标签（大小写混标）去重无害；另一方无标签/null 不参与比对
+            FlowGroupRunner.StartGroup("T30重复组", delegate { }, 50, "CamY", "camy", "CamY");
+            FlowGroupRunner.StartGroup("T30无标组A", delegate { }, 50);
+            FlowGroupRunner.StartGroup("T30无标组B", delegate { }, 50, "CamZ");
+            FlowGroupRunner.StartGroup("T30null组", delegate { }, 50, null);
+        }
+        catch (Exception ex) { ok = false; why = ex.Message; }
+        AssertTrue(ok, "同组重复标签/无标签/null 应不参与冲突检测（旧行为兼容），实际抛：" + why);
+        FlowGroupRunner.StopAll();
+    }
+    static void T30_StopReleaseAndReentry()
+    {
+        FlowGroupRunner.StopAll();
+        bool ok = true; string why = "";
+        try
+        {
+            FlowGroupRunner.StartGroup("T30释放组A", delegate { }, 10, "CamV");
+            FlowGroupRunner.StopAll();   // 停止即释放资源标签（冲突检测只比存活组）
+            FlowGroupRunner.StartGroup("T30释放组B", delegate { }, 10, "CamV");   // 同资源可重启，不抛
+        }
+        catch (Exception ex) { ok = false; why = ex.Message; }
+        AssertTrue(ok, "StopAll 后同资源应可重启（无需手工清表），实际抛：" + why);
+        // 同名防重入：存活组二次启动跳过（不抛、不双起——组表只一条）
+        FlowGroupRunner.StopAll();
+        ok = true; why = "";
+        try
+        {
+            FlowGroupRunner.StartGroup("T30防重入组", delegate { }, 10);
+            FlowGroupRunner.StartGroup("T30防重入组", delegate { }, 10);   // 同名存活→跳过
+        }
+        catch (Exception ex) { ok = false; why = ex.Message; }
+        AssertTrue(ok, "同名组二次启动应跳过不抛，实际抛：" + why);
+        AssertTrue(CountOccurrences(FlowGroupRunner.HealthReport(), "T30防重入组") == 1,
+            "防重入后健康报告里该组应只一条（组表不双登）");
+        FlowGroupRunner.StopAll();
+    }
+    static void T30_PeriodClampAndLogSink()
+    {
+        FlowGroupRunner.StopAll();
+        bool ok = true; string why = "";
+        try { FlowGroupRunner.StartGroup("T30钳位组", delegate { }, 0); }   // periodMs=0 钳到 10 防空转打满 CPU
+        catch (Exception ex) { ok = false; why = ex.Message; }
+        AssertTrue(ok, "periodMs=0 应钳位不抛，实际抛：" + why);
+        AssertTrue(FlowGroupRunner.LogSink != null, "日志口缺省应非 null（Debug 兜底，不注入也能跑）");
+        // 注入生效：启动日志走注入口（宿主把调度日志导进自己的运行日志的通道）
+        Action<string> old = FlowGroupRunner.LogSink;
+        List<string> got = new List<string>();
+        FlowGroupRunner.LogSink = delegate(string m) { got.Add(m); };
+        try { FlowGroupRunner.StartGroup("T30日志组", delegate { }, 10); }
+        finally { FlowGroupRunner.LogSink = old; }
+        AssertTrue(got.Count > 0 && got[0].IndexOf("T30日志组", StringComparison.Ordinal) >= 0,
+            "注入日志口后应收到启动日志（首条含组名），实际 " + got.Count + " 条");
+        FlowGroupRunner.StopAll();
+    }
+    static void T30_ExceptionIsolation()
+    {
+        FlowGroupRunner.StopAll();
+        // Round 每圈必抛：异常绝不冲出循环（单站/单圈故障不拖垮本组轮询），逐圈记账
+        FlowGroupRunner.StartGroup("T30异常组", delegate { throw new InvalidOperationException("T30 圈异常样例"); }, 10);
+        Wait(() => ParseReportNum(FlowGroupRunner.HealthReport(), "T30异常组", "异常 ") >= 3,
+            5000, "每圈抛异常应逐圈记账（异常数 ≥3）");
+        // 隔离证明：异常后下一圈继续跑（圈数持续增长），StopAll 后线程正常退出（报告转"已停"）
+        int rounds1 = ParseReportNum(FlowGroupRunner.HealthReport(), "T30异常组", "共 ");
+        Wait(() => ParseReportNum(FlowGroupRunner.HealthReport(), "T30异常组", "共 ") > rounds1 + 5,
+            5000, "圈异常后循环应继续（圈数增长）——异常冲出循环=本断言必红");
+        FlowGroupRunner.StopAll();
+        Wait(() => FlowGroupRunner.HealthReport().IndexOf("已停 T30异常组", StringComparison.Ordinal) >= 0,
+            5000, "StopAll 后组线程应退出（健康报告转已停）");
+    }
+    static void T30_HealthReport()
+    {
+        FlowGroupRunner.StopAll();
+        FlowGroupRunner.StartGroup("T30报告组", delegate { }, 50, "CamU", "TB9");
+        string rep = FlowGroupRunner.HealthReport();
+        AssertTrue(rep.IndexOf("T30报告组", StringComparison.Ordinal) >= 0
+            && rep.IndexOf("最近圈龄", StringComparison.Ordinal) >= 0
+            && rep.IndexOf("共 ", StringComparison.Ordinal) >= 0
+            && rep.IndexOf("CamU", StringComparison.Ordinal) >= 0
+            && rep.IndexOf("TB9", StringComparison.Ordinal) >= 0,
+            "健康报告应含组名/圈龄/圈数/独占资源列（排查第一入口），实际：\n" + rep);
+        FlowGroupRunner.StopAll();
+    }
+    /// <summary>健康报告数字提取："共 N 圈"/"异常 N 次"→N（找不到该组/标记返回 0）。</summary>
+    static int ParseReportNum(string report, string name, string label)
+    {
+        int ix = report.IndexOf(name, StringComparison.Ordinal);
+        if (ix < 0) return 0;
+        int ixL = report.IndexOf(label, ix, StringComparison.Ordinal);
+        if (ixL < 0) return 0;
+        int start = ixL + label.Length, end = start;
+        while (end < report.Length && char.IsDigit(report[end])) end++;
+        int v; int.TryParse(report.Substring(start, end - start), out v);
+        return v;
+    }
+    static int CountOccurrences(string text, string sub)
+    {
+        int n = 0, ix = 0;
+        while ((ix = text.IndexOf(sub, ix, StringComparison.Ordinal)) >= 0) { n++; ix += sub.Length; }
+        return n;
     }
 
     // ══════════ 辅助 ══════════

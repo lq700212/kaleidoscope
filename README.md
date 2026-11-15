@@ -6,8 +6,8 @@
 
 ![.NET Framework 4.7.2](https://img.shields.io/badge/.NET_Framework-4.7.2-5C2D91?logo=dotnet)
 ![C# 7.3](https://img.shields.io/badge/C%23-7.3-239120?logo=csharp)
-![v1.8.5](https://img.shields.io/badge/版本-v1.8.5-2E7DD1)
-![tests 152 passing](https://img.shields.io/badge/测试-152用例回归-3FB950)
+![v1.9.0](https://img.shields.io/badge/版本-v1.9.0-2E7DD1)
+![tests 158 passing](https://img.shields.io/badge/测试-158用例回归-3FB950)
 
 从生产级 WinForms 上位机工程持续反哺沉淀的通讯库:PLC(三种模式)+ 基恩士 IV4 相机 + 扫码枪三通道
 + 图片存储 + 九类实验室/产线仪器,一台 `DeviceHub` 门面接完;PLC 三拍握手、半开连接根治、
@@ -27,7 +27,7 @@ msbuild Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyC
 # ② 构建后运行 Demo 测试台（引用库的 bin 输出；同样是 msbuild 构建 Demo/KaleidoscopeDemo.csproj）
 Demo\bin\Debug\KaleidoscopeDemo.exe
 
-# ③ 跑 152 用例一键回归（改任何库代码后、提交前必须全 PASS：PASS=152 FAIL=0）
+# ③ 跑 158 用例一键回归（改任何库代码后、提交前必须全 PASS：PASS=158 FAIL=0）
 powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
 ```
 
@@ -39,6 +39,9 @@ powershell -File .opencode/skill/acceptance-test/scripts/run-smoke.ps1
   多品牌主站（三菱/欧姆龙/西门子/汇川协议），配置里一个字段切换，业务代码不变；
 - **九类生产工程反哺件**：统一读写队列、TCP/EIP 通用通道、耐压绝缘、气密、柔性供料震动盘、
   激光打码、串口光源、IDMVS 读码器、统一读码抽象——在真实产线多轮迭代验证过的独立服务族；
+- **业务流编排（`Flowing`，V1.9.0 起）**：处理线程组调度器 `FlowGroupRunner`——按"硬件独占资源"
+  把轮询站拆组并发（同相机/同 ToolBlock 拆两组启动即 fail-fast，绝不带病上线静默串台），
+  专属命名线程 + 圈异常隔离 + 健康报告，轮询纪律代码化；
 - **配置即数据的工程化体验**：强类型配置 + 内置 `.kcfg` 序列化（零第三方依赖）+ 保存前校验
   + 配置自文档化（新增字段自动出现在说明书里）；
 - **配套工具箱**：`Demo/` 接入骨架测试台、`ConfigEditor/` 可视化配置编辑器（自动渲染参数界面
