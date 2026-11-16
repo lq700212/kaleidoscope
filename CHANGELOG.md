@@ -28,6 +28,38 @@
 - 验收：独立编译双目标 0 error 0 warning；源宿主 submodule 引用改造后全量回归全绿
   （记录见 YoloDetector 仓库 CHANGELOG）。
 
+## V1.12.0（2026-11-17）双域扩容：Stores 落库引擎 + Cameras 相机层（HJVision V0.9.68 反哺）
+
+- **新增 `Stores` 命名空间（SQLite 单写线程落库引擎）**：`KxSqliteStore`（Register/Close
+  幂等状态机 + 单写线程批量事务 + WAL + 坏库自愈 `.bad_时间戳` 隔离 + 积压保险丝 +
+  独立短连接读 + DbMeta 固有 kv + EnsureColumn 旧库补列迁移 + 增量空间回收）+
+  `KxDbAction`（委托型写动作：引擎对业务表零知识，宿主闭包捕获自己的行 DTO）。
+  逻辑一比一对齐 HJVision `SqliteRecordQue` 骨架与全部血泪注释（PRAGMA 顺序铁律
+  auto_vacuum 先于 WAL/提交防线/自愈只隔离真损坏等）；**Solo 独占通道的完成回执
+  收敛为确定性语义**——Done 在 OnCommitted 之后才 Set，同步等待方读数无竞态
+  （老版为尽力语义）。宿主 SqliteRecordQue 改壳后公开 API 零改动。
+- **新增 `Cameras` 命名空间（三品牌工业相机层）**：`KxCamFrame`（中性帧 DTO：Mono8/
+  Range16 + 尺度元数据，**解 ICogImage 焊点**——库零 VisionPro 依赖，换图像库宿主
+  直接消费）+ `KxCameraDeviceBase`（抽象基类：生命周期/触发/回调/掉线/NoteNoDevice
+  静默开关）+ `KxCameraDiscovery`（三品牌只发现不打开）+ `KxGigEIpAdmin`（改 IP
+  执行体：校验与 SDK 执行分离/海康 GevPersistent 三键+DeviceReset 复位生效链/
+  同网段前置检查）+ 三适配器 `KxDaHengCamera`（Init/Uninit 进程级配对计数/深拷
+  防花屏/最优包大小/帧防抖）、`KxHik2DCamera`（Create/Destroy 配对/丢包重发使能/
+  EnsureMono8 验真/特征名新旧回落/软触发武装兜底/探活断点）、`KxHik3DCamera`
+  （Depth +32768 偏移重映射/Profile 高度钳 5/半成品空壳一比一保留并注明欠账）。
+  宿主 `CameraAbstract` 组合壳 + `CogFrameBridge` 桥（KxCamFrame→ICogImage：Stride
+  感知拷贝/占位黑图/3D 尺度变换/Profile 承载对象保活环形槽），存量调用点零改动。
+- **依赖增量**：`libs/` 新增 System.Data.SQLite.dll（1.0.119）+ x64/x86 SQLite.Interop.dll
+  （native 三件套，消费项目按进程位数部署）+ GxIAPINET.dll / MvCameraControl.Net.dll /
+  Mv3dLpNet.dll（三相机 wrapper，均 AMD64；**原生运行库硬约束**：海康 MVS 客户端/
+  大恒 Galaxy 驱动/Mv3dLP 运行库须现场安装，缺驱动机器上"校验与 SDK 执行分离"
+  保证枚举/校验路径可用，SDK 执行路径走正常错误串不崩进程）。
+- **验证**：库冒烟 173 全绿（FAIL=0 SKIP=3 基线不变）；宿主侧全量回归 22 批全绿
+  （含新增 W22 探针 46 项：引擎直测 18 + 壳兼容 6 + 相机桥 12 + IP/发现/壳转发 10，
+  含坏库自愈/坏 SQL 单条隔离/Solo 提交回执回滚修正/Stride 感知逐行拷像素逐位断言
+  等负路径）；真机冒烟启动/登录/相机装配（4 台 SN 品牌识别）/掉线状态/Mock 桥/
+  优雅退出全链正常。
+
 ## V1.10.1（2026-11-15）使用说明 6.7 补双宿主回接先例（CureLine V0.0.106 回接落地）
 
 - **纯文档变更，零代码/零 API 变化**（用例基线 173 不变）：`使用说明.md` 6.7 节补

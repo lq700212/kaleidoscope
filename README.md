@@ -96,9 +96,12 @@ kaleidoscope/
 │   ├── Models/            #   强类型配置模型（每个字段带中文说明元数据）
 │   ├── Configuration/     #   .kcfg 序列化 + 保存前校验 + 设备说明书自动导出
 │   ├── Services/          #   全部设备通讯服务（含生产工程反哺件）
+│   ├── Stores/            #   SQLite 落库引擎（V1.12.0：单写线程/批量事务/WAL/坏库自愈/保险丝/DbMeta kv）
+│   ├── Cameras/           #   三品牌工业相机层（V1.12.0：中性帧 KxCamFrame/发现/改IP/大恒+海康2D+海康3D）
+│   ├── Flowing/           #   业务流编排（V1.9.0 流组调度 + V1.10.0 状态机原语 EntityTracker 等）
 │   ├── Utils/             #   日志出口 / Mock 桥 / 串口识别 / TCP KeepAlive
 │   ├── Security/          #   激活体系（V1.8.9 沉库：LicenseCodec/LicenseGate/LicenseBridges/LicenseStateIni）
-│   └── libs/              #   NModbus / NModbus.Serial / NModbus4 / HslCommunication
+│   └── libs/              #   NModbus / NModbus.Serial / NModbus4 / HslCommunication / System.Data.SQLite(+x64\x86 interop) / 三相机 SDK wrapper
 ├── Vision/                # 视觉检测域（V1.11.0 自 YoloDetector 沉淀）
 │   └── Detection/         #   YOLO 检测核心库（多目标 net472/netstandard2.0，dotnet build；
 │                          #   检测器/帧源/接口/互转/可视化/ROI/日志，命名空间 YoloDetection）
@@ -187,6 +190,8 @@ hub.ApplyConfig(newConfig);
 | `LaserMarkService` + `MarkContentHub` | 激光打码（TCP/串口双传输 + 完成信号判定）+ 打码内容交接中心 | 串口名动态识别 |
 | `LedControl` | 串口光源驱动（通道 + 亮度指令） | —— |
 | `CodeReaderClient` + `ICodeReader` | 读码器统一抽象：不同品牌读码器归一为"现在给我读一次码" | 换读码设备不改业务代码 |
+| `KxSqliteStore` + `KxDbAction` | SQLite 单写线程落库引擎（V1.12.0）：队列/批量事务/WAL/坏库自愈/保险丝/DbMeta kv/补列迁移 | 宿主只注入建表 SQL 与委托动作，公开面壳化零改动 |
+| `KxCameraDeviceBase` 三适配器 + `KxCameraDiscovery` + `KxGigEIpAdmin` | 三品牌工业相机层（V1.12.0）：大恒/海康2D/海康3D 采集骨架，帧以中性 DTO `KxCamFrame` 上抛 | 库零 VisionPro 依赖；图像容器包装归宿主桥；全部真机血泪注释随行 |
 
 **宿主桥接**：演示模式短路、日志出口全部走注入桥（`MockBridge` 三委托 / `LogHelper.LogAction`
 / `DeviceServiceBase.LogSink`）——库不依赖任何业务工程；推荐在宿主日志与 Mock 类的静态构造里接线，

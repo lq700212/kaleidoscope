@@ -35,6 +35,8 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <!-- ADO.NET 基类（SQLiteConnection/Command 的继承基座，Stores 落库引擎） -->
+    <Reference Include="System.Data" />
     <!-- 串口扫码枪（ScannerService） -->
     <Reference Include="System.IO.Ports" />
     <!-- 图片存储（ImageStore 用 Bitmap/Image） -->
@@ -67,6 +69,28 @@
       <!-- 公司购买的商业 PLC 协议库 12.6.0.0（从 HJvision 项目随库迁移，V1.6.0）：
            多品牌 PLC 主站（三菱/欧姆龙/西门子/汇川）+ EtherNet/IP 扫码枪；
            授权统一在 Utils/HslAuthorization 注册，仅 Services 层引用，Models/Configuration 不依赖 -->
+    </Reference>
+    <!-- System.Data.SQLite 1.0.119（Stores 落库引擎用；从 HJVision 运行目录同版本迁入）。
+         部署三件套：本 dll + x64\SQLite.Interop.dll + x86\SQLite.Interop.dll（libs 内同存，
+         native interop 按进程位数随 exe 目录 x64/x86 子目录部署，缺则运行时报找不到 interop） -->
+    <Reference Include="System.Data.SQLite">
+      <HintPath>libs\System.Data.SQLite.dll</HintPath>
+    </Reference>
+    <!-- 三品牌工业相机 SDK 的 .NET wrapper（Cameras 相机层用；均 AMD64/MSIL-64，
+         消费项目必须 64 位进程 AnyCPU+Prefer32Bit=false）。
+         【运行库硬约束】wrapper 依赖机器上安装的原生运行库：海康 MVS 客户端
+         （MvCameraControl.dll/MvGigEVisionIF 等）、海康 3D 运行库（Mv3dLpPlatform 等）、
+         大恒 Galaxy 驱动（libGxIAPINET/DxImageProc 等）——未安装驱动时 wrapper 的
+         C++/CLI 程序集 JIT 一碰即 FileNotFound，故库内"校验与 SDK 执行分离"：
+         纯校验方法不引用 SDK 类型，执行方法在缺驱动时走正常错误串（Cameras 层沿用） -->
+    <Reference Include="GxIAPINET">
+      <HintPath>libs\GxIAPINET.dll</HintPath>
+    </Reference>
+    <Reference Include="MvCameraControl.Net">
+      <HintPath>libs\MvCameraControl.Net.dll</HintPath>
+    </Reference>
+    <Reference Include="Mv3dLpNet">
+      <HintPath>libs\Mv3dLpNet.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -146,6 +170,25 @@
     <Compile Include="Flowing\SignalSource.cs" />
     <Compile Include="Flowing\EffectSink.cs" />
     <Compile Include="Flowing\PolicySource.cs" />
+    <!-- 数据落库引擎（Stores，V1.12.0）：SQLite 单写线程落库底座沉库——单写线程/批量事务/
+         WAL/坏库自愈/积压保险丝/独立短连接读/DbMeta kv/旧库补列迁移/增量空间回收，
+         业务只注入表结构 SQL 与委托型写动作（宿主 V0.9.68 反哺；逻辑一比一对齐
+         HJVision SqliteRecordQue 骨架与全部血泪注释），见文件头注释 -->
+    <Compile Include="Stores\KxSqliteStore.cs" />
+    <Compile Include="Stores\KxDbAction.cs" />
+    <!-- 工业相机层（Cameras，V1.12.0）：三品牌采集底座沉库——中性帧 KxCamFrame（解 ICogImage
+         焊点）/抽象基类/三品牌发现/GigE 改 IP 执行体/大恒+海康2D+海康3D 适配器（全部真机
+         血泪注释随行：Init 配对计数/深拷防花屏/EnsureMono8 验真/Stride 感知/复位生效链等）；
+         宿主桥负责 KxCamFrame→自家图像容器（VisionPro 侧留宿主，库零 VisionPro 依赖），
+         见各文件头注释 -->
+    <Compile Include="Cameras\KxCamTypes.cs" />
+    <Compile Include="Cameras\KxCamFrame.cs" />
+    <Compile Include="Cameras\KxCameraDeviceBase.cs" />
+    <Compile Include="Cameras\KxCameraDiscovery.cs" />
+    <Compile Include="Cameras\KxGigEIpAdmin.cs" />
+    <Compile Include="Cameras\KxDaHengCamera.cs" />
+    <Compile Include="Cameras\KxHik2DCamera.cs" />
+    <Compile Include="Cameras\KxHik3DCamera.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
