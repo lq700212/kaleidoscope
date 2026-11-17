@@ -1,0 +1,57 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+      =========================================================================
+      DefaultDark.xaml：Kaleidoscope.UI 控件的缺省深色键板（36 键，键名契约同
+      DefaultLight.xaml 注释清单）
+
+      【口径来源】宿主 CureStation Themes/Dark.xaml 同名键值一字未动
+        （G1 深空玻璃舱口径）。宿主可同名覆盖换品牌色。
+      ========================================================================= -->
+
+    <!-- 品牌 -->
+    <LinearGradientBrush x:Key="Brush.HeaderGrad" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#101A2C" Offset="0"/>
+        <GradientStop Color="#101A2C" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="Brush.TopbarBorder" Color="#4078A0DC"/>
+    <SolidColorBrush x:Key="Brush.TopbarFg" Color="#9DB8DC"/>
+    <!-- 幽灵钮 -->
+    <SolidColorBrush x:Key="Brush.GhostBg" Color="#FF1B2740"/>
+    <SolidColorBrush x:Key="Brush.GhostBorder" Color="#FF33486B"/>
+    <SolidColorBrush x:Key="Brush.GhostFg" Color="#FF9DB8DC"/>
+    <SolidColorBrush x:Key="Brush.GhostHoverBg" Color="#FF22345A"/>
+    <SolidColorBrush x:Key="Brush.GhostBorderHover" Color="#FF4C6E9B"/>
+    <SolidColorBrush x:Key="Brush.GhostPressedBg" Color="#FF182348"/>
+    <SolidColorBrush x:Key="Brush.PrimaryGhostBg" Color="#2E0A84FF"/>
+    <SolidColorBrush x:Key="Brush.PrimaryGhostBorder" Color="#6664D2FF"/>
+    <SolidColorBrush x:Key="Brush.PrimaryGhostFg" Color="#FF64D2FF"/>
+    <!-- 弹窗面 -->
+    <SolidColorBrush x:Key="Brush.Fresh.WinBg" Color="#FF0F1B30"/>
+    <SolidColorBrush x:Key="Brush.Fresh.Border" Color="#FF33486B"/>
+    <SolidColorBrush x:Key="Brush.Fresh.CardBg" Color="#FF12203A"/>
+    <SolidColorBrush x:Key="Brush.Fresh.CloseHoverBg" Color="#E81123"/>
+    <!-- Fresh 按钮 -->
+    <SolidColorBrush x:Key="Brush.Fresh.ButtonBg" Color="#FF1B2740"/>
+    <SolidColorBrush x:Key="Brush.Fresh.ButtonHoverBg" Color="#FF22345A"/>
+    <SolidColorBrush x:Key="Brush.Fresh.ButtonHoverBorder" Color="#FF4C6E9B"/>
+    <SolidColorBrush x:Key="Brush.Fresh.ButtonPressedBg" Color="#FF182348"/>
+    <SolidColorBrush x:Key="Brush.Fresh.FgStrong" Color="#FFEAF3FF"/>
+    <SolidColorBrush x:Key="Brush.Fresh.FgMid" Color="#FF9DB8DC"/>
+    <!-- 实色按钮 -->
+    <SolidColorBrush x:Key="Brush.Fresh.Accent" Color="#FF2E8FE0"/>
+    <SolidColorBrush x:Key="Brush.Fresh.AccentBorder" Color="#FF47AEFF"/>
+    <SolidColorBrush x:Key="Brush.Fresh.OnAccent" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Brush.Fresh.AccentHover" Color="#FF389BEB"/>
+    <SolidColorBrush x:Key="Brush.Fresh.AccentPressed" Color="#FF2568C4"/>
+    <SolidColorBrush x:Key="Brush.Fresh.Danger" Color="#FFE5473F"/>
+    <SolidColorBrush x:Key="Brush.Fresh.DangerBorder" Color="#FFFF8A80"/>
+    <SolidColorBrush x:Key="Brush.Fresh.DangerHover" Color="#FFFF6E63"/>
+    <SolidColorBrush x:Key="Brush.Fresh.DangerPressed" Color="#FFB32720"/>
+    <SolidColorBrush x:Key="Brush.Fresh.Success" Color="#FF34A853"/>
+    <SolidColorBrush x:Key="Brush.Fresh.SuccessBorder" Color="#FF7ED9A5"/>
+    <SolidColorBrush x:Key="Brush.Fresh.SuccessHover" Color="#FF4CC97B"/>
+    <SolidColorBrush x:Key="Brush.Fresh.SuccessPressed" Color="#FF208142"/>
+    <!-- 输入 -->
+    <SolidColorBrush x:Key="Brush.Fresh.InputBg" Color="#FF0F1D33"/>
+</ResourceDictionary>

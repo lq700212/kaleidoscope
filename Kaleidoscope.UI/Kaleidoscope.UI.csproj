@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- =========================================================================
+    Kaleidoscope.UI：公司级 WPF 复用控件库（V2.0.0 首建，宿主 CureLine V0.0.109 反哺）
+
+    【干什么】把各宿主 WPF 项目重复手抄的"骨架级 UI 资产"收口成库：
+      ① ChromeDialogWindow——圆角自绘弹窗基类（WindowStyle=None + WindowChrome
+        + 透明分层 + 圆角 Border + 浮层投影 + 品牌标题条 + ✕ 关闭），此前每个
+        弹窗手抄一遍（CureLine 单仓 26 份拷贝）；
+      ② Themes/ChromeStyles.xaml——圆角窗骨架的 keyed 样式（WinTitleBar 三件 +
+        WinSysBtn 两件 + Fx.WinShadow），供不继承基类的窗继续手抄/渐进迁移；
+      ③ Themes/FreshStyles.xaml——按钮/输入控件族（GhostButton/PrimaryGhost/
+        FreshButton/FreshPrimary/FreshDanger/FreshSuccess + FreshInput/
+        FreshPwdInput/FreshCombo），零硬编码色、全 DynamicResource 语义键；
+      ④ Themes/DefaultLight|Dark.xaml——控件引用的语义键缺省键板（36 键，
+        新宿主开箱即用；宿主可同名覆盖换品牌色）；
+      ⑤ Converters——通用值转换器（InverseBool/StringEquals）。
+
+    【为什么】"换新客户做新界面时底层服务一行不改"是本仓库定位（AGENTS.md），
+      界面层此前没有对应物——每个 WPF 宿主都重抄一遍骨架与样式族，像素级
+      口径（圆角 10 / 标题条 34 / 投影参数）靠"人肉对齐"必然漂移。本库把
+      口径固化成代码 + 键契约测试锁死。
+
+    【怎么接】SDK 风格 net8.0-windows + UseWPF 单目标（HJVision-WPF 等
+      net472 宿主接入需后续加多目标，见 README 路线图）。宿主两步：
+      ① 合并字典（App.xaml MergedDictionaries 前位加 ChromeStyles +
+        FreshStyles；不用库键板时宿主自带同名语义键）；
+      ② 弹窗改继承 ChromeDialogWindow（XAML 根内容自动进骨架内容槽）。
+      语义键名即契约：Brush.* / Brush.Fresh.* 同名键缺失 = 静默空白
+      （DynamicResource 缺键不报错）——宿主必须提供键板或合并缺省键板。
+
+    【测试】键契约测试在宿主侧（CureLine.Tests KaleidoscopeUiContractTests，
+      文本级 x:Key 断言照搬其 ThemeDictionaryTests 模式）锁"库字典引用的
+      语义键 ⊆ 宿主键板键集"。
+    ========================================================================= -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Kaleidoscope.UI</RootNamespace>
+    <AssemblyName>Kaleidoscope.UI</AssemblyName>
+    <!-- 与主库 Kaleidoscope（net472）同仓独立版本线：UI 库按自身演进记 CHANGELOG -->
+    <Version>2.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

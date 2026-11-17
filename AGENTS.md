@@ -16,6 +16,13 @@
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
 - 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），供 `ConfigEditor/` 可视化编辑器自动渲染参数界面
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
+- **Kaleidoscope.UI（V2.0.0 起，仓库第二工程）**：SDK 风格 **net8.0-windows + UseWPF** 的
+  WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 骨架与按钮族 keyed 样式 / 缺省键板 /
+  通用转换器），SDK 风格 `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行
+  各自版本线**（UI 库 Version 独立从 2.0.0 起）。改 UI 库前必读其目录内 `README.md`
+  （键名契约清单 + 三波路线图 + 下沉纪律：口径来源明确的才收、隐式样式绝不做、
+  零硬编码色）；键契约测试在宿主侧（CureLine.Tests KaleidoscopeUiContractTests），
+  改键名/删键必须同步宿主契约测试与全宿主键板
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
 
@@ -196,12 +203,17 @@ IBarometerReader(气压表 Modbus RTU) / IIoController(IO 耦合器 Modbus TCP) 
 ## 构建命令
 
 ```powershell
-# 在仓库根（E:\Project\CommonLib）执行：
+# 主库（net472 老式 csproj，MSBuild）——在仓库根执行：
 & "D:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
   Kaleidoscope/Kaleidoscope.csproj /p:Configuration=Debug /p:Platform=AnyCPU /t:Build /nologo /v:m /m
+# UI 库（net8.0-windows SDK 风格，dotnet build 即可）：
+dotnet build Kaleidoscope.UI/Kaleidoscope.UI.csproj --nologo
 ```
 
-- 成功标准：输出 `Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll` 且无 error。
+- 主库成功标准：输出 `Kaleidoscope -> ...\bin\Debug\Kaleidoscope.dll` 且无 error。
+- UI 库成功标准：输出 `Kaleidoscope.UI -> ...\bin\Debug\net8.0-windows\Kaleidoscope.UI.dll`
+  且 0 警告 0 错误（宿主按 bin\Debug\net8.0-windows\ HintPath 直引，输出路径变了的
+  话宿主 HintPath 同批改）。
 - Demo 测试台同理（引用 Kaleidoscope bin 输出）：`Demo/KaleidoscopeDemo.csproj` 构建后再跑 `Demo\bin\Debug\KaleidoscopeDemo.exe`。
 - 可视化配置编辑器同理：`ConfigEditor/KaleidoscopeConfigEditor.csproj` 构建后跑 `ConfigEditor\bin\Debug\KaleidoscopeConfigEditor.exe`（可命令行传 .kcfg 直接打开）。
 - 无单元测试框架；以构建通过 + Demo 冒烟测试为验证手段。

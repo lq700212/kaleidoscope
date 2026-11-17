@@ -1,0 +1,126 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+    <!--
+      =========================================================================
+      ChromeStyles.xaml：圆角自绘窗骨架样式（宿主 CureLine V0.0.109 反哺沉库）
+
+      【干什么】无边框圆角窗的骨架件 keyed 样式——与 ChromeDialogWindow 基类
+        同源同口径，供【不继承基类的窗】（主窗/特殊布局窗）继续以"手抄骨架"
+        方式使用，或作为渐进迁移的过渡层。
+
+      【口径来源】宿主 CureLine 两程序（CureStation/CimGateway）App.xaml 中
+        逐字相同的 6 键——圆角 10 / 标题条高 34 / 投影 Blur 24 Depth 2 Opacity
+        0.55 Dir 270，像素级口径以此为准勿擅改（改 = 全库宿主视觉漂移）。
+
+      【怎么接】宿主 App.xaml 的 MergedDictionaries 前位合并本字典：
+        <ResourceDictionary Source="pack://application:,,,/Kaleidoscope.UI;component/Themes/ChromeStyles.xaml"/>
+        颜色全部 DynamicResource 引语义键（Brush.HeaderGrad / Brush.TopbarFg /
+        Brush.GhostHoverBg / Brush.Fresh.CloseHoverBg / Brush.Fresh.WinBg /
+        Brush.Fresh.Border / Brush.TopbarBorder）——宿主键板必须提供同名键，
+        或合并 DefaultLight|Dark.xaml 缺省键板。
+      ========================================================================= -->
+
+    <!-- 圆角透明窗的浮层投影（窗根 Grid 需留 Margin≈14 给阴影渲染）；
+         同族卡片投影 Fx.CardShadow* 属宿主业务视觉，不沉库 -->
+    <DropShadowEffect x:Key="Fx.WinShadow" Color="#000000" BlurRadius="24"
+                      ShadowDepth="2" Opacity="0.55" Direction="270"/>
+
+    <!-- 品牌标题条：HeaderGrad 品牌渐变底 + 底边 TopbarBorder 一条线；
+         高 34（各窗 CaptionHeight 与其对齐）；顶部圆角 10 与弹窗外层
+         圆角 Border 对齐（方角标题条会盖住外框圆角） -->
+    <Style x:Key="WinTitleBar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Brush.HeaderGrad}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.TopbarBorder}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="CornerRadius" Value="10,10,0,0"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Padding" Value="12,0"/>
+    </Style>
+
+    <!-- 标题文本：TopbarFg / 13 / SemiBold -->
+    <Style x:Key="WinTitleText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TopbarFg}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- 弹窗关闭钮（✕）：命中区在标题条要 IsHitTestVisibleInChrome=True
+         （落 caption 拖动区外）；悬停红换白字（Win32 惯例）；
+         焦点策略关闭（Alt 遍历不路过纯装饰钮） -->
+    <Style x:Key="WinTitleClose" TargetType="Button">
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TopbarFg}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Fresh.CloseHoverBg}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 主窗顶栏系统钮（—/▢，宽 40 高 44 铺满品牌条行高）：
+         hover 用主窗幽灵键（品牌条半透明白，与顶栏按钮 hover 同源） -->
+    <Style x:Key="WinSysBtn" TargetType="Button">
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TopbarFg}"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.GhostHoverBg}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.GhostPressedBg}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 主窗关闭钮：业界惯例 hover 红（Fresh.CloseHoverBg）换白字，
+         与弹窗 WinTitleClose 一致 -->
+    <Style x:Key="WinSysClose" TargetType="Button" BasedOn="{StaticResource WinSysBtn}">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Fresh.CloseHoverBg}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

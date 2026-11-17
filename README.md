@@ -105,6 +105,8 @@ kaleidoscope/
 ├── Vision/                # 视觉检测域（V1.11.0 自 YoloDetector 沉淀）
 │   └── Detection/         #   YOLO 检测核心库（多目标 net472/netstandard2.0，dotnet build；
 │                          #   检测器/帧源/接口/互转/可视化/ROI/日志，命名空间 YoloDetection）
+├── Kaleidoscope.UI/       # ★ WPF 复用控件库（V2.0.0 起，net8.0-windows SDK 风格独立版本线；
+│                            圆角窗基类 / 骨架与按钮族样式 / 缺省键板——接入见其目录内 README.md）
 ├── Demo/                  # WinForms 测试台（按标准接入方式写的最小界面，可直接抄骨架）
 ├── ConfigEditor/          # 可视化配置编辑器（不进库、不启停设备，只产 .kcfg）
 ├── docs/                  # 设备协议文档（寄存器映射 / 坑点 / 排障）
