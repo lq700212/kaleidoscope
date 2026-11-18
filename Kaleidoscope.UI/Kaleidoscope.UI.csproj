@@ -1,47 +1,75 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- =========================================================================
-    Kaleidoscope.UI：公司级 WPF 复用控件库（V2.0.0 首建，宿主 CureLine V0.0.109 反哺）
+    Kaleidoscope.UI：公司级 WPF 复用控件库（V2.0.0 首建，宿主 CureLine V0.0.109 反哺；
+    V2.1.0 起多目标 net472+net8.0-windows，宿主 HJVision-WPF 接入 + 两套弹窗基类融合）
 
     【干什么】把各宿主 WPF 项目重复手抄的"骨架级 UI 资产"收口成库：
       ① ChromeDialogWindow——圆角自绘弹窗基类（WindowStyle=None + WindowChrome
-        + 透明分层 + 圆角 Border + 浮层投影 + 品牌标题条 + ✕ 关闭），此前每个
-        弹窗手抄一遍（CureLine 单仓 26 份拷贝）；
-      ② Themes/ChromeStyles.xaml——圆角窗骨架的 keyed 样式（WinTitleBar 三件 +
+        + 透明分层 + 圆角 Border + 浮层投影 + 标题条 + 系统三钮），此前每个
+        弹窗手抄一遍（CureLine 单仓 26 份拷贝）；V2.1.0 融合宿主 HJVision-WPF
+        的 SunnyDialog/ChromeDialog 两基类全部能力（内容 Clip / 非分层 HWND
+        分支 / 窗级隐式样式注入 / ESC→Cancel / 标题副题与图标 / —/▢/× 三钮），
+        两宿主口径并存（缺省=CureLine 现状，HJVision 走 KxShellDefaults 一行配置）；
+      ② TitleBar——标题条共用控件（V2.1.0 自 HJVision SunnyTitleBar 迁入去
+        Sunny 化，结构参数化后两宿主共用一份）；
+      ③ Themes/ChromeStyles.xaml——圆角窗骨架的 keyed 样式（WinTitleBar 三件 +
         WinSysBtn 两件 + Fx.WinShadow），供不继承基类的窗继续手抄/渐进迁移；
-      ③ Themes/FreshStyles.xaml——按钮/输入控件族（GhostButton/PrimaryGhost/
+      ④ Themes/FreshStyles.xaml——按钮/输入控件族（GhostButton/PrimaryGhost/
         FreshButton/FreshPrimary/FreshDanger/FreshSuccess + FreshInput/
         FreshPwdInput/FreshCombo），零硬编码色、全 DynamicResource 语义键；
-      ④ Themes/DefaultLight|Dark.xaml——控件引用的语义键缺省键板（36 键，
-        新宿主开箱即用；宿主可同名覆盖换品牌色）；
-      ⑤ Converters——通用值转换器（InverseBool/StringEquals）。
+      ⑤ Themes/ShellStyles.xaml——Kx 族控件样式（V2.1.0 自 HJVision SunnyTheme
+        通用段迁入去 Sunny 化：KxPrimaryButton 等按钮六档 / KxCheckBox 勾选 /
+        KxTextBox 输入 / BrandGrid 表格 / WinMenu 菜单 / StatusChip 胶囊 /
+        FormField 表单行模板等）；
+      ⑥ Themes/DefaultLight|Dark.xaml——控件引用的语义键缺省键板（新宿主开箱
+        即用；宿主可同名覆盖换品牌色）；
+      ⑦ Converters——通用值转换器（InverseBool/StringEquals/CapsuleRadius）；
+      ⑧ FormField / NumericUpDownLite / PasswordInput / EyeIconView——表单
+        共用控件（V2.1.0 自 HJVision 迁入）。
 
     【为什么】"换新客户做新界面时底层服务一行不改"是本仓库定位（AGENTS.md），
       界面层此前没有对应物——每个 WPF 宿主都重抄一遍骨架与样式族，像素级
-      口径（圆角 10 / 标题条 34 / 投影参数）靠"人肉对齐"必然漂移。本库把
-      口径固化成代码 + 键契约测试锁死。
+      口径（圆角/标题条高/投影参数）靠"人肉对齐"必然漂移。本库把口径固化成
+      代码 + 键契约测试锁死。
 
-    【怎么接】SDK 风格 net8.0-windows + UseWPF 单目标（HJVision-WPF 等
-      net472 宿主接入需后续加多目标，见 README 路线图）。宿主两步：
+    【怎么接】SDK 风格多目标 net472 + net8.0-windows（net472 宿主用
+      ProjectReference 自动选 net472 产物；net8 宿主 HintPath 产物路径不变）。
+      宿主两步：
       ① 合并字典（App.xaml MergedDictionaries 前位加 ChromeStyles +
-        FreshStyles；不用库键板时宿主自带同名语义键）；
+        FreshStyles + ShellStyles；不用库键板时宿主自带同名语义键）；
       ② 弹窗改继承 ChromeDialogWindow（XAML 根内容自动进骨架内容槽）。
-      语义键名即契约：Brush.* / Brush.Fresh.* 同名键缺失 = 静默空白
-      （DynamicResource 缺键不报错）——宿主必须提供键板或合并缺省键板。
+      语义键名即契约：Brush.* / Brush.Fresh.* / Brush.Shell.* / Fn.* 同名键
+      缺失 = 静默空白（DynamicResource 缺键不报错）——宿主必须提供键板或
+      合并缺省键板。KxShellDefaults 静态配置类承载"宿主级常量"（投影留白 /
+      内容 Clip / 隐式注入键表 / 默认字体），宿主启动时设一次。
 
     【测试】键契约测试在宿主侧（CureLine.Tests KaleidoscopeUiContractTests，
       文本级 x:Key 断言照搬其 ThemeDictionaryTests 模式）锁"库字典引用的
       语义键 ⊆ 宿主键板键集"。
+
+    【多目标坑位（V2.1.0 实测）】
+      · LangVersion 必须显式：TargetFramework 含 net472 时 MSBuild 默认
+        LangVersion=7.3，文件范围命名空间（namespace X;）等 C#10 语法直接炸——
+        显式 <LangVersion>12</LangVersion> 解锁（语法由编译器决定，与 TFM 无关，
+        net472 运行时跑 C#12 语法编译出的 IL 毫无问题）。
+      · Nullable 在 net472 目标下警告流（引用程序集无可空注解）——警告不阻断，
+        0 error 即过。
+      · UseWPF 对两个目标都生效：XAML 在两目标下都编译成 BAML（主项目
+        HJVision-WPF 的 SDK 风格 net472 + UseWPF 即活样板）。
     ========================================================================= -->
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFrameworks>net472;net8.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- net472 TFM 的 MSBuild 缺省 LangVersion 是 7.3——本库代码用 C#10+
+         文件范围命名空间等语法，必须显式解锁（见文件头【多目标坑位】）。 -->
+    <LangVersion>12</LangVersion>
     <RootNamespace>Kaleidoscope.UI</RootNamespace>
     <AssemblyName>Kaleidoscope.UI</AssemblyName>
     <!-- 与主库 Kaleidoscope（net472）同仓独立版本线：UI 库按自身演进记 CHANGELOG -->
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

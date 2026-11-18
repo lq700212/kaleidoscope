@@ -2,11 +2,11 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
       =========================================================================
-      DefaultDark.xaml：Kaleidoscope.UI 控件的缺省深色键板（36 键，键名契约同
-      DefaultLight.xaml 注释清单）
+      DefaultDark.xaml：Kaleidoscope.UI 控件的缺省深色键板（V2.1.0 全键集，
+      键名契约同 DefaultLight.xaml 注释清单）
 
-      【口径来源】宿主 CureStation Themes/Dark.xaml 同名键值一字未动
-        （G1 深空玻璃舱口径）。宿主可同名覆盖换品牌色。
+      【口径来源】Fresh/Chrome 键值取自宿主 CureStation Themes/Dark.xaml 一字
+        未动（G1 深空玻璃舱口径）；Shell 族键值为深色系推衍缺省值。
       ========================================================================= -->
 
     <!-- 品牌 -->
@@ -54,4 +54,56 @@
     <SolidColorBrush x:Key="Brush.Fresh.SuccessPressed" Color="#FF208142"/>
     <!-- 输入 -->
     <SolidColorBrush x:Key="Brush.Fresh.InputBg" Color="#FF0F1D33"/>
+
+    <!-- ============ Shell 族（Kx 控件样式，缺省值按深色系推衍） ============ -->
+    <SolidColorBrush x:Key="Brush.Shell.Fg" Color="#FFEAF3FF"/>
+    <SolidColorBrush x:Key="Brush.Shell.FgDim" Color="#FF9DB8DC"/>
+    <SolidColorBrush x:Key="Brush.Shell.PanelBg" Color="#FF12203A"/>
+    <SolidColorBrush x:Key="Brush.Shell.Panel2Bg" Color="#FF0F1B30"/>
+    <SolidColorBrush x:Key="Brush.Shell.Border" Color="#FF33486B"/>
+    <SolidColorBrush x:Key="Brush.Shell.InputBorder" Color="#FF33486B"/>
+    <SolidColorBrush x:Key="Brush.Shell.Primary" Color="#FF2E8FE0"/>
+    <LinearGradientBrush x:Key="Brush.Shell.PrimaryGrad" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#3E8BFF" Offset="0"/>
+        <GradientStop Color="#22D3EE" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="Brush.Shell.PrimaryHover" Color="#FF389BEB"/>
+    <SolidColorBrush x:Key="Brush.Shell.PrimaryRing" Color="#332E8FE0"/>
+    <SolidColorBrush x:Key="Brush.Shell.RingBg" Color="#292E8FE0"/>
+    <SolidColorBrush x:Key="Brush.Shell.HoverBg" Color="#242E8FE0"/>
+    <SolidColorBrush x:Key="Brush.Shell.OnPrimary" Color="#FFFFFF"/>
+    <DropShadowEffect x:Key="Fx.ShellPrimaryGlow" Color="#593E8BFF" BlurRadius="6" ShadowDepth="1" Direction="90" Opacity="1"/>
+    <DropShadowEffect x:Key="Fx.ShellPrimaryGlowHover" Color="#593E8BFF" BlurRadius="9" ShadowDepth="2" Direction="90" Opacity="1"/>
+    <LinearGradientBrush x:Key="Brush.Shell.OkGrad" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF34A853" Offset="0"/>
+        <GradientStop Color="#FF208142" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="Brush.Shell.OkGradHover" Color="#FF4CC97B"/>
+    <SolidColorBrush x:Key="Brush.Shell.OkFg" Color="#FF7ED9A5"/>
+    <SolidColorBrush x:Key="Brush.Shell.OkRing" Color="#3334A853"/>
+    <SolidColorBrush x:Key="Brush.Shell.DimOkBg" Color="#2410B981"/>
+    <SolidColorBrush x:Key="Brush.Shell.DimWarnBg" Color="#21F59E0B"/>
+    <SolidColorBrush x:Key="Brush.Shell.DimNgBg" Color="#23EF4444"/>
+    <SolidColorBrush x:Key="Brush.Shell.DimPriBg" Color="#FF162847"/>
+    <SolidColorBrush x:Key="Brush.Shell.NgFg" Color="#FFFF8F8F"/>
+    <SolidColorBrush x:Key="Brush.Shell.StatusWarnFg" Color="#FFFFC558"/>
+    <SolidColorBrush x:Key="Brush.Shell.WarnFg" Color="#FFF59E0B"/>
+    <SolidColorBrush x:Key="Brush.Shell.WarnRing" Color="#33F59E0B"/>
+    <SolidColorBrush x:Key="Brush.Shell.GridHeaderBg" Color="#FF152238"/>
+    <SolidColorBrush x:Key="Brush.Shell.GridEmptyBg" Color="#FF0D1729"/>
+    <SolidColorBrush x:Key="Brush.Shell.GridSelBg" Color="#FF2C63E8"/>
+    <SolidColorBrush x:Key="Brush.Shell.GridLine" Color="#FF27355A"/>
+    <SolidColorBrush x:Key="Brush.Shell.GridRowAltBg" Color="#FF12203A"/>
+    <SolidColorBrush x:Key="Brush.Shell.RowHoverBg" Color="#FF182A48"/>
+    <SolidColorBrush x:Key="Brush.Shell.RowSelectBg" Color="#FF1D3358"/>
+    <SolidColorBrush x:Key="Brush.Shell.MenuHoverBg" Color="#1F2E8FE0"/>
+    <SolidColorBrush x:Key="Brush.Shell.SwitchOffBg" Color="#FF2A3C5E"/>
+    <SolidColorBrush x:Key="Brush.Shell.SysBtnHover" Color="#40FFFFFF"/>
+    <SolidColorBrush x:Key="Brush.Shell.SysBtnDisabled" Color="#80FFFFFF"/>
+    <!-- Fn/Fx -->
+    <CornerRadius x:Key="Fn.ShellRadius">10</CornerRadius>
+    <CornerRadius x:Key="Fn.ShellRadiusTop">9,9,0,0</CornerRadius>
+    <CornerRadius x:Key="Fn.ShellMenuRadius">8</CornerRadius>
+    <FontWeight x:Key="Fn.ShellTitleFontWeight">SemiBold</FontWeight>
+    <DropShadowEffect x:Key="Fx.ShellMenuShadow" Color="#59000000" BlurRadius="12" ShadowDepth="4" Opacity="1"/>
 </ResourceDictionary>
