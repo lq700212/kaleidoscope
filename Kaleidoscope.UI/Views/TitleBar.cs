@@ -269,7 +269,7 @@ public class TitleBar : UserControl
     /// 场景（极少）由 PropertyChangedCallback 覆盖（本控件两项均 null 缺省，
     /// 迁移窗在 XAML 里设值先于挂树，构造期判定即可，不做回调保持轻量）。
     /// </summary>
-    private UIElement BuildIconCapsule()
+    private FrameworkElement BuildIconCapsule()
     {
         var capsule = new Border
         {

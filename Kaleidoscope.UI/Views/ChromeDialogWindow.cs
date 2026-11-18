@@ -87,11 +87,28 @@ public class ChromeDialogWindow : Window
         DependencyProperty.Register(nameof(CaptionHeight), typeof(double), typeof(ChromeDialogWindow),
             new FrameworkPropertyMetadata(34.0, OnChromeParamChanged));
 
+    /// <summary>
+    /// 是否装配基类内建标题条（缺省 true）。false=骨架只有内容槽（自绘标题栏的窗用，
+    /// 如宿主 HJVision 的脚本编辑器：VS 深灰 30px 自绘条 + WindowChrome CaptionHeight=30
+    /// 命中拖动——基类渐变标题条与自绘条不能双装）。
+    /// </summary>
+    public static readonly DependencyProperty ShowTitleBarProperty =
+        DependencyProperty.Register(nameof(ShowTitleBar), typeof(bool), typeof(ChromeDialogWindow),
+            new FrameworkPropertyMetadata(true));
+
     /// <summary>true=可缩放窗（ResizeBorderThickness=6，如日志/报警/调试窗）；
     /// false=定高弹窗（0）。缺省 false——与手抄口径逐窗对应。</summary>
     public static readonly DependencyProperty ResizeableProperty =
         DependencyProperty.Register(nameof(Resizeable), typeof(bool), typeof(ChromeDialogWindow),
             new FrameworkPropertyMetadata(false, OnChromeParamChanged));
+
+    /// <summary>
+    /// 可缩放窗的边缘缩放命中区宽度（仅 Resizeable=true 时生效；缺省 6=库口径）。
+    /// HJVision 部分直连窗用 4px（DataCenter/Help 等窄边框手感），窗 XAML 逐窗设。
+    /// </summary>
+    public static readonly DependencyProperty ResizeBorderThicknessProperty =
+        DependencyProperty.Register(nameof(ResizeBorderThickness), typeof(double), typeof(ChromeDialogWindow),
+            new FrameworkPropertyMetadata(6.0, OnChromeParamChanged));
 
     /// <summary>是否显示 — 最小化钮（缺省 false=仅 ×；HJVision 固定小弹窗 true）。</summary>
     public static readonly DependencyProperty ShowMinButtonProperty =
@@ -129,6 +146,15 @@ public class ChromeDialogWindow : Window
             new FrameworkPropertyMetadata(null));
 
     /// <summary>
+    /// 标题条背景（语义渐变定制：宿主 HJVision 的 MBox 四态弹窗按 Ok/Warn/Err/Ask
+    /// 传对应渐变——经 code-behind 给本 DP 赋值，转发给内建 TitleBar；null=走键板
+    /// Brush.HeaderGrad 缺省渐变，主题热切换随 DynamicResource 生效）。
+    /// </summary>
+    public static readonly DependencyProperty TitleBackgroundProperty =
+        DependencyProperty.Register(nameof(TitleBackground), typeof(Brush), typeof(ChromeDialogWindow),
+            new FrameworkPropertyMetadata(null));
+
+    /// <summary>
     /// ESC 键触发的取消命令（缺省 null=无行为）。HJVision 口径：弹窗 Esc 走
     /// VM 的 CancelCommand（回滚/清理在 VM）——V0.9 前各窗自写 PreviewKeyDown
     /// 抄 N 遍，V2.1.0 收进基类（兑现原 SunnyDialog 头注释第③条承诺）。
@@ -155,10 +181,22 @@ public class ChromeDialogWindow : Window
         set => SetValue(CaptionHeightProperty, value);
     }
 
+    public bool ShowTitleBar
+    {
+        get => (bool)GetValue(ShowTitleBarProperty);
+        set => SetValue(ShowTitleBarProperty, value);
+    }
+
     public bool Resizeable
     {
         get => (bool)GetValue(ResizeableProperty);
         set => SetValue(ResizeableProperty, value);
+    }
+
+    public double ResizeBorderThickness
+    {
+        get => (double)GetValue(ResizeBorderThicknessProperty);
+        set => SetValue(ResizeBorderThicknessProperty, value);
     }
 
     public bool ShowMinButton
@@ -201,6 +239,12 @@ public class ChromeDialogWindow : Window
     {
         get => (Geometry?)GetValue(TitleIconProperty);
         set => SetValue(TitleIconProperty, value);
+    }
+
+    public Brush? TitleBackground
+    {
+        get => (Brush?)GetValue(TitleBackgroundProperty);
+        set => SetValue(TitleBackgroundProperty, value);
     }
 
     public ICommand CancelCommand
@@ -343,20 +387,25 @@ public class ChromeDialogWindow : Window
 
         var dock = new DockPanel();
 
-        // 标题条：共用 TitleBar 控件（—/▢/× 显隐、副题、图标全部 DP 转发），
-        // 高度绑 CaptionHeight（DP 变更跟随）。
-        var bar = new TitleBar();
-        bar.SetBinding(TitleBar.ShowMinButtonProperty, new Binding(nameof(ShowMinButton)) { Source = this });
-        bar.SetBinding(TitleBar.ShowMaxButtonProperty, new Binding(nameof(ShowMaxButton)) { Source = this });
-        bar.SetBinding(TitleBar.IsMaxButtonEnabledProperty, new Binding(nameof(IsMaxButtonEnabled)) { Source = this });
-        bar.SetBinding(TitleBar.CloseCommandProperty, new Binding(nameof(CloseCommand)) { Source = this });
-        bar.SetBinding(TitleBar.SubtitleProperty, new Binding(nameof(Subtitle)) { Source = this });
-        bar.SetBinding(TitleBar.TitleIconCharProperty, new Binding(nameof(TitleIconChar)) { Source = this });
-        bar.SetBinding(TitleBar.TitleIconProperty, new Binding(nameof(TitleIcon)) { Source = this });
-        bar.SetBinding(TitleBar.HeightProperty, new Binding(nameof(CaptionHeight)) { Source = this });
-        DockPanel.SetDock(bar, Dock.Top);
-        dock.Children.Add(bar);
-        _titleBar = bar;
+        // 标题条：共用 TitleBar 控件（—/▢/× 显隐、副题、图标全部 DP 转发），高度绑
+        // CaptionHeight（DP 变更跟随）。ShowTitleBar=false 时不装配（自绘标题栏窗，
+        // WindowChrome.CaptionHeight 仍按 CaptionHeight DP 给自绘条命中拖动区）。
+        if (ShowTitleBar)
+        {
+            var bar = new TitleBar();
+            bar.SetBinding(TitleBar.ShowMinButtonProperty, new Binding(nameof(ShowMinButton)) { Source = this });
+            bar.SetBinding(TitleBar.ShowMaxButtonProperty, new Binding(nameof(ShowMaxButton)) { Source = this });
+            bar.SetBinding(TitleBar.IsMaxButtonEnabledProperty, new Binding(nameof(IsMaxButtonEnabled)) { Source = this });
+            bar.SetBinding(TitleBar.CloseCommandProperty, new Binding(nameof(CloseCommand)) { Source = this });
+            bar.SetBinding(TitleBar.SubtitleProperty, new Binding(nameof(Subtitle)) { Source = this });
+            bar.SetBinding(TitleBar.TitleIconCharProperty, new Binding(nameof(TitleIconChar)) { Source = this });
+            bar.SetBinding(TitleBar.TitleIconProperty, new Binding(nameof(TitleIcon)) { Source = this });
+            bar.SetBinding(TitleBar.TitleBackgroundProperty, new Binding(nameof(TitleBackground)) { Source = this });
+            bar.SetBinding(TitleBar.HeightProperty, new Binding(nameof(CaptionHeight)) { Source = this });
+            DockPanel.SetDock(bar, Dock.Top);
+            dock.Children.Add(bar);
+            _titleBar = bar;
+        }
 
         // 内容槽：子类 XAML 根内容落这里（OnContentChanged 转移）
         _contentHost = new ContentPresenter();
@@ -377,8 +426,8 @@ public class ChromeDialogWindow : Window
             CaptionHeight = CaptionHeight,
             GlassFrameThickness = new Thickness(0),
             UseAeroCaptionButtons = false,
-            // 定高弹窗 0 / 可缩放窗 6——与手抄口径一致（6 是库缩放边宽缺省）
-            ResizeBorderThickness = new Thickness(Resizeable ? 6 : 0),
+            // 定高弹窗 0 / 可缩放窗取 DP（6 是库口径缺省，个别窗 4）
+            ResizeBorderThickness = new Thickness(Resizeable ? ResizeBorderThickness : 0),
         };
         WindowChrome.SetWindowChrome(this, chrome);
     }
@@ -452,6 +501,32 @@ public class ChromeDialogWindow : Window
                 object? cr = Application.Current?.TryFindResource("Fn.ShellRadius");
                 double outer = (cr is CornerRadius corner) ? corner.TopLeft : 10;
                 int thick = _card.BorderThickness.Left > 0 ? 1 : 0;
+                r = Math.Max(0, outer - thick);
+            }
+            child.Clip = new RectangleGeometry(new Rect(0, 0, cw, ch), r, r);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 分层窗内容圆角裁剪（公开静态，供不继承本基类的直连窗借用——RecordViewer/JobEdit
+    /// 等"窗根 Border + 圆角"形态：对 w.Content as Border 的 Child 挂圆角 Clip，逻辑与
+    /// 实例版 ApplyContentClipToCard 同源）。基类派生窗走实例版（操作骨架卡片）。
+    /// </summary>
+    public static void ApplyContentClip(Window w)
+    {
+        try
+        {
+            if (w?.Content is not Border root) return;
+            if (root.Child is not FrameworkElement child) return;
+            double cw = child.ActualWidth, ch = child.ActualHeight;
+            if (cw <= 0 || ch <= 0) return;
+            double r = 0;
+            if (w.WindowState != WindowState.Maximized)
+            {
+                object? cr = Application.Current?.TryFindResource("Fn.ShellRadius");
+                double outer = (cr is CornerRadius corner) ? corner.TopLeft : 10;
+                int thick = root.BorderThickness.Left > 0 ? 1 : 0;
                 r = Math.Max(0, outer - thick);
             }
             child.Clip = new RectangleGeometry(new Rect(0, 0, cw, ch), r, r);
