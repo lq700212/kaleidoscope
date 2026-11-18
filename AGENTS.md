@@ -16,13 +16,21 @@
 - **依赖策略**：第三方库拷 `libs/` 由 csproj `<Reference HintPath>` 引用，**离线可编译**，不依赖 NuGet restore
 - 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），供 `ConfigEditor/` 可视化编辑器自动渲染参数界面
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
-- **Kaleidoscope.UI（V2.0.0 起，仓库第二工程）**：SDK 风格 **net8.0-windows + UseWPF** 的
-  WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 骨架与按钮族 keyed 样式 / 缺省键板 /
-  通用转换器），SDK 风格 `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行
-  各自版本线**（UI 库 Version 独立从 2.0.0 起）。改 UI 库前必读其目录内 `README.md`
-  （键名契约清单 + 三波路线图 + 下沉纪律：口径来源明确的才收、隐式样式绝不做、
-  零硬编码色）；键契约测试在宿主侧（CureLine.Tests KaleidoscopeUiContractTests），
-  改键名/删键必须同步宿主契约测试与全宿主键板
+- **Kaleidoscope.UI（V2.0.0 起，仓库第二工程）**：SDK 风格 **多目标 net472 + net8.0-windows
+  （V2.1.0 起）+ UseWPF** 的 WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 标题条
+  TitleBar / 骨架与按钮族 keyed 样式（Fresh 族=CureLine 视觉、Kx 族=HJVision 视觉，
+  ShellStyles.xaml）/ 缺省键板 / 表单控件 FormField 等 / 通用转换器），SDK 风格
+  `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行各自版本线**（UI 库
+  Version 独立从 2.0.0 起）。改 UI 库前必读其目录内 `README.md`（键名契约清单 +
+  路线图 + 下沉纪律：口径来源明确的才收、隐式样式绝不做、零硬编码色）；键契约测试在
+  宿主侧（CureLine.Tests KaleidoscopeUiContractTests + HJVision W 批 SY20~31/IF42 探针），
+  改键名/删键必须同步宿主契约测试与全宿主键板。**V2.1.0 融合要点**：弹窗基类三合一
+  （CureLine ChromeDialogWindow + 宿主 HJVision SunnyDialog/ChromeDialog，缺省值=
+  CureLine 现状、宿主差异走 DP/KxShellDefaults/键板换皮）；样式键去 Sunny 化统一 Kx
+  前缀；宿主键板补段**禁止 StaticResource 元素转发**（net472 BAML 键值错位实测炸主窗，
+  写字面值）。**兄弟工程 `Kaleidoscope.UI.WinForms`（V1.0.0 骨架）**：WinForms 双栈
+  UI 基类储备（KxThemeTokens 色板 Token + ShellDialogForm 圆角自绘基类，零 SunnyUI
+  依赖，独立版本线），扩面等真实宿主诉求
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
 

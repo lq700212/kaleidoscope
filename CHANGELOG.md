@@ -7,6 +7,62 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.1.0（2026-11-19）弹窗基类融合 + net472 多目标 + WinForms 骨架（宿主 HJVision-WPF 一条龙接入）
+
+> 宿主 HJVision-WPF（net472，51 窗）提出"基类沉库+两宿主类似基类只留一份"诉求：
+> ①本地 SunnyDialog（36 窗）/ChromeDialog（9 窗）两基类与库 ChromeDialogWindow 融合；
+> ②UI 库加 net472 多目标打通 net472 宿主接入；③开 WinForms 骨架工程（双栈 UI 基类
+> 储备）。宿主侧 51 窗全切库版+全量回归 24 批 PASS+冒烟+真机目检（主窗/登录窗/
+> 真实登录交互）；CureLine 侧 652 测试全绿+DocShot 全窗 PASS+灰度 3 窗目检零变化
+> （缺省值=CureLine 现状原则）。E:\Project\kaleidoscope 独立副本请 `git pull` 同步。
+
+### Kaleidoscope.UI（V2.1.0）
+
+- **多目标** `net472;net8.0-windows`：宿主 net472 用 ProjectReference 自动选 net472
+  产物（MSBuild NearestTargetFramework）；CureLine HintPath net8 产物路径不变。
+  【坑】LangVersion 必须显式 12（net472 TFM 缺省 7.3 会炸文件范围命名空间）。
+- **弹窗基类融合** `ChromeDialogWindow` 参数化吸收 HJVision 两基类全部能力，缺省值
+  =CureLine 现状：`ShowMinButton/ShowMaxButton/IsMaxButtonEnabled/CloseCommand/Subtitle/
+  TitleIconChar/TitleIcon/TitleBackground/CancelCommand(ESC→命令，缺省无行为)/
+  UseLayeredTransparency(缺省 true，false=HWND 窗 SetWindowRgn 物理圆角)/
+  ResizeBorderThickness(缺省 6)/ShowTitleBar(缺省 true，false=自绘标题栏窗不装内建条)。
+  宿主级常量走新 `KxShellDefaults` 静态配置类（ShadowMargin/UseContentClip/
+  ImplicitStyleKeys/Font/FontSize/ShowInTaskbar/StartupLocation/SysButtonWidth/
+  CloseFontWeight——HJVision 启动一行配置，CureLine 零改动）。
+- **标题条控件** `TitleBar`（自 HJVision SunnyTitleBar 迁入去 Sunny 化）：三钮/副题/
+  图标胶囊 DP 面齐备；CureLine 口径=ShowMin/Max 缺省 false 复现 ✕ 单钮；对位修补三处
+  （✕ 字重 CloseFontWeight 参数化、TopbarBorder 底边线回归、标题左距根 Padding 12）。
+- **ShellStyles.xaml**（新）：Kx 族控件样式 ~50 键（按钮六档 KxPrimaryButton 等/
+  StatusChip 对/输入四件 KxTextBox·KxPasswordBox·KxDatePicker·KxComboBox/KxSwitch/
+  标题钮三件/BrandTab/BrandGrid/WinMenu 族/勾选三件/KxGroupBoxImplicit/FormLabel 族/
+  Kpi 四件/ChromeDialogRootBorder 对/KxDialog*Implicit 七类兜底/FormField 隐式模板），
+  自 HJVision SunnyTheme 通用段迁入**去 Sunny 化**（"Sunny"是原版第三方库 SunnyUI
+  品牌致敬，公司级控件库不带第三方前缀，样式键统一 Kx 前缀）。键名契约=复用键
+  （Brush.Fresh.*等）+新 Shell 族键（Brush.Shell.*38 键+Fn.Shell*4+Fx.Shell*3），
+  键板三方对齐（库 Default 板扩到全键集 / CureStation·CimGateway 键板补 Shell 段 /
+  HJVision ThemeLight|Dark 追加段）。
+- **控件沉库**：FormField/NumericUpDownLite/PasswordInput/EyeIconView（自 HJVision
+  迁入，血泪注释随迁）+ CapsuleRadiusConverter 并入 UiConverters。
+- **顺手修复**：ThemePanelBgBrush 悬空键（原 SunnyTheme Calendar 隐式引用——迁宿主
+  AppStyles 时改正 ThemePanelBg）。
+- **宿主切换记录**（HJVision-WPF）：51 窗根元素改 ui:ChromeDialogWindow+删手写骨架
+  （根 Border/TitleBar/底栏）；6 直连窗静态方法借用点改库版；SunnyTheme.xaml 拆壳
+  （通用段沉库、Script* 三段+App 级隐式四段留宿主 AppStyles.xaml）；本地基类/控件/
+  CapsuleRadiusConverter 九件删除（不双轨）；键名全局替换 Sunny*→Kx*。
+- 【net472 BAML 血泪】宿主主题字典追加段**禁止 StaticResource 元素转发**（`<StaticResource
+  x:Key="A" ResourceKey="B"/>` 在 net472 BAML 实测键值错位——Effect 拿到相邻键值，
+  主窗首帧崩，冒烟抓包）；改写字面值后正常。CureLine 键板补段同此口径。
+
+### Kaleidoscope.UI.WinForms（V1.0.0 新工程骨架）
+
+- 双栈 UI 基类储备（宿主 HJVision 提"同时支持 WinForms 和 WPF 基类控件"，原版短期
+  挂 SunnyUI 不切库——按下沉纪律只放骨架不扩面，等真实宿主）：`KxThemeTokens`
+  双栈语义色板 Token 层（IsDark+语义键→Color+Changed 事件，原版 AppTheme 色板
+  同源）+ `ShellDialogForm` 圆角自绘弹窗基类（Region 圆角深 10/浅 14 对位原版
+  TryRoundWindow + GDI 渐变标题栏 + OnShown→OnFirstShow→ApplyTo→OnAfterThemeApply
+  模板时序一比一对位原版 ThemeDialogForm，**零 SunnyUI 依赖**；静态事件双出口退订
+  模板内置）。多目标 net472;net8.0-windows + UseWindowsForms，独立版本线 V1.0.0。
+
 ## V2.0.0（2026-11-18）Kaleidoscope.UI 首建：WPF 复用控件库（宿主 CureLine V0.0.109 反哺）
 
 > 对应宿主 CureLine V0.0.109：UI 资产下沉调研（两程序 26 个弹窗手抄骨架 /

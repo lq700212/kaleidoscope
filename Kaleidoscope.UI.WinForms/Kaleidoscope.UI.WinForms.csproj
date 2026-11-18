@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- =========================================================================
+    Kaleidoscope.UI.WinForms：公司级 WinForms 复用控件库（V1.0.0 骨架首建）
+
+    【干什么】与 Kaleidoscope.UI（WPF 版）平行的 WinForms 侧控件沉淀：
+      ① KxThemeTokens——双栈语义色板 Token 层（IsDark + 语义键→Color 表 + Changed
+        事件）：WinForms 基类消费本层取色，WPF 键板（DefaultLight|Dark.xaml）按同
+        语义键对齐——两栈配色同源，换皮只改一处；
+      ② ShellDialogForm——WinForms 圆角自绘弹窗基类（Region 物理圆角 + GDI 渐变
+        标题栏 + 模板方法时序），对标宿主 HJVision 原版 SubForm/ThemeDialogForm
+        （V4.4.342 从 40+ 弹窗抽取的统一基类）的口径，但**不依赖 SunnyUI**——
+        原版 ThemeDialogForm : UIForm 绑死 SunnyUI 3.3.0，库级沉淀必须零第三方
+        UI 依赖，观感语义一比一、实现自绘。
+
+    【为什么】"同时支持 WinForms 和 WPF 的基类控件"宿主诉求（2026-11-19 HJVision
+      融合沉库轮提出）：原版 WinForms 工程（E:\Project\HJVision）还挂在 SunnyUI
+      上短期不会切库，本工程是提前储备——等原版真要解耦 SunnyUI 时，ShellDialogForm
+      是替换 ThemeDialogForm 的落点。当前无立即消费的宿主，按库下沉纪律
+      "无真实宿主验证过的控件不扩面"，本版只放两个骨架件。
+
+    【怎么接】多目标 net472 + net8.0-windows（与 WPF 版 UI 库同口径：原版宿主
+      net472、将来 .NET 宿主走 net8 产物）。UseWindowsForms=true（WinForms
+      控件编译）；System.Drawing 走框架引用（net472）/框架内置（net8-windows）。
+
+    【多目标坑位】与 Kaleidoscope.UI.csproj 同款：LangVersion 显式 12（net472 TFM
+      缺省 7.3 会炸文件范围命名空间）；Nullable net472 目标警告流不阻断。
+    ========================================================================= -->
+  <PropertyGroup>
+    <TargetFrameworks>net472;net8.0-windows</TargetFrameworks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12</LangVersion>
+    <RootNamespace>Kaleidoscope.UI.WinForms</RootNamespace>
+    <AssemblyName>Kaleidoscope.UI.WinForms</AssemblyName>
+    <Version>1.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>
