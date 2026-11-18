@@ -170,8 +170,17 @@ public class TitleBar : UserControl
     /// </summary>
     private void BuildSkeleton()
     {
-        var root = new Border();
+        // 根 Border：渐变底 + 底边线（Brush.TopbarBorder——Light=透明不可见、Dark
+        // 可见，原 CureLine 基类代码构建版同口径）+ 左 Padding 12（原 CureLine
+        // 标题条 Padding="12,0,0,0"：无图标时标题 x=12；HJVision 有图标时胶囊
+        // Margin -2 使胶囊 x=10、标题再 +10=38，两宿主逐像素对位）。
+        var root = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(12, 0, 0, 0),
+        };
         root.SetResourceReference(Border.BackgroundProperty, "Brush.HeaderGrad");
+        root.SetResourceReference(Border.BorderBrushProperty, "Brush.TopbarBorder");
         root.SetResourceReference(Border.CornerRadiusProperty, "Fn.ShellRadiusTop");
         root.MouseLeftButtonDown += Header_Drag;
         _titleRoot = root;
@@ -179,15 +188,19 @@ public class TitleBar : UserControl
         var dock = new DockPanel { LastChildFill = false };
 
         // —— 图标胶囊（可选：TitleIcon/TitleIconChar 都 null 时整颗不占位）——
+        // Margin 左 -2：根 Padding 12 内落到 x=10（HJVision 原胶囊左距口径）
         var iconCapsule = BuildIconCapsule();
+        iconCapsule.Margin = new Thickness(-2, 0, 0, 0);
         dock.Children.Add(iconCapsule);
 
-        // —— 主标题：白字 13，自动绑宿主 Window.Title ——
+        // —— 主标题：13 号，字色键化，自动绑宿主 Window.Title ——
+        // 左距 0：根 Border Padding 12 已定标（无图标=CureLine x12；有图标=胶囊
+        // 右侧 +10，HJVision 原布局 x38 对位）
         var title = new TextBlock
         {
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0),
+            Margin = new Thickness(0),
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "Brush.TopbarFg");
         // 标题文本绑宿主 Window.Title（TitleBar 没有 Title 属性，绑定路径写字符串
@@ -218,7 +231,7 @@ public class TitleBar : UserControl
         dock.Children.Add(subtitle);
 
         // —— 三钮（Dock=Right 逆序加入：×/▢/—，视觉从左到右 —/▢/×）——
-        var btnClose = BuildSysButton("×", 14, FontWeights.Bold, "Brush.Fresh.CloseHoverBg", "White");
+        var btnClose = BuildSysButton("×", 14, KxShellDefaults.CloseFontWeight, "Brush.Fresh.CloseHoverBg", "White");
         btnClose.Name = "BtnClose";   // 只读护栏白名单（见类头【血泪随迁】）
         btnClose.Click += BtnClose_Click;
         DockPanel.SetDock(btnClose, Dock.Right);
@@ -263,7 +276,6 @@ public class TitleBar : UserControl
             Width = 18,
             Height = 18,
             CornerRadius = new CornerRadius(5),
-            Margin = new Thickness(10, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xFF, 0xFF)),
         };

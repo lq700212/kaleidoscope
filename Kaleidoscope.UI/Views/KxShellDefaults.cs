@@ -74,6 +74,12 @@ public static class KxShellDefaults
     public static double SysButtonWidth { get; set; } = 44;
 
     /// <summary>
+    /// 标题条 ✕ 关闭钮字重（缺省 Normal=CureLine 口径）。HJVision=Bold
+    /// （原 SunnyCloseButton FontSize 14 Bold 口径）。
+    /// </summary>
+    public static FontWeight CloseFontWeight { get; set; } = FontWeights.Normal;
+
+    /// <summary>
     /// 弹窗是否进任务栏（缺省 true=不动=CureLine 现状）。HJVision=false：
     /// 全部 36+9 窗弹窗不进任务栏（老版子窗口径，弹窗进任务栏会抢主窗焦点位）。
     /// </summary>
