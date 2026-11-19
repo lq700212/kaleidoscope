@@ -7,6 +7,30 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.1（2026-11-20）主窗内容块圆角化：`Fn.ShellRadiusBottom` 令牌 + `KxRoundedClip` 圆角裁剪附加属性（ProductionStatistics 宿主反哺）
+
+> 宿主 ProductionStatistics 用户反馈"外壳圆角了，但内容块四角还是直角"：顶栏白块上缘、
+> 页签带下缘、状态条四角、卡片内 DataGrid 表头/行底四角都是直角，与外壳圆弧错位。
+> 本版把宿主需要的两件通用能力沉淀进库，宿主自身只写一行 XAML 挂接。
+
+### Kaleidoscope.UI（V2.3.1）
+
+- **新增语义键 `Fn.ShellRadiusBottom`**（`Themes/DefaultLight|Dark.xaml`）：底缘圆角
+  `0,0,10,10`（深色板同口径取 `0,0,9,9`），与 `Fn.ShellRadiusTop` 成对补全"上缘/下缘"
+  令牌组——页签带/底栏等内容块贴容器下缘时用，宿主挂 `CornerRadius="{DynamicResource Fn.ShellRadiusBottom}"`。
+- **新增圆角裁剪附加属性 `Views/KxRoundedClip.cs`**：`Border.CornerRadius` 只裁自身背景
+  **不裁子元素**（库内 `ChromeDialogWindow.cs` 类头注释早已记录此坑），卡片内放 DataGrid/
+  图片等自带方角背景的子元素时四角盖过圆弧。本属性一行 XAML 收拢标准解法：
+  `ui:KxRoundedClip.Radius="12"`——Loaded/SizeChanged 按元素实际尺寸同步圆角矩形 Clip
+  （几何实例按元素复用，拖拽缩放零分配），Radius=0 摘除恢复方角；语义同
+  `ChromeBorderlessWindow.UpdateRootClip`（元素自身坐标整体裁剪），与弹窗基类的
+  "卡片内容内缘裁剪"是两种口径，类头已注明勿混用。宿主主表格/查询表格挂 12
+  （=卡片 18 − 网格内边距 6，同心圆弧）。
+- 宿主接线实况：顶栏 `CornerRadius={Fn.ShellRadiusTop}`、页签带 `{Fn.ShellRadiusBottom}`、
+  状态条四角 `{Fn.ShellRadius}`（最大化归零/还原挂回由宿主 窗口_StateChanged 与根 Border
+  同步处理）、主表格/查询表格 `ui:KxRoundedClip.Radius="12"`；还原态/最大化态截图目检
+  四角全部跟随圆弧。
+
 ## V2.3.0（2026-11-19）业务壳族十一件：卡片式看板主窗全切反哺（ProductionStatistics 宿主）
 
 > 宿主张 ProductionStatistics（WPF 生产统计看板）按"可迁的直接用库键、库没有的沉淀进库"

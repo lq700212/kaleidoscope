@@ -103,6 +103,8 @@
     <!-- Fn/Fx -->
     <CornerRadius x:Key="Fn.ShellRadius">10</CornerRadius>
     <CornerRadius x:Key="Fn.ShellRadiusTop">9,9,0,0</CornerRadius>
+    <!-- 底缘圆角【V2.3.1】：键名契约见 DefaultLight.xaml，值同本板 ShellRadiusTop 口径取 9 -->
+    <CornerRadius x:Key="Fn.ShellRadiusBottom">0,0,9,9</CornerRadius>
     <CornerRadius x:Key="Fn.ShellMenuRadius">8</CornerRadius>
     <FontWeight x:Key="Fn.ShellTitleFontWeight">SemiBold</FontWeight>
     <DropShadowEffect x:Key="Fx.ShellMenuShadow" Color="#59000000" BlurRadius="12" ShadowDepth="4" Opacity="1"/>

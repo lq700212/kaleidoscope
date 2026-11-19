@@ -141,6 +141,9 @@
     <!-- Fn/Fx -->
     <CornerRadius x:Key="Fn.ShellRadius">10</CornerRadius>
     <CornerRadius x:Key="Fn.ShellRadiusTop">10,10,0,0</CornerRadius>
+    <!-- 底缘圆角【V2.3.1】：页签带/底栏等内容块贴容器下缘时用，与 ShellRadiusTop 成对
+         （口径同 ShellRadius=10；宿主 ProductionStatistics 主窗内容块圆角化首次使用） -->
+    <CornerRadius x:Key="Fn.ShellRadiusBottom">0,0,10,10</CornerRadius>
     <CornerRadius x:Key="Fn.ShellMenuRadius">10</CornerRadius>
     <FontWeight x:Key="Fn.ShellTitleFontWeight">SemiBold</FontWeight>
     <DropShadowEffect x:Key="Fx.ShellMenuShadow" Color="#2E5050A0" BlurRadius="12" ShadowDepth="4" Opacity="1"/>
