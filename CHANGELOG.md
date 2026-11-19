@@ -7,6 +7,46 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.0（2026-11-19）业务壳族十一件：卡片式看板主窗全切反哺（ProductionStatistics 宿主）
+
+> 宿主张 ProductionStatistics（WPF 生产统计看板）按"可迁的直接用库键、库没有的沉淀进库"
+> 完成主窗 UI 真接入（上一轮只是引用程序集）。本版收下宿主验证过的**业务壳族**：
+> 全部 keyed 样式、零硬编码色（走 `Brush.Shell.*` / `Fn.*` / `Fx.*` 语义键）、
+> 视觉口径逐像素取自宿主现状（卡片圆角 18 / 主题开关 64×32 / 双行页签圆角 9 /
+> 语言胶囊圆角 7 / 稼动率圆环 46px 描边 5）。
+
+### Kaleidoscope.UI（V2.3.0）
+
+- **新增业务壳族样式（`Themes/ShellStyles.xaml`）**：
+  - `KxThemeSwitch`：主题开关滑动轨道（3D 轨道 + 月/日图标，两板同值刻意不随主题变，
+    见 DefaultLight 注释）；`KxShiftTab`：双行班次页签（ToggleButton，选中主色弱底 +
+    主色描边 + 加粗）；`KxLangButton`：语言单选胶囊（RadioButton，选中实主色）；
+  - `KxCard`：投影卡片（`Fn.ShellCardRadius`=18 + `Fx.ShellCardShadow`）；
+    `KxIconBox`：26×26 主色弱底图标方块；`KxTopBar`：顶栏容器（面板底 + 下边线 + 20,14）；
+  - `KxInfoBox`：提示框（`Tag="Ok/Warn/Ng/Pri"` 语义弱底 + 同色描边）；
+    `KxStatusDot`：状态灯圆点（Tag 语义换 Fill，宽高可覆盖）；
+  - `KxRingBg` / `KxRingValue`：稼动率圆环底环/值环（描边 5，弧长由宿主代码设
+    `StrokeDashArray`）；`KxSlimScrollBar`：10px 细滚动条（垂直/水平双模板，
+    宿主隐式化用 `BasedOn="{StaticResource KxSlimScrollBar}"` 再造，不双份并存）。
+- **`StatusChipText` 补 `Tag="Pri"` 触发**（原 Ok/Warn/Ng/Err 四态，主色提示文字复用同一件）。
+- **缺省键板补 9 键**（`DefaultLight.xaml` / `DefaultDark.xaml` 各 90 键、两板键集一致）：
+  `Brush.Shell.ThemeTrack/ThemeTrackOn/ThemeTrackBorder/ThemeKnob/ThemeKnobOn/ThemeMoonFg/ThemeSunFg`
+  （主题开关七键，两板同值）+ `Fn.ShellCardRadius` + `Fx.ShellCardShadow`/`Fx.ShellTheme*Shadow`。
+- **库内 `{StaticResource Fn.*}` 统一改 `{DynamicResource Fn.*}`（8 处）**：
+  宿主题切换=替换键板字典，`StaticResource` 会把首次解析值固化在元素上，
+  换主题后圆角/字体等不变——本版起库内样式对键一律 DynamicResource
+  （**库新增样式红线：禁止 StaticResource 引用键板**）。
+- **宿主反馈的键契约红线（写进 README）**：宿主两本主题字典的键集必须完全一致
+  （只补一本 → 切主题时该处颜色不跟着变，编译期静默）；宿主补段必须写字面值、
+  禁止 `<StaticResource ResourceKey=.../>` 元素转发（net472 BAML 键值错位）。
+
+### 验证
+
+- ProductionStatistics 主窗全切后：深浅双主题运行时切换、1280×900 / 1500×920 /
+  1920×1080（真最大化）三档目检通过；宿主侧 `Run-ThemeContractTests.ps1`
+  静态契约 `PASS=9 FAIL=0`（键集 133/133、库键 ⊆ 宿主键板、零元素转发）。
+- 库工程 `dotnet build Kaleidoscope.UI/Kaleidoscope.UI.csproj` 0 error 0 warning（net472 + net8.0-windows 双目标）。
+
 ## V2.2.0（2026-11-19）主窗形态骨架基类首件：ChromeBorderlessWindow（宿主 YoloDetector 反哺）
 
 > 宿主 YoloDetector（net472，v2.11.2）把 v2.10.2/v2.10.3 两轮实测沉淀的"真圆角

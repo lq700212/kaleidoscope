@@ -37,6 +37,14 @@
         Fn/Fx：Fn.ShellRadius / Fn.ShellRadiusTop / Fn.ShellMenuRadius /
                 Fn.ShellTitleFontWeight、Fx.ShellPrimaryGlow / Fx.ShellPrimaryGlowHover /
                 Fx.ShellMenuShadow、Fx.WinShadow
+        业务壳族（V2.3.0，ProductionStatistics 反哺）：
+                Brush.Shell.ThemeTrack / ThemeTrackOn / ThemeTrackBorder /
+                ThemeKnob / ThemeKnobOn / ThemeMoonFg / ThemeSunFg
+                Fn.ShellCardRadius、Fx.ShellCardShadow /
+                Fx.ShellThemeTrackShadow / Fx.ShellThemeKnobShadow
+        【Theme* 七键说明】它们是"主题开关"自身的轨道/滑块配色，开关勾选=
+        深色——控件本身不随主题变色，Light/Dark 两板刻意同值；要换品牌色
+        改这两板同位置即可。
       ========================================================================= -->
 
     <!-- 品牌 -->
@@ -136,4 +144,19 @@
     <CornerRadius x:Key="Fn.ShellMenuRadius">10</CornerRadius>
     <FontWeight x:Key="Fn.ShellTitleFontWeight">SemiBold</FontWeight>
     <DropShadowEffect x:Key="Fx.ShellMenuShadow" Color="#2E5050A0" BlurRadius="12" ShadowDepth="4" Opacity="1"/>
+
+    <!-- ============ 业务壳族（V2.3.0） ============ -->
+    <!-- 主题开关：两板同值（开关不随主题变色），口径=ProductionStatistics -->
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrack" Color="#252532"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrackBorder" Color="#32303E"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrackOn" Color="#1D3557"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeKnob" Color="#4A495E"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeKnobOn" Color="#3B82F6"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeMoonFg" Color="#CFD8E8"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeSunFg" Color="#06121F"/>
+    <DropShadowEffect x:Key="Fx.ShellThemeTrackShadow" Color="#000000" BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.55"/>
+    <DropShadowEffect x:Key="Fx.ShellThemeKnobShadow" Color="#000000" BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.6"/>
+    <!-- 卡片：圆角 18 / 浅色低透明度投影 -->
+    <CornerRadius x:Key="Fn.ShellCardRadius">18</CornerRadius>
+    <DropShadowEffect x:Key="Fx.ShellCardShadow" Color="#182D55" BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.10"/>
 </ResourceDictionary>

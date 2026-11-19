@@ -1,6 +1,8 @@
 # ────────── 构建产物 ──────────
 bin/
 obj/
+# WPF 构建临时工程（dotnet build 生成的中间 csproj，构建中断时可能残留）
+*_wpftmp.csproj
 
 # ────────── IDE / 本地状态 ──────────
 .vs/

@@ -106,4 +106,19 @@
     <CornerRadius x:Key="Fn.ShellMenuRadius">8</CornerRadius>
     <FontWeight x:Key="Fn.ShellTitleFontWeight">SemiBold</FontWeight>
     <DropShadowEffect x:Key="Fx.ShellMenuShadow" Color="#59000000" BlurRadius="12" ShadowDepth="4" Opacity="1"/>
+
+    <!-- ============ 业务壳族（V2.3.0，键名/值契约见 DefaultLight.xaml） ============ -->
+    <!-- 主题开关：两板同值（开关不随主题变色） -->
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrack" Color="#252532"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrackBorder" Color="#32303E"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeTrackOn" Color="#1D3557"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeKnob" Color="#4A495E"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeKnobOn" Color="#3B82F6"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeMoonFg" Color="#CFD8E8"/>
+    <SolidColorBrush x:Key="Brush.Shell.ThemeSunFg" Color="#06121F"/>
+    <DropShadowEffect x:Key="Fx.ShellThemeTrackShadow" Color="#000000" BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.55"/>
+    <DropShadowEffect x:Key="Fx.ShellThemeKnobShadow" Color="#000000" BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.6"/>
+    <!-- 卡片：圆角 18 / 深色纯黑投影 -->
+    <CornerRadius x:Key="Fn.ShellCardRadius">18</CornerRadius>
+    <DropShadowEffect x:Key="Fx.ShellCardShadow" Color="#000000" BlurRadius="20" ShadowDepth="3" Direction="270" Opacity="0.45"/>
 </ResourceDictionary>

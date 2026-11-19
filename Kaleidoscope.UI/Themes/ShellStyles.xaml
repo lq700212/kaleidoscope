@@ -312,6 +312,10 @@
       <Trigger Property="Tag" Value="Err">
         <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.NgFg}"/>
       </Trigger>
+      <!-- Tag=Pri：主色语义（提示框"数据正常"态）。无 Tag 仍是中性 FgDim。 -->
+      <Trigger Property="Tag" Value="Pri">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.Primary}"/>
+      </Trigger>
     </Style.Triggers>
   </Style>
 
@@ -1297,6 +1301,314 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+  </Style>
+
+  <!-- ============================================================
+       ============ 业务壳控件族（V2.3.0，ProductionStatistics 反哺）
+       ============================================================
+
+       【干什么】主窗/看板类宿主反复手抄的"业务壳"控件样式，一次沉淀全库可用：
+         · KxThemeSwitch   日夜主题开关（3D 深色轨道 + 月亮/太阳滑块，64×32）
+         · KxShiftTab      双行页签（班次名 + 日期，ToggleButton，选中主色弱底）
+         · KxLangButton    语言切换胶囊（RadioButton，选中实主色）
+         · KxCard          投影卡片（圆角 18 + 卡片投影，Tag 不参与语义）
+         · KxIconBox       卡片内图标方块（26×26，主色弱底）
+         · KxTopBar        顶栏容器（面板底 + 下边线 + 内边距 20,14）
+         · KxInfoBox       提示框（Tag=Ok/Warn/Ng/Pri 语义弱底 + 同色描边）
+         · KxStatusDot     状态灯圆点（Tag 语义换 Fill，宽高可覆盖）
+         · KxRingBg/Value  圆环仪表底环/值环（描边 5，弧长由代码设 StrokeDashArray）
+         · KxSlimScrollBar 细滚动条（垂直/水平双模板，10px）
+
+       【口径来源】宿主 ProductionStatistics V0.0.1 的 Controls/Styles.xaml 与
+         MainWindow.xaml 逐值反哺（现代卡片风：卡片圆角 18 / 主题开关 64×32 /
+         双行页签圆角 9 / 语言胶囊圆角 7 / 稼动率圆环 46px 描边 5）。值一字
+         未动，只把硬编码色换成 Brush.Shell.* 语义键——宿主同名覆盖即可换
+         品牌色，深色主题自动跟随（ThemeSwitch 例外：它本身是"主题"开关，
+         轨道固定深色视觉，两套键板同值，见 DefaultLight.xaml 注释）。
+
+       【怎么接】keyed 样式，显式引用；键板须提供 DefaultLight.xaml 头注释
+         里"业务壳族（V2.3.0）"列的键。隐式化由宿主自理（BasedOn 再造）。
+       ============================================================ -->
+
+  <!-- 日夜主题开关：勾选 = 深色。3D 轨道靠两层 DropShadowEffect 做 inset 质感，
+       轨道/滑块/月日图标全部走语义键（两板同值=开关本身不随主题变色）。 -->
+  <Style x:Key="KxThemeSwitch" TargetType="ToggleButton">
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Grid Width="64" Height="32">
+            <!-- 轨道：inset 阴影 -->
+            <Border x:Name="Track" CornerRadius="16"
+                    Background="{DynamicResource Brush.Shell.ThemeTrack}"
+                    BorderBrush="{DynamicResource Brush.Shell.ThemeTrackBorder}"
+                    BorderThickness="1"
+                    Effect="{DynamicResource Fx.ShellThemeTrackShadow}"/>
+            <!-- 滑块 -->
+            <Border x:Name="Knob" Width="24" Height="24" CornerRadius="12"
+                    HorizontalAlignment="Left" Margin="4,0,0,0" VerticalAlignment="Center"
+                    Background="{DynamicResource Brush.Shell.ThemeKnob}"
+                    Effect="{DynamicResource Fx.ShellThemeKnobShadow}">
+              <!-- Border 只能有一个子级，月亮与太阳叠在同一个 Grid 里 -->
+              <Grid>
+                <TextBlock x:Name="Moon" Text="☾" FontSize="12"
+                           Foreground="{DynamicResource Brush.Shell.ThemeMoonFg}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="Sun" Text="☀" FontSize="12"
+                           Foreground="{DynamicResource Brush.Shell.ThemeSunFg}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="Collapsed"/>
+              </Grid>
+            </Border>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+              <Setter TargetName="Knob" Property="Margin" Value="0,0,4,0"/>
+              <Setter TargetName="Knob" Property="Background" Value="{DynamicResource Brush.Shell.ThemeKnobOn}"/>
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Shell.ThemeTrackOn}"/>
+              <Setter TargetName="Moon" Property="Visibility" Value="Collapsed"/>
+              <Setter TargetName="Sun" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- 双行页签：内容由宿主放 StackPanel（两行文字），选中=主色弱底+主色描边+加粗。
+       圆角走 Fn.ShellRadius（10）；Margin 8 是宿主页签间距口径，宿主可覆盖。 -->
+  <Style x:Key="KxShiftTab" TargetType="ToggleButton">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.FgDim}"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.Shell.Panel2Bg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="14,7"/>
+    <Setter Property="Margin" Value="0,0,8,0"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{DynamicResource Fn.ShellRadius}"
+                  SnapsToDevicePixels="True" Padding="{TemplateBinding Padding}">
+            <ContentPresenter VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Shell.Primary}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Shell.DimPriBg}"/>
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Brush.Shell.Primary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.Fg}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- 语言切换胶囊：同容器内 RadioButton 自动互斥；选中=实主色底 + 白字加粗。 -->
+  <Style x:Key="KxLangButton" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.FgDim}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="Padding" Value="12,6"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="7"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.Fg}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.Shell.Primary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.OnPrimary}"/>
+              <Setter Property="FontWeight" Value="Bold"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- 投影卡片：圆角用 Fn.ShellCardRadius（18），投影用 Fx.ShellCardShadow
+       （浅色低透明度黑 / 深色纯黑），换主题时两者都自动跟随。 -->
+  <Style x:Key="KxCard" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Fresh.CardBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource Fn.ShellCardRadius}"/>
+    <Setter Property="Padding" Value="14,10"/>
+    <Setter Property="SnapsToDevicePixels" Value="True"/>
+    <Setter Property="Effect" Value="{DynamicResource Fx.ShellCardShadow}"/>
+  </Style>
+
+  <!-- 卡片内图标方块：主色弱底 + 圆角 8，内容由宿主放 Path/Image。 -->
+  <Style x:Key="KxIconBox" TargetType="Border">
+    <Setter Property="Width" Value="26"/>
+    <Setter Property="Height" Value="26"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimPriBg}"/>
+    <Setter Property="HorizontalAlignment" Value="Left"/>
+  </Style>
+
+  <!-- 顶栏容器：面板底 + 下边线 1px + 内边距 20,14（宿主顶栏是业务内容，
+       本样式只负责容器外观；拖动区/系统三钮仍由宿主自绘）。 -->
+  <Style x:Key="KxTopBar" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Shell.PanelBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.Border}"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Setter Property="Padding" Value="20,14"/>
+    <Setter Property="SnapsToDevicePixels" Value="True"/>
+  </Style>
+
+  <!-- 提示框：Tag=Ok/Warn/Ng/Err 切语义弱底，Pri/无 Tag 走主色弱底。
+       文字/图标颜色由内部 KxStatusDot + StatusChipText 各自按 Tag 上色。 -->
+  <Style x:Key="KxInfoBox" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimPriBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.Primary}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{DynamicResource Fn.ShellRadius}"/>
+    <Setter Property="Padding" Value="11,9"/>
+    <Style.Triggers>
+      <Trigger Property="Tag" Value="Ok">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimOkBg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.OkFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Warn">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimWarnBg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.WarnFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Ng">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimNgBg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Err">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimNgBg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- 状态灯圆点：Tag=Ok/Warn/Ng 换 Fill，无 Tag 走主色；宽高宿主可覆盖。 -->
+  <Style x:Key="KxStatusDot" TargetType="Ellipse">
+    <Setter Property="Width" Value="8"/>
+    <Setter Property="Height" Value="8"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Fill" Value="{DynamicResource Brush.Shell.Primary}"/>
+    <Style.Triggers>
+      <Trigger Property="Tag" Value="Ok">
+        <Setter Property="Fill" Value="{DynamicResource Brush.Shell.OkFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Warn">
+        <Setter Property="Fill" Value="{DynamicResource Brush.Shell.WarnFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Ng">
+        <Setter Property="Fill" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Err">
+        <Setter Property="Fill" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- 稼动率圆环：底环灰、值环主色，描边 5；弧长由代码设 StrokeDashArray
+       （周长 ≈ 144.5 = 46px 圆环的中线周长），旋转 -90° 由宿主实例设置。 -->
+  <Style x:Key="KxRingBg" TargetType="Ellipse">
+    <Setter Property="Stroke" Value="{DynamicResource Brush.Shell.GridLine}"/>
+    <Setter Property="StrokeThickness" Value="5"/>
+    <Setter Property="Fill" Value="Transparent"/>
+  </Style>
+  <Style x:Key="KxRingValue" TargetType="Ellipse">
+    <Setter Property="Stroke" Value="{DynamicResource Brush.Shell.Primary}"/>
+    <Setter Property="StrokeThickness" Value="5"/>
+    <Setter Property="Fill" Value="Transparent"/>
+  </Style>
+
+  <!-- 细滚动条（10px）：垂直/水平双模板，滑块圆角 4、无箭头按钮。
+       宿主若已有全局隐式 ScrollBar 样式，可删隐式改 BasedOn 本键（或直接
+       Style 覆盖），不要本样式+隐式双份并存。 -->
+  <Style x:Key="KxSlimScrollBar" TargetType="ScrollBar">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Width" Value="10"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollBar">
+          <Grid Background="Transparent">
+            <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True">
+              <Track.Thumb>
+                <Thumb>
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                      <Border Background="{DynamicResource Brush.Shell.InputBorder}"
+                              CornerRadius="4" Margin="2,0"/>
+                    </ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
+              </Track.IncreaseRepeatButton>
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
+              </Track.DecreaseRepeatButton>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="Orientation" Value="Horizontal">
+        <Setter Property="Width" Value="Auto"/>
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ScrollBar">
+              <Grid Background="Transparent">
+                <Track x:Name="PART_Track" Orientation="Horizontal">
+                  <Track.Thumb>
+                    <Thumb>
+                      <Thumb.Template>
+                        <ControlTemplate TargetType="Thumb">
+                          <Border Background="{DynamicResource Brush.Shell.InputBorder}"
+                                  CornerRadius="4" Margin="0,2"/>
+                        </ControlTemplate>
+                      </Thumb.Template>
+                    </Thumb>
+                  </Track.Thumb>
+                  <Track.IncreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageRightCommand" Opacity="0" Focusable="False"/>
+                  </Track.IncreaseRepeatButton>
+                  <Track.DecreaseRepeatButton>
+                    <RepeatButton Command="ScrollBar.PageLeftCommand" Opacity="0" Focusable="False"/>
+                  </Track.DecreaseRepeatButton>
+                </Track>
+              </Grid>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+    </Style.Triggers>
   </Style>
 
 </ResourceDictionary>

@@ -30,10 +30,10 @@
 | 标题条控件 | `Views/TitleBar.cs` | 渐变底+底边线+顶角圆（最大化归零）+图标胶囊+标题绑 Window.Title+副题+—/▢/× 三钮；V2.1.0 自 HJVision SunnyTitleBar 迁入去 Sunny 化，CureLine 缺省参数复现 ✕ 单钮口径 |
 | 圆角窗骨架样式 | `Themes/ChromeStyles.xaml` | `Fx.WinShadow` + `WinTitleBar`/`WinTitleText`/`WinTitleClose`/`WinSysBtn`/`WinSysClose`——供不继承基类的窗（主窗等）手抄用 |
 | 按钮/输入族 | `Themes/FreshStyles.xaml` | `GhostButton`/`PrimaryGhostButton`/`FreshButton`/`FreshPrimaryButton`/`FreshDangerButton`/`FreshSuccessButton`/`FreshInput`/`FreshPwdInput`/`FreshCombo`/`FreshComboItem`（全 keyed，绝不做隐式）——CureLine 视觉族 |
-| Kx 族控件样式 | `Themes/ShellStyles.xaml` | **V2.1.0 新增**：`KxPrimaryButton` 等按钮六档/`StatusChip` 对/`KxTextBox`·`KxPasswordBox`·`KxDatePicker`·`KxComboBox`/`KxSwitch`/`KxTitleClose·Min·MaxButton`/`BrandTab*`/`BrandGrid*`/`WinMenu*`/`KxCheckBox`·`KxRadioButton`·`KxGridCheckBox`/`KxGroupBoxImplicit`/`FormLabel*`·`RequiredMark`·`Hint*`·`SectionTitle`/`Kpi*`/`ChromeDialogRootBorder`·`HeadBorder`/`KxDialog*Implicit` 七类兜底/`FormField` 隐式模板——自宿主 HJVision SunnyTheme 通用段迁入**去 Sunny 化**（Kx=Kaleidoscope 前缀；与 Fresh 族的关系：模板结构同构才融、视觉语言不同分族，键名空间统一 Brush.*） |
+| Kx 族控件样式 | `Themes/ShellStyles.xaml` | **V2.1.0 新增**：`KxPrimaryButton` 等按钮六档/`StatusChip` 对/`KxTextBox`·`KxPasswordBox`·`KxDatePicker`·`KxComboBox`/`KxSwitch`/`KxTitleClose·Min·MaxButton`/`BrandTab*`/`BrandGrid*`/`WinMenu*`/`KxCheckBox`·`KxRadioButton`·`KxGridCheckBox`/`KxGroupBoxImplicit`/`FormLabel*`·`RequiredMark`·`Hint*`·`SectionTitle`/`Kpi*`/`ChromeDialogRootBorder`·`HeadBorder`/`KxDialog*Implicit` 七类兜底/`FormField` 隐式模板——自宿主 HJVision SunnyTheme 通用段迁入**去 Sunny 化**（Kx=Kaleidoscope 前缀；与 Fresh 族的关系：模板结构同构才融、视觉语言不同分族，键名空间统一 Brush.*）。<br>**V2.3.0 新增业务壳族**（宿主张卡片式看板反哺，值逐像素取自 ProductionStatistics）：`KxThemeSwitch`（主题开关滑动轨道）/`KxShiftTab`（双行班次页签）/`KxLangButton`（语言单选胶囊）/`KxCard`（圆角 18 + 投影卡片）/`KxIconBox`（26×26 主色弱底图标方块）/`KxTopBar`（顶栏容器）/`KxInfoBox`（Tag=Ok/Warn/Ng/Pri 语义弱底+同色描边提示框）/`KxStatusDot`（Tag 语义状态灯圆点）/`KxRingBg`+`KxRingValue`（稼动率圆环底环/值环）/`KxSlimScrollBar`（10px 细滚动条，隐式化由宿主 BasedOn 再造）；另补 `StatusChipText` 的 `Tag="Pri"` 触发（原仅 Ok/Warn/Ng/Err） |
 | 表单控件 | `Views/FormField.cs` 等 | **V2.1.0 迁入**：FormField（表单行）/NumericUpDownLite（数字微调）/PasswordInput（密码+眼睛）/EyeIconView（矢量眼） |
 | 转换器 | `Converters/UiConverters.cs` | `InverseBoolConverter` / `StringEqualsConverter` / `CapsuleRadiusConverter`（真胶囊）/ NullToVisibility / TrueToVisibility + 静态便捷单例 |
-| 缺省键板 | `Themes/DefaultLight.xaml` / `DefaultDark.xaml` | 全键集缺省值（V2.1.0 扩容：Fresh 36 键+Shell 族 45 键）；新宿主开箱即用 |
+| 缺省键板 | `Themes/DefaultLight.xaml` / `DefaultDark.xaml` | 全键集缺省值（V2.1.0 扩容：Fresh 36 键+Shell 族 45 键；**V2.3.0 补业务壳族 9 键**，各板共 90 键、两板键集一致）；新宿主开箱即用 |
 
 **兄弟工程**：`../Kaleidoscope.UI.WinForms`（V1.0.0 骨架）——WinForms 侧双栈 UI 基类储备
 （`KxThemeTokens` 色板 Token 层 + `ShellDialogForm` 圆角自绘弹窗基类，零 SunnyUI 依赖，
@@ -103,11 +103,13 @@ csproj 若用 submodule/子目录方式引用，submodule 排除规则必须含
 
 控件引用的语义键清单见 [Themes/DefaultLight.xaml](Themes/DefaultLight.xaml) 头注释
 （V2.1.0 全键集：Fresh 36 键 + Shell 族 45 键——`Brush.Shell.*` / `Fn.Shell*` /
-`Fx.Shell*` 为 Kx 族控件样式键）。
+`Fx.Shell*` 为 Kx 族控件样式键；**V2.3.0 再补业务壳族 9 键**：`Brush.Shell.Theme*` 七键
++ `Fn.ShellCardRadius` + `Fx.ShellCardShadow`/`Fx.ShellTheme*Shadow` 投影，缺省板共 90 键）。
 **键名是契约、键值可换皮**——`DynamicResource` 缺键=静默空白（不报错，现场肉眼难查），
 宿主必须提供键板或合并缺省键板。宿主侧应有"库字典引用的语义键 ⊆ 宿主键板键集"
 的文本级契约测试（参考 CureLine `KaleidoscopeUiContractTests`，照搬其
-`ThemeDictionaryTests` 模式）。
+`ThemeDictionaryTests` 模式；ProductionStatistics 侧为
+`tools/E2ETests/Run-ThemeContractTests.ps1`，同时校验两本主题键集一致）。
 
 【V2.1.0 宿主键板补段红线】宿主主题字典追加库契约键段时**必须写字面值、禁止
 `<StaticResource x:Key="A" ResourceKey="B"/>` 元素转发**——net472 BAML 下转发元素
@@ -127,6 +129,7 @@ App.xaml 重定义同名键覆盖即可（CureStation=`3,0,8,0`，来历：Passw
 | CureLine（CureStation/CimGateway） | net8.0-windows | HintPath net8 DLL，合并 ChromeStyles+FreshStyles（缺省板不并），宿主键板 143/74 键 | 灰度 3 窗，23 窗待第二波 |
 | HJVision-WPF | net472 | ProjectReference（MSBuild 自动选 net472 产物），合并 ChromeStyles+FreshStyles+ShellStyles，宿主 ThemeLight/Dark 追加库契约键段（字面值），KxShellDefaults 一行配置切 HJVision 口径 | **51 窗全切**（36 SunnyDialog+9 ChromeDialog+6 直连窗借用静态方法） |
 | YoloDetector | net472 | ProjectReference（自动选 net472 产物），**只继承 ChromeBorderlessWindow 不合并任何字典**（零键板基类），宿主玻璃拟态视觉全自绘 | 主窗 1 窗全切（v2.11.2），全量回归 182 用例+三态目检零变化 |
+| ProductionStatistics | net472 | ProjectReference（自动选 net472 产物），合并 DefaultLight+FreshStyles+ShellStyles（主题只换宿主 Light/Dark），宿主主题追加库契约键段（字面值，133/133 键）；主窗继承 ChromeBorderlessWindow + 全量 `Kx*` 壳族 | **V2.3.0 主窗全切**（除 KPI 卡片外壳/DataGrid 刻意保留），深浅双主题+1280/1440/1920 三档目检 |
 | 新宿主 | 任意 | 合并 DefaultLight+ChromeStyles+FreshStyles+ShellStyles 四字典零配置开箱 | — |
 
 ## 路线图
@@ -135,7 +138,8 @@ App.xaml 重定义同名键覆盖即可（CureStation=`3,0,8,0`，来历：Passw
 | --- | --- | --- |
 | 第一波 | 圆角弹窗基类 + 骨架样式 + 按钮/输入族 + 缺省键板 + 转换器 + 契约测试 | ✅ V2.0.0 |
 | 1.5 波 | **net472 多目标 + 弹窗基类三合一融合（HJVision SunnyDialog/ChromeDialog）+ TitleBar/ShellStyles/表单控件迁入去 Sunny 化 + KxShellDefaults 宿主常量 + HJVision 51 窗全切** | ✅ V2.1.0 |
-| 第二波 | 主窗基类（品牌顶栏 44 + 系统三钮 + 最大化 Margin 补偿）；ThemeManager 沉库（CureLine 两宿主逐行相同的 ParseTheme/ApplyTheme/ToggleTarget 孪生副本 + HJVision ThemeService）；ViewModelBase（含 UiInvoke 封送）——**主窗行为地基已提前落地：`ChromeBorderlessWindow`（V2.2.0，YoloDetector 反哺，纯行为零键板；带键板视觉的品牌主窗基类仍待 CureLine 口径）** | 部分落地 |
+| 第二波 | 主窗基类（品牌顶栏 44 + 系统三钮 + 最大化 Margin 补偿）；ThemeManager 沉库（CureLine 两宿主逐行相同的 ParseTheme/ApplyTheme/ToggleTarget 孪生副本 + HJVision ThemeService）；ViewModelBase（含 UiInvoke 封送）——**主窗行为地基已提前落地：`ChromeBorderlessWindow`（V2.2.0，YoloDetector 反哺，纯行为零键板；V2.2.1 外壳构造收拢 `KxShellInterop`；带键板视觉的品牌主窗基类仍待 CureLine 口径）** | 部分落地 |
+| 2.5 波 | **业务壳族反哺（ProductionStatistics V2.3.0）**：`KxThemeSwitch` / `KxShiftTab` / `KxLangButton` / `KxCard` / `KxIconBox` / `KxTopBar` / `KxInfoBox` / `KxStatusDot` / `KxRingBg`·`KxRingValue` / `KxSlimScrollBar` 十一件 keyed 样式 + `StatusChipText` 补 `Tag="Pri"`；缺省键板两板各补 9 键（90 键/板、键集一致）；库内 `{StaticResource Fn.*}` 统一改 `{DynamicResource}`（宿主换主题才能生效） | ✅ V2.3.0 |
 | 第三波 | 状态徽章族（StateBadge：状态枚举 DP + `Brush.Tint{State}`/`Pill{State}` 同名键约定）；卡片双层骨架控件（垫层投影+内容层，CureLine V0.0.108 性能架构）；分页条控件 | 规划 |
 | ~~net472 多目标~~ | ~~等真实宿主诉求再做~~ | ✅ V2.1.0 已做（ProjectReference 自动选产物；CureLine HintPath net8 路径不变） |
 | WinForms 双栈 | `../Kaleidoscope.UI.WinForms`（V1.0.0 骨架：KxThemeTokens 色板 Token 层 + ShellDialogForm 圆角自绘基类，零 SunnyUI 依赖）已建；扩面等原版解耦 SunnyUI 的真实宿主诉求 | 骨架 ✅ V2.1.0 同轮 |
