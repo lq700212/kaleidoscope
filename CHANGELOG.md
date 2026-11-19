@@ -7,6 +7,56 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.2.0（2026-11-19）主窗形态骨架基类首件：ChromeBorderlessWindow（宿主 YoloDetector 反哺）
+
+> 宿主 YoloDetector（net472，v2.11.2）把 v2.10.2/v2.10.3 两轮实测沉淀的"真圆角
+> 无边框主窗骨架"（自绘顶栏 + WindowChrome + 分层透明 + 最大化工作区钩子）整体
+> 改继承库新基类，宿主 code-behind 删手抄骨架 ~130 行；全量回归 182 用例全绿 +
+> GUI 冒烟通过 + desktop 三态像素级目检（正常/最大化/还原）零视觉变化。
+
+### Kaleidoscope.UI（V2.2.0）
+
+- **新基类 `Views/ChromeBorderlessWindow`**：无边框圆角窗**纯行为骨架**，与
+  ChromeDialogWindow（弹窗形态，键板视觉一体）并列成对，补齐"主窗/自绘标题栏窗"
+  形态（原第二波规划"主窗基类"的行为地基）：
+  - **零键板依赖**：不引用任何 Brush.*/Fn.* 语义键、不插任何视觉元素——底色/圆角/
+    顶栏全部由子类 XAML 根 Border 自绘，宿主不合并库字典即可使用（与弹窗基类的
+    本质差异：弹窗吃库视觉体系，主窗吃宿主视觉体系）；
+  - 行为集（全部 YoloDetector 生产验证、值一字未动）：WindowStyle=None +
+    AllowsTransparency + Background=Transparent（分层真圆角三件套）；WindowChrome
+    外壳（CaptionHeight=DP 缺省 34 / ResizeBorderThickness=DP 缺省 6 /
+    GlassFrameThickness=0 / UseAeroCaptionButtons=false）；根 Border 圆角 Clip 同步
+    （约定 Window.Content as Border；Loaded/SizeChanged/StateChanged 三入口，几何
+    实例复用零分配）；最大化圆角归零/还原恢复（CornerRadius=DP 缺省 10，YoloDetector
+    传 14）；
+  - **WM_GETMINMAXINFO 最大化工作区修正**（`FixMaximizedToWorkArea` DP 缺省 true）：
+    库内首件——WindowChrome 默认最大化盖任务栏（bounds 探出 7px/边，v2.10.2 实测），
+    窗口过程钩子把最大化目标改写为最近显示器工作区（handled=true 阻止 DefWindowProc
+    覆盖）。弹窗基类的可最大化窗（Resizeable=true 的日志/报警窗）暂未带此修正，
+    等 HJVision 诉求再融（不主动改已有宿主行为）；
+  - 刻意不做：标题条/系统三钮（各宿主样式差异大，留宿主自绘）、非分层
+    SetWindowRgn 分支（无验证过的口径不收，含 HWND 的窗勿用本类——分层窗 HWND
+    不渲染红线写进类头，走 ChromeDialogWindow.UseLayeredTransparency=false 形态）。
+  - 接法：子类 XAML 根元素类名改为本类 + 根内容包圆角 Border + 根元素传
+    `CaptionHeight`/`CornerRadius` DP；WindowStyle/AllowsTransparency/Background/
+    WindowChrome 由基类构造设置，子类 XAML 不重复声明。
+
+### 宿主接入实录（YoloDetector v2.11.2）
+
+- 主窗 MainWindow 改继承基类：XAML 删 WindowStyle/AllowsTransparency/Background
+  三属性 + WindowChrome 节点（根元素传 CaptionHeight=62/CornerRadius=14 DP）；
+  code-behind 删手抄骨架 ~130 行（圆角常量/裁剪几何/UpdateFrameClip/
+  WM_GETMINMAXINFO 整段含 Win32 结构体与 P/Invoke）；StateChanged 只剩宿主图标
+  切换行为。
+- 【坑】宿主主 csproj 的 submodule 排除规则**必须补 `<Page Remove="submodules\**" />`**：
+  UI 库新增 .xaml 样式字典后，UseWPF 的 SDK 默认通配会把它们当 Page 扫进主项目
+  XAML 编译（实测 MC3074 主程序集解析不到库内 clr-namespace 类型；此前 submodule
+  无 .xaml 所以三件排除够用，四件缺一不可）。
+- 验证：YoloDetector 全量回归 182/182 全绿（含"UI-无边框窗口WindowChrome配置"
+  运行时断言用例——WindowChrome 参数/三件套/rootFrame Clip 全部由基类承担后
+  断言原样通过）+ GUI 冒烟 + desktop 三态目检（最大化贴合工作区任务栏可见/
+  圆角归零，还原 14px 圆角恢复，像素采样证实）。
+
 ## V2.1.0（2026-11-19）弹窗基类融合 + net472 多目标 + WinForms 骨架（宿主 HJVision-WPF 一条龙接入）
 
 > 宿主 HJVision-WPF（net472，51 窗）提出"基类沉库+两宿主类似基类只留一份"诉求：

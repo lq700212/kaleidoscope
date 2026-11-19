@@ -17,7 +17,9 @@
 - 序列化 Newtonsoft.Json **不引入**本库；设备配置持久化走库内置 `Configuration/ConfigSerializer`（.NET 内置 `DataContractJsonSerializer`，零第三方依赖），业务项目无需再自己写反序列化（旧 Demo 的 Newtonsoft 写法已弃用）；`Models/*.cs` 已带 `System.ComponentModel` 中文元数据（DisplayName/Description/Category），供 `ConfigEditor/` 可视化编辑器自动渲染参数界面
 - System.Management（WMI 串口自动识别：气压表 CH340 / 扫码枪按 DeviceKeyword），csproj 已引用
 - **Kaleidoscope.UI（V2.0.0 起，仓库第二工程）**：SDK 风格 **多目标 net472 + net8.0-windows
-  （V2.1.0 起）+ UseWPF** 的 WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 标题条
+  （V2.1.0 起）+ UseWPF** 的 WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 无边框
+  主窗纯行为基类 ChromeBorderlessWindow（V2.2.0，宿主 YoloDetector 反哺，零键板依赖+
+  WM_GETMINMAXINFO 最大化工作区修正）/ 标题条
   TitleBar / 骨架与按钮族 keyed 样式（Fresh 族=CureLine 视觉、Kx 族=HJVision 视觉，
   ShellStyles.xaml）/ 缺省键板 / 表单控件 FormField 等 / 通用转换器），SDK 风格
   `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行各自版本线**（UI 库
