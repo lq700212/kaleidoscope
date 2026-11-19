@@ -19,7 +19,8 @@
 - **Kaleidoscope.UI（V2.0.0 起，仓库第二工程）**：SDK 风格 **多目标 net472 + net8.0-windows
   （V2.1.0 起）+ UseWPF** 的 WPF 复用控件库（圆角窗基类 ChromeDialogWindow / 无边框
   主窗纯行为基类 ChromeBorderlessWindow（V2.2.0，宿主 YoloDetector 反哺，零键板依赖+
-  WM_GETMINMAXINFO 最大化工作区修正）/ 标题条
+  WM_GETMINMAXINFO 最大化工作区修正；V2.2.1 两基类外壳构造与最大化修正收拢到共享
+  静态类 KxShellInterop）/ 标题条
   TitleBar / 骨架与按钮族 keyed 样式（Fresh 族=CureLine 视觉、Kx 族=HJVision 视觉，
   ShellStyles.xaml）/ 缺省键板 / 表单控件 FormField 等 / 通用转换器），SDK 风格
   `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行各自版本线**（UI 库

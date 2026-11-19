@@ -175,6 +175,18 @@ public class ChromeDialogWindow : Window
         DependencyProperty.Register(nameof(UseLayeredTransparency), typeof(bool), typeof(ChromeDialogWindow),
             new FrameworkPropertyMetadata(true));
 
+    /// <summary>
+    /// 是否启用 WM_GETMINMAXINFO 最大化工作区修正（缺省 **false=两宿主现状一字
+    /// 不变**）。背景：WindowChrome 默认最大化盖任务栏（最大化 bounds 探出
+    /// 7px/边，宿主 YoloDetector v2.10.2 实测）——可缩放弹窗（Resizeable=true
+    /// 的日志/报警/调试窗）最大化时同样受影响。实现收拢在
+    /// KxShellInterop.EnableMaximizedWorkAreaFix（与无边框窗基类共享同一份
+    /// Win32 互操作，V2.2.1 去重），宿主有诉求时逐窗设 true 即开。
+    /// </summary>
+    public static readonly DependencyProperty FixMaximizedToWorkAreaProperty =
+        DependencyProperty.Register(nameof(FixMaximizedToWorkArea), typeof(bool), typeof(ChromeDialogWindow),
+            new FrameworkPropertyMetadata(false));
+
     public double CaptionHeight
     {
         get => (double)GetValue(CaptionHeightProperty);
@@ -259,6 +271,12 @@ public class ChromeDialogWindow : Window
         set => SetValue(UseLayeredTransparencyProperty, value);
     }
 
+    public bool FixMaximizedToWorkArea
+    {
+        get => (bool)GetValue(FixMaximizedToWorkAreaProperty);
+        set => SetValue(FixMaximizedToWorkAreaProperty, value);
+    }
+
     private static void OnChromeParamChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((ChromeDialogWindow)d).ApplyChrome();
 
@@ -322,6 +340,20 @@ public class ChromeDialogWindow : Window
         {
             cmd.Execute(null);
             e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// 句柄创建后按开关挂最大化工作区修正钩子（缺省 false=现状不变；
+    /// 实现见 KxShellInterop.EnableMaximizedWorkAreaFix，钩子随 HwndSource
+    /// 销毁自动失效，无需显式移除）。
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        if (FixMaximizedToWorkArea)
+        {
+            KxShellInterop.EnableMaximizedWorkAreaFix(this);
         }
     }
 
@@ -417,19 +449,15 @@ public class ChromeDialogWindow : Window
     }
 
     /// <summary>把 WindowChrome 参数与 DP 对齐（构造/DP 回调双入口）：
-    /// CaptionHeight=DP（>0 时标题条落在系统 caption 区内，空白可拖）；
-    /// 可缩放边 6/0。</summary>
+    /// 共享构造收拢在 KxShellInterop.BuildChrome（V2.2.1 与无边框窗基类
+    /// ChromeBorderlessWindow 去重——库口径 GlassFrameThickness=0 /
+    /// CornerRadius=0 / UseAeroCaptionButtons=false 固定），本基类只补弹窗
+    /// 特有逻辑：CaptionHeight=DP（>0 时标题条落在系统 caption 区内，空白可拖）；
+    /// 定高弹窗缩放边 0 / 可缩放窗取 DP（6 是库口径缺省，个别窗 4）。</summary>
     private void ApplyChrome()
     {
-        var chrome = new WindowChrome
-        {
-            CaptionHeight = CaptionHeight,
-            GlassFrameThickness = new Thickness(0),
-            UseAeroCaptionButtons = false,
-            // 定高弹窗 0 / 可缩放窗取 DP（6 是库口径缺省，个别窗 4）
-            ResizeBorderThickness = new Thickness(Resizeable ? ResizeBorderThickness : 0),
-        };
-        WindowChrome.SetWindowChrome(this, chrome);
+        WindowChrome.SetWindowChrome(this, KxShellInterop.BuildChrome(
+            CaptionHeight, Resizeable ? ResizeBorderThickness : 0));
     }
 
     /// <summary>

@@ -57,6 +57,23 @@
   断言原样通过）+ GUI 冒烟 + desktop 三态目检（最大化贴合工作区任务栏可见/
   圆角归零，还原 14px 圆角恢复，像素采样证实）。
 
+### Kaleidoscope.UI（V2.2.1）同日去重优化：外壳共享互操作收拢
+
+- **新静态类 `Views/KxShellInterop`**：两窗基类重复面去重收口——① `BuildChrome`
+  （WindowChrome 库口径构造：GlassFrameThickness=0/CornerRadius=0/
+  UseAeroCaptionButtons=false 固定，CaptionHeight/缩放边参数化），ChromeDialogWindow
+  与 ChromeBorderlessWindow 的 ApplyChrome 各自手抄的同一段构造改为共用一份；
+  ② `EnableMaximizedWorkAreaFix`（WM_GETMINMAXINFO 最大化工作区修正的 Win32
+  互操作全套：钩子/WndProc/结构体/P-Invoke 自无边框窗基类收拢，带幂等闸）。
+- **ChromeDialogWindow 补 `FixMaximizedToWorkArea` DP（缺省 false=两宿主现状
+  一字不变，additive 向后兼容）**：可缩放弹窗（Resizeable=true 的日志/报警窗）
+  最大化同样盖任务栏，修正能力经共享实现备好，HJVision 诉求到了逐窗设 true 即开。
+- **语义差异注释互指（防误合并）**：两基类的 Clip（弹窗=卡片内缘裁剪/主窗=根
+  框架整体裁剪）与最大化圆角归零（弹窗=骨架 card/主窗=子类根 Border）看似同构、
+  实则挂载对象与半径口径不同，双方注释明确"勿合并"。
+- 验证：UI 库双目标 0 错误零新增警告；宿主 YoloDetector 全量回归 182/182 全绿
+  + GUI 冒烟 + desktop 像素复核（最大化贴合工作区/圆角归零与改造前一致）。
+
 ## V2.1.0（2026-11-19）弹窗基类融合 + net472 多目标 + WinForms 骨架（宿主 HJVision-WPF 一条龙接入）
 
 > 宿主 HJVision-WPF（net472，51 窗）提出"基类沉库+两宿主类似基类只留一份"诉求：

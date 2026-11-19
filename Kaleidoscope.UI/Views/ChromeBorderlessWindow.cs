@@ -34,9 +34,11 @@
 //   现象：WindowChrome 对 WM_GETMINMAXINFO 的默认处理把最大化尺寸扩到整个
 //   显示器（desktop 实测最大化 bounds = 1934×1094 @(-7,-7)，屏幕 1920×1080）
 //   ——底部盖住任务栏，四周探出的 7px 藏缩放热区。
-//   修复：OnSourceInitialized 追加窗口过程钩子，把最大化目标改写为最近显示器的
-//   工作区（不含任务栏），handled=true 阻止 DefWindowProc 用显示器全尺寸覆盖。
-//   改窗口外壳代码时勿删此钩子（FixMaximizedToWorkArea DP 缺省 true）。
+//   修复：窗口过程钩子把最大化目标改写为最近显示器的工作区（不含任务栏），
+//   handled=true 阻止 DefWindowProc 用显示器全尺寸覆盖。实现收拢在
+//   KxShellInterop.EnableMaximizedWorkAreaFix（V2.2.1 与弹窗基类共享同一份，
+//   弹窗基类经 FixMaximizedToWorkArea DP 缺省关、诉求到了一行配置即开），
+//   本类开关 FixMaximizedToWorkArea 缺省 true（宿主红线修复）。
 //
 // 【怎么接】子类 XAML 根元素类名改为本类、根内容包一层圆角 Border 即可：
 //     <ui:ChromeBorderlessWindow x:Class="YourApp.MainWindow"
@@ -60,10 +62,8 @@
 // =========================================================================
 
 using System;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shell;
 
@@ -180,27 +180,23 @@ public class ChromeBorderlessWindow : Window
         }
     }
 
-    /// <summary>WindowChrome 外壳参数与 DP 对齐（构造/DP 回调双入口）：
-    /// CaptionHeight=DP（顶栏空白即标题区：拖动/双击最大化/贴边分屏）；
-    /// GlassFrameThickness=0（否则顶部残留透明系统框）；
-    /// UseAeroCaptionButtons=false（不叠加系统三钮，宿主自绘）；缩放边=DP。</summary>
+    /// <summary>WindowChrome 外壳参数与 DP 对齐（构造/DP 回调双入口）：共享构造
+    /// 收拢在 KxShellInterop.BuildChrome（库口径：GlassFrameThickness=0 去顶部
+    /// 透明系统框残留 / CornerRadius=0 不产生视觉圆角 / UseAeroCaptionButtons=
+    /// false 不叠加系统三钮），本类只传 CaptionHeight（顶栏空白即标题区）与
+    /// 缩放边两个参数。</summary>
     private void ApplyChrome()
     {
-        var chrome = new WindowChrome
-        {
-            CaptionHeight = CaptionHeight,
-            ResizeBorderThickness = new Thickness(ResizeBorderThickness),
-            GlassFrameThickness = new Thickness(0),
-            CornerRadius = new CornerRadius(0),   // WindowChrome 的 CornerRadius 只影响非客户区计算不产生视觉圆角，保持 0
-            UseAeroCaptionButtons = false,
-        };
-        WindowChrome.SetWindowChrome(this, chrome);
+        WindowChrome.SetWindowChrome(this, KxShellInterop.BuildChrome(CaptionHeight, ResizeBorderThickness));
     }
 
     /// <summary>
     /// 最大化/还原圆角联动：最大化清零根 Border 圆角（贴满工作区不留透明角），
     /// 还原恢复 CornerRadius DP 值。直接改写根 Border 本地值——子类 XAML 里
     /// 写的 CornerRadius 应与本 DP 一致（口径见类头【怎么接】）。
+    /// 【与弹窗基类语义不同，勿合并】ChromeDialogWindow.ApplyMaximizedShell
+    /// 操作的是库骨架 card Border（CornerRadius+BorderThickness 归零+标题条
+    /// 顶角），本类操作的是子类根 Border——目标对象与联动面不同，各自实现。
     /// </summary>
     private void ApplyMaximizedCorner()
     {
@@ -216,6 +212,10 @@ public class ChromeBorderlessWindow : Window
     /// 几何实例复用（拖拽缩放时 SizeChanged 高频触发，只改 Rect/Radius 零分配）；
     /// 尺寸未布局（0）时跳过等下次触发。WPF Border.CornerRadius 只裁自身背景
     /// 不裁子元素，Clip 是子元素溢出内容的唯一约束。
+    /// 【与弹窗基类语义不同，勿合并】ChromeDialogWindow 的 Clip 是"卡片内容
+    /// 内缘裁剪"（card 带 1px 描边、Clip 挂 Child、半径=外弧−1px、低频每次
+    /// 新建几何）；本类是"根框架整体裁剪"（无描边、Clip 挂根 Border 自身、
+    /// 半径=DP 全值、高频复用几何实例）——挂载位置与半径口径均不同。
     /// </summary>
     private void UpdateRootClip()
     {
@@ -230,8 +230,11 @@ public class ChromeBorderlessWindow : Window
     }
 
     // ============================================================
-    // WM_GETMINMAXINFO 最大化工作区修正（YoloDetector v2.10.2 实测红线，
-    // 详见类头【最大化红线】）
+    // WM_GETMINMAXINFO 最大化工作区修正（YoloDetector v2.10.2 实测红线）
+    //   实现已收拢在 KxShellInterop.EnableMaximizedWorkAreaFix（与弹窗基类
+    //   共享同一份 Win32 互操作，V2.2.1 去重），本类只在开关开启时挂钩子。
+    //   红线背景：WindowChrome 默认最大化盖任务栏（bounds 探出 7px/边），
+    //   钩子把最大化目标改写为最近显示器工作区，详见 KxShellInterop 类头。
     // ============================================================
 
     /// <summary>句柄创建后挂窗口过程钩子（WindowChrome 的钩子先注册，本钩子后写入值生效）。
@@ -239,98 +242,9 @@ public class ChromeBorderlessWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        if (!FixMaximizedToWorkArea) return;
-        var source = (HwndSource)PresentationSource.FromVisual(this);
-        if (source != null)
+        if (FixMaximizedToWorkArea)
         {
-            source.AddHook(WndProc);
+            KxShellInterop.EnableMaximizedWorkAreaFix(this);
         }
     }
-
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        if (msg == WM_GETMINMAXINFO)
-        {
-            AdjustMaximizedBounds(hwnd, lParam);
-            handled = true; // 阻止 DefWindowProc 用显示器全尺寸覆盖我们写入的工作区值
-        }
-        return IntPtr.Zero;
-    }
-
-    /// <summary>把最大化尺寸/位置改写为最近显示器的"工作区"（任务栏以外的区域）</summary>
-    private void AdjustMaximizedBounds(IntPtr hwnd, IntPtr lParam)
-    {
-        // 泛型重载（4.5.1+ 双目标可用）：结构体值类型无 null 语义，免去非泛型版
-        // 的 object 拆箱可空警告
-        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
-
-        IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if (monitor == IntPtr.Zero)
-        {
-            return;
-        }
-
-        var info = new MONITORINFO();
-        info.cbSize = Marshal.SizeOf(info);
-        if (!GetMonitorInfo(monitor, ref info))
-        {
-            return;
-        }
-
-        // 最大化目标 = 工作区；ptMaxPosition 相对显示器原点
-        // （任务栏在底部时 work.top == monitor.top → 0；在顶部/侧边也正确）
-        mmi.ptMaxSize.x = info.rcWork.right - info.rcWork.left;
-        mmi.ptMaxSize.y = info.rcWork.bottom - info.rcWork.top;
-        mmi.ptMaxPosition.x = info.rcWork.left - info.rcMonitor.left;
-        mmi.ptMaxPosition.y = info.rcWork.top - info.rcMonitor.top;
-
-        Marshal.StructureToPtr(mmi, lParam, true);
-    }
-
-    // ---- Win32 互操作（仅最大化修正使用）----
-
-    private const int WM_GETMINMAXINFO = 0x0024;
-    private const uint MONITOR_DEFAULTTONEAREST = 2;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT
-    {
-        public int x;
-        public int y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT
-    {
-        public int left;
-        public int top;
-        public int right;
-        public int bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MINMAXINFO
-    {
-        public POINT ptReserved;
-        public POINT ptMaxSize;
-        public POINT ptMaxPosition;
-        public POINT ptMinTrackSize;
-        public POINT ptMaxTrackSize;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO
-    {
-        public int cbSize;
-        public RECT rcMonitor;
-        public RECT rcWork;
-        public int dwFlags;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
-
-    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 }
