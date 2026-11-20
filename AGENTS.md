@@ -34,6 +34,9 @@
   写字面值）。**兄弟工程 `Kaleidoscope.UI.WinForms`（V1.0.0 骨架）**：WinForms 双栈
   UI 基类储备（KxThemeTokens 色板 Token + ShellDialogForm 圆角自绘基类，零 SunnyUI
   依赖，独立版本线），扩面等真实宿主诉求
+  **宿主可裁剪目标框架（V2.1.1）**：宿主设 `KaleidoscopeUITargetFrameworks=net472` 即只还原/构建
+  net472（工厂离线机无需 net8 targeting pack）；不设=双目标（CureLine 默认行为不变），详见
+  `Kaleidoscope.UI/README.md`。
 
 ## 跨 .NET 版本兼容性（重要：用户项目可能后续迁 .NET Core/.NET 5+）
 

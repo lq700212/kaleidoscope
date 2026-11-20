@@ -138,6 +138,28 @@
 - 验证：UI 库双目标 0 错误零新增警告；宿主 YoloDetector 全量回归 182/182 全绿
   + GUI 冒烟 + desktop 像素复核（最大化贴合工作区/圆角归零与改造前一致）。
 
+## V2.1.1（2026-11-20）宿主可裁剪目标框架（离线构建根治）
+
+> 宿主 HJVision-WPF（net472）反馈：`git pull` 后 VS 编译报 NU1105 / NETSDK1004，根因是该
+> 工程不在宿主 sln 内、`obj/project.assets.json` 跟机器走；且双目标 restore 会连带拉 net8
+> targeting pack（3 个 ref 包），工厂离线机无法还原。需求：宿主侧只构建 net472、彻底不碰
+> net8，同时 CureLine（net8）默认行为一字不变。
+
+### 变更
+
+- **`Kaleidoscope.UI.csproj`**：`TargetFrameworks` 改为宿主可配置——`KaleidoscopeUITargetFrameworks`
+  为空时仍是 `net472;net8.0-windows`（CureLine 等 net8 宿主零改动）；宿主设 `net472` 时只还原/
+  构建该目标。外部 `ProjectReference` 写法不变（MSBuild NearestTargetFramework 自动选目标）。
+- **实测（2026-11-20）**：
+  - HJVision 侧（设 `net472`）：`project.assets.json` 仅 `frameworks: net472`、`libraries` 为空
+    （零 NuGet 包）；`-Clean -Offline` 全量清空重建 10s 通过。
+  - 不设属性（CureLine 口径）：`TargetFrameworks` 仍为 `net472;net8.0-windows`，且双目标真实
+    构建成功——net472 与 net8.0-windows 两个 `Kaleidoscope.UI.dll` 均生成，exit 0。
+- **宿主落地**：HJVision 在**主仓根** `Directory.Build.props` 设
+  `<KaleidoscopeUITargetFrameworks>net472</KaleidoscopeUITargetFrameworks>`（该文件属主仓，不入本库）。
+- **注意**：在设置了该属性的宿主仓库内单独构建本工程也会被裁到 net472；需要双目标时显式
+  `-p:KaleidoscopeUITargetFrameworks="net472;net8.0-windows"`。
+
 ## V2.1.0（2026-11-19）弹窗基类融合 + net472 多目标 + WinForms 骨架（宿主 HJVision-WPF 一条龙接入）
 
 > 宿主 HJVision-WPF（net472，51 窗）提出"基类沉库+两宿主类似基类只留一份"诉求：

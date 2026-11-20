@@ -133,6 +133,22 @@ App.xaml 重定义同名键覆盖即可（CureStation=`3,0,8,0`，来历：Passw
 | ProductionStatistics | net472 | ProjectReference（自动选 net472 产物），合并 DefaultLight+FreshStyles+ShellStyles（主题只换宿主 Light/Dark），宿主主题追加库契约键段（字面值，133/133 键）；主窗继承 ChromeBorderlessWindow + 全量 `Kx*` 壳族 | **V2.3.0 主窗全切**（除 KPI 卡片外壳/DataGrid 刻意保留），深浅双主题+1280/1440/1920 三档目检 |
 | 新宿主 | 任意 | 合并 DefaultLight+ChromeStyles+FreshStyles+ShellStyles 四字典零配置开箱 | — |
 
+### 宿主裁剪目标框架（V2.1.1，离线构建用）
+
+默认 `TargetFrameworks=net472;net8.0-windows`，net8 宿主（CureLine/CureStation/CimGateway）行为不变。
+net472 宿主若想彻底不碰 net8 targeting pack（工厂离线机），在**宿主仓库根**的
+`Directory.Build.props` 设一行即可：
+
+```xml
+<PropertyGroup>
+  <KaleidoscopeUITargetFrameworks>net472</KaleidoscopeUITargetFrameworks>
+</PropertyGroup>
+```
+
+效果：restore/build 只走 net472，`project.assets.json` 的 `libraries` 为空（零 NuGet 包）；
+宿主 csproj 的 `ProjectReference` 写法完全不变。需要临时恢复双目标时，显式传
+`-p:KaleidoscopeUITargetFrameworks="net472;net8.0-windows"`。
+
 ## 路线图
 
 | 波次 | 内容 | 状态 |

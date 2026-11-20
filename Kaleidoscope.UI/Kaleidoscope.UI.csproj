@@ -59,7 +59,10 @@
         HJVision-WPF 的 SDK 风格 net472 + UseWPF 即活样板）。
     ========================================================================= -->
   <PropertyGroup>
-    <TargetFrameworks>net472;net8.0-windows</TargetFrameworks>
+    <!-- 宿主可裁剪目标框架：宿主设 KaleidoscopeUITargetFrameworks=net472 时只还原/构建 net472；
+         不设则保持双目标（CureLine 等 net8 宿主）。外部 ProjectReference 写法完全不变。 -->
+    <TargetFrameworks Condition="'$(KaleidoscopeUITargetFrameworks)' == ''">net472;net8.0-windows</TargetFrameworks>
+    <TargetFrameworks Condition="'$(KaleidoscopeUITargetFrameworks)' != ''">$(KaleidoscopeUITargetFrameworks)</TargetFrameworks>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
