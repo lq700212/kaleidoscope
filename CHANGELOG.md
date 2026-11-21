@@ -7,6 +7,29 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.2（2026-11-21）分层窗决策改虚属性钩子：`protected virtual bool UseLayeredWindow` 让派生类 override 真正关掉分层（HJVision 宿主反哺）
+
+> 宿主张 HJVision（WPF 视觉检测）实测血泪：含 WindowsFormsHost/HwndHost 的弹窗内嵌
+> 显示区**整块不渲染**——WinForms 侧连 WM_PAINT 都收不到、`GetWindowRgn` 报错、
+> EXSTYLE=0x00080000 实锤带 WS_EX_LAYERED，预览区只剩纯底纹。根因是本基类构造函数里
+> `_layered = UseLayeredTransparency` 读到的永远是 DP 缺省值 true：XAML 的
+> `UseLayeredTransparency="False"` 要到 `InitializeComponent` 才赋值，晚于基类构造。
+
+### Kaleidoscope.UI（V2.3.2）
+
+- **新增派生类钩子 `protected virtual bool UseLayeredWindow`**（缺省 `=> UseLayeredTransparency`）：
+  构造函数改 `_layered = UseLayeredWindow`。虚属性在基类构造期求值会派发到派生类 override，
+  因此派生类写 `protected override bool UseLayeredWindow => false` 才真正关掉分层窗
+  （子 HWND 恢复渲染）；非分层分支的 SetWindowRgn 物理圆角/投影留白归零逻辑不变。
+  **红线**：窗内嵌 `WindowsFormsHost` / `HwndHost`（VisionPro 显示区、Cog 工具块编辑器等）
+  必须 override 返回 false，否则子 HWND 整块不渲染。
+- **`UseLayeredTransparency` DP 注释改口径**：该 DP 现在**只影响自身读取方，不决定窗模式**；
+  要关分层请 override 钩子，XAML 里写 `UseLayeredTransparency="False"` 无效（构造期已定格，
+  事后赋值只是改一个没人再读的 DP）。
+- 宿主接线实况：HJVision 侧 DisplayMark / SearchRegion / ZeroCalib / JobEdit 四窗 override=false，
+  另有六窗（无 HwndHost）删除 XAML 里那行无效属性；五处取像/预览显示区迁移到统一底座后，
+  浅色 + 深色两轮真机目检全部正常，24 批回归 ALL-PASS。
+
 ## V2.3.1（2026-11-20）主窗内容块圆角化：`Fn.ShellRadiusBottom` 令牌 + `KxRoundedClip` 圆角裁剪附加属性（ProductionStatistics 宿主反哺）
 
 > 宿主 ProductionStatistics 用户反馈"外壳圆角了，但内容块四角还是直角"：顶栏白块上缘、

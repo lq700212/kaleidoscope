@@ -164,12 +164,11 @@ public class ChromeDialogWindow : Window
             new FrameworkPropertyMetadata(null));
 
     /// <summary>
-    /// 是否用分层透明窗（缺省 true）。
-    /// 【红线】内嵌 WindowsFormsHost（VisionPro 显示区 HWND）的窗必须设 false
-    /// ——分层窗（WS_EX_LAYERED）里 HWND 不渲染，画面会整块消失。false 分支：
-    /// AllowsTransparency=false + 窗自身挂 Brush.Shell.WinBg 底 + Loaded 后
-    /// SetWindowRgn 物理 Region 圆角（含子 HWND 裁剪，边缘锯齿为已知代价）；
-    /// 且投影留白强制归零（非分层窗投影会被窗矩形裁掉）。
+    /// 是否用分层透明窗（DP 缺省 true，**仅影响本 DP 自身的读取方，不决定窗模式**）。
+    /// 【注意】窗模式在构造期由虚属性 UseLayeredWindow 定格，XAML 写本属性为 False
+    /// **不会**关掉分层窗（原因见 UseLayeredWindow 注释）；要关分层请在派生类
+    /// override UseLayeredWindow 返回 false。
+    /// 【红线】含 WindowsFormsHost/HwndHost 的窗必须非分层。
     /// </summary>
     public static readonly DependencyProperty UseLayeredTransparencyProperty =
         DependencyProperty.Register(nameof(UseLayeredTransparency), typeof(bool), typeof(ChromeDialogWindow),
@@ -265,6 +264,21 @@ public class ChromeDialogWindow : Window
         set => SetValue(CancelCommandProperty, value);
     }
 
+    /// <summary>
+    /// 【派生类钩子】是否使用分层透明窗（缺省 true，派生类 override 返回 false 即关）。
+    /// 【为什么不能靠 XAML 的 UseLayeredTransparency 决定】AllowsTransparency 必须在窗口
+    /// 句柄创建前定格（WPF 限制），而 XAML 属性要到 InitializeComponent 才赋值——晚于
+    /// 本基类构造函数，`_layered = UseLayeredTransparency` 读到的永远是 DP 缺省值 true，
+    /// XAML 写 UseLayeredTransparency="False" 只是改了一个"事后没人再读"的 DP，窗口照样
+    /// 带 WS_EX_LAYERED（2026-11-21 血泪实测：显示标识设置页内嵌 VisionPreviewHost 的
+    /// 预览区整块不渲染、只剩纯底纹，连 WinForms 的 WM_PAINT 都收不到，Frida 式取证
+    /// 查 EXSTYLE=0x00080000 才定位；同批 SearchRegion/ZeroCalib/JobEdit 三窗全部中招）。
+    /// 虚属性在基类构造期求值会派发到派生类实现，所以 override 返回 false 才真正生效。
+    /// 【红线】窗内嵌 WindowsFormsHost / HwndHost（VisionPro 显示区、Cog 工具块编辑器等）
+    /// 必须 override 本属性返回 false，否则子 HWND 整块不渲染。
+    /// </summary>
+    protected virtual bool UseLayeredWindow => UseLayeredTransparency;
+
     public bool UseLayeredTransparency
     {
         get => (bool)GetValue(UseLayeredTransparencyProperty);
@@ -282,7 +296,8 @@ public class ChromeDialogWindow : Window
 
     public ChromeDialogWindow()
     {
-        _layered = UseLayeredTransparency;   // 构造期定格（AllowsTransparency 只能窗口初始化前设）
+        _layered = UseLayeredWindow;   // 构造期定格（AllowsTransparency 只能窗口初始化前设；
+                                       // 走虚属性才能让派生类 override 的 false 真正生效）
         WindowStyle = WindowStyle.None;
         ResizeMode = Resizeable ? ResizeMode.CanResize : ResizeMode.NoResize;
         // 宿主级常量（KxShellDefaults）：任务栏显隐/启动定位/字体——缺省不动
