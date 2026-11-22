@@ -35,7 +35,7 @@
 | 转换器 | `Converters/UiConverters.cs` | `InverseBoolConverter` / `StringEqualsConverter` / `CapsuleRadiusConverter`（真胶囊）/ NullToVisibility / TrueToVisibility + 静态便捷单例 |
 | 圆角裁剪附加属性 | `Views/KxRoundedClip.cs` | **V2.3.1 新增**（宿主 ProductionStatistics 反哺）：任意 FrameworkElement 一行 XAML 挂圆角矩形裁剪 `ui:KxRoundedClip.Radius="12"`——`Border.CornerRadius` 只裁自身背景不裁子元素的补位（卡片里放 DataGrid/图片等自带方角背景的子元素、四角盖过圆弧时的标准解法）；Loaded/SizeChanged 按实际尺寸同步（几何实例按元素复用，缩放零分配），Radius=0 摘除恢复方角；语义同 `ChromeBorderlessWindow.UpdateRootClip`（元素自身坐标整体裁剪），与 `ChromeDialogWindow` 的"卡片内容内缘裁剪"是两种口径，按需选用 |
 | 缺省键板 | `Themes/DefaultLight.xaml` / `DefaultDark.xaml` | 全键集缺省值（V2.1.0 扩容：Fresh 36 键+Shell 族 45 键；**V2.3.0 补业务壳族 9 键**；**V2.3.1 补 `Fn.ShellRadiusBottom`（底缘圆角，与 ShellRadiusTop 成对）**；**V2.3.5 补取像舞台三键 `Brush.Shell.Stage*`**，两板键集一致）；新宿主开箱即用 |
-| 取像舞台控件 | `Views/KxImageStage.cs` | **V2.3.5 新增**（宿主 AIris 反哺）：相机画面显示区"舞台"三件（舞台底/网格底纹/主色扫描光带动效 4.2s 循环）一行 XAML 替换普通 Grid 即得；继承 Grid——宿主 XAML 子元素直接落 Children，code-behind 的 ActualWidth/Height、SizeChanged 用法零改动；三色可配置 DP `StageBackground`/`GridLineBrush`/`ScanBrush`（默认 null=主题键 `Brush.Shell.Stage*` 自动配色随深浅换肤，设本地值=项目自定义原色）+ `ScanEnabled`/`GridStep`(18)/`ScanDuration`(4.2s) 行为 DP；生命周期防空转（IsVisible=false/Unloaded 停动画）+ 库级总闸 `KxShellDefaults.EnableStageScanMotion`。**适用边界：纯 WPF 项目**（半透明画刷直写，无 HWND 合成丢 α 问题）；WinForms/HWND airspace 场景（ActiveX 等 HWND 盖住 WPF 元素）不适用——网格须 WinForms 侧自绘、半透明须预混实色（HJVision 口径） |
+| 取像舞台控件 | `Views/KxImageStage.cs` | **V2.3.5 新增 / V2.3.6 内置帧显示管线**（宿主 AIris 反哺）：相机画面显示区"舞台"三件（舞台底/网格底纹/主色扫描光带动效 4.2s 循环）一行 XAML 替换普通 Grid 即得；继承 Grid——宿主 XAML 子元素直接落 Children，code-behind 的 ActualWidth/Height、SizeChanged 用法零改动；三色可配置 DP `StageBackground`/`GridLineBrush`/`ScanBrush`（默认 null=主题键 `Brush.Shell.Stage*` 自动配色随深浅换肤，设本地值=项目自定义原色）+ `ScanEnabled`/`GridStep`(18)/`ScanDuration`(4.2s) 行为 DP；生命周期防空转（IsVisible=false/Unloaded 停动画）+ 库级总闸 `KxShellDefaults.EnableStageScanMotion`。**V2.3.6 喂帧傻瓜式**：内置帧图/空态文本/叠加画布 `Overlay`（画面上扫描带下）三件，宿主一行绑定即得——绑定式 `FrameSource="{Binding FrameImage}"`（MVVM）或命令式 `ShowFrame()/ClearFrame()`（**任意线程安全**，帧线程直调不崩）；`IdleText` 空态文本、`FrameStretch` 拉伸（默认 Uniform）可配；**扫描联动内建：有帧自动停扫描、清帧回空态自动恢复（宿主零接线）**；纯装饰用法零破坏（不喂帧=内置件全隐藏）。**二选一红线**：同实例禁混用两种喂帧方式。**适用边界：纯 WPF 项目**（半透明画刷直写，无 HWND 合成丢 α 问题）；WinForms/HWND airspace 场景（ActiveX 等 HWND 盖住 WPF 元素）不适用——网格须 WinForms 侧自绘、半透明须预混实色（HJVision 口径） |
 
 **兄弟工程**：`../Kaleidoscope.UI.WinForms`（V1.0.0 骨架）——WinForms 侧双栈 UI 基类储备
 （`KxThemeTokens` 色板 Token 层 + `ShellDialogForm` 圆角自绘弹窗基类，零 SunnyUI 依赖，
@@ -69,7 +69,7 @@
 | 开关 / 勾选 / 单选 | `KxSwitch` / `KxCheckBox` / `KxRadioButton` / `KxGridCheckBox` / `KxThemeSwitch`（深浅主题切换滑动轨道） | |
 | 细滚动条 | `KxSlimScrollBar`（隐式化由宿主 BasedOn 再造） | |
 | 顶栏容器 | `KxTopBar` | |
-| **相机画面显示区"舞台"（底 + 网格 + 扫描动效）** | `KxImageStage` 控件（替代普通 Grid，宿主子元素直接落 Children） | 纯 WPF 适用；三色/步距/时长可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；HWND airspace 场景不适用 |
+| **相机画面显示区"舞台"（底 + 网格 + 扫描动效 + 喂帧）** | `KxImageStage` 控件（替代普通 Grid；喂帧用 `FrameSource` 绑定或 `ShowFrame()` 命令式，叠加取 `Overlay` 画） | 纯 WPF 适用；三色/步距/时长/空态文本/拉伸可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；有帧自动停扫描、空态自动恢复（内建联动）；HWND airspace 场景不适用 |
 | 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter |
 
 **自绘三条件（不满足即回去查表/沉库）**：①先跑检索命令确认库内确无同职责控件；

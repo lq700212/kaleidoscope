@@ -7,6 +7,41 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.6（2026-11-22）KxImageStage 内置帧显示管线：傻瓜式喂帧 + 扫描联动（AIris 宿主反哺）
+
+> 宿主 AIris 第八~九轮反馈：①取像控件要对标 HJVision VisionPreviewHost 的"傻瓜式
+> 复用"——黑盒逻辑全在控件内，宿主一行绑定即得完整取像显示（单图/实时视频通吃）；
+> ②**显示图像/实时视频时自动关闭扫描动效，只有初始空态（无帧）才有扫描**——封装
+> 进控件，外部调用自动保证；③全舞台"一层网格+扫描"（画面内容不带装饰网格）。
+
+### Kaleidoscope.UI（V2.3.6）
+
+- **KxImageStage 内置帧显示三件**：帧图 `Image`（ZIndex=0）/ 叠加画布
+  `public Canvas Overlay`（ZIndex=5：画面上、扫描带下，宿主 code-behind 直接取用
+  画检测框/标定框）/ 空态文本（弱化前景键 `Brush.Shell.FgDim`）。层序全 SetZIndex
+  锁死不变；**纯装饰用法零破坏**——不喂帧=内置三件全 Collapsed，V2.3.5 用法原样可用。
+- **双喂帧入口（二选一红线：同实例禁混用）**：
+  ①绑定式 `FrameSource="{Binding FrameImage}"`（MVVM 口径，ImageSource DP）；
+  ②命令式 `ShowFrame(ImageSource)` / `ClearFrame()`——**任意线程安全**（内部
+  Dispatcher 封送，帧线程直调不崩，对标 HJVision"检测线程直调 VM"口径）。
+- **新 DP**：`IdleText`（空态文本，null/空=不显示；有帧自动隐藏、无帧自动回来）、
+  `FrameStretch`（默认 Uniform，letterbox 对齐网格舞台，监控画面口径）。
+- **扫描联动（封装内建，宿主零接线）**：有效开关内含 `FrameSource == null`——
+  有帧自动停扫描（带子收起 + 清动画时钟，防空转口径），清帧回空态自动恢复。
+  扫描只属于"初始空态"：画面/视频不被光带干扰，帧流高频重绘期动画时钟不再叠加
+  开销（分层窗软渲染性能口径的自然延伸）。
+
+### 验证（宿主 AIris V0.1.5）
+
+- 编译 0 error；浅色屏摄逐位采样：舞台底 #E9EEF8 命中、18px 网格透底、透明帧
+  零件浮层清晰、无第二层台面网格；**有帧连拍 diff=0**（扫描停实锤——同参数
+  V0.1.4 纯装饰版连拍 diff 显著）；Mock"空场透明帧"按契约即"有帧"，故宿主演示
+  链路空态扫描只在"未启动检测"前出现——联动契约正确执行；存档链路 alpha 保留
+  实测（零件半透明像素 A38 / 底 A0）。
+- 宿主侧配套（AIris 主仓 V0.1.5）：Mock 帧透明化 + `Imaging.ToBitmapSource`
+  保 alpha 改造（**alpha 语义红线：GDI 直通 alpha 必须配 `PixelFormats.Bgra32`，
+  喂 Pbgra32 预乘会把半透明像素当预乘值解读、显示叠底溢出爆白**——实测教训）。
+
 ## V2.3.5（2026-11-22）取像舞台控件首件：KxImageStage（舞台底/网格/扫描光带动效，AIris 宿主反哺）
 
 > 宿主 AIris（视觉检测防错平台）诉求：①取像区做出 UI 设计稿的扫描动效（深色舞台底
