@@ -7,7 +7,27 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.3（2026-11-22）TitleBar 标题条渐变底被 Loaded 兜底 ClearValue 误杀——白标题栏根治（HJVision 宿主 51 窗目检抓获）
+
+> 宿主张 HJVision 用户目检：弹窗标题栏渐变蓝（Brush.HeaderGrad）变白、白字白底几乎不可读。
+> 对照实验（git bisect 式两轮构建）锁定：V2.1.0 迁库当轮即已白（非 V2.2.x~V2.3.x 引入），
+> 沉库轮目检漏看了标题条颜色，潜伏三天。
+
+### Kaleidoscope.UI（V2.3.3）
+
+- **TitleBar.ApplyTitleBackground 的 null 分支由 ClearValue 改 SetResourceReference**：
+  ClearValue 清的是本地值层——而 BuildSkeleton 里 `SetResourceReference` 放置的资源引用
+  表达式**就在本地值层**，ClearValue 把 Brush.HeaderGrad 键引用一并清掉，Background 回落
+  null（透明）→ 标题条露出白卡片底。构造函数的 Loaded 兜底对 null（绝大多数窗 XAML 未设
+  TitleBackground）无条件触发，等于每窗必中。修复后 null=显式重装键引用（幂等，兜底反复
+  触发无害）；显式 Brush 照旧打本地值压过键引用（MBox 四态语义渐变场景不受影响）。
+- **血泪归档（TitleBar 类头【血泪随迁】）**：同一行代码跨架构换代要重审语义——宿主 XAML
+  Setter 时代"null=ClearValue"正确（键引用在样式层，ClearValue 只清本地值层、值回落样式
+  层键引用仍在）；2026-11-19 迁库去 XAML 化改代码 SetResourceReference 后语义悄然变化。
+  ClearValue 语义=清本地值层**一切条目**，资源引用表达式也在其中。
+
 ## V2.3.2（2026-11-21）分层窗决策改虚属性钩子：`protected virtual bool UseLayeredWindow` 让派生类 override 真正关掉分层（HJVision 宿主反哺）
+
 
 > 宿主张 HJVision（WPF 视觉检测）实测血泪：含 WindowsFormsHost/HwndHost 的弹窗内嵌
 > 显示区**整块不渲染**——WinForms 侧连 WM_PAINT 都收不到、`GetWindowRgn` 报错、

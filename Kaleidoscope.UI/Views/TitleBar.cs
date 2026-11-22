@@ -37,9 +37,16 @@ namespace Kaleidoscope.UI.Views;
 ///   · DockPanel LastChildFill=False + 三钮显式 Dock=Right：先加入先靠右，
 ///     视觉从左到右 —/▢/×；不设 Dock 首拍 ✕ 跑到标题条左端（CureLine 灰度
 ///     首轮目检抓获的同款坑）。
-///   · TitleBackground 落地用回调打本地值（null=ClearValue 交还键引用）：
+///   · TitleBackground 落地用回调打本地值（null=重装键引用 SetResourceReference）：
 ///     直接绑 DP 会成"死 DP"——XAML/代码里 Setter 写死的键引用压住 DP，
 ///     MBox 四态语义渐变赋值后纹丝不动（2026-11-04 目检抓获后修）。
+///   · null 分支的写法随架构换代要重审：宿主 XAML Setter 时代"null=ClearValue"
+///     正确（键引用在样式层，ClearValue 只清本地值层、值回落样式层键引用仍在）；
+///     2026-11-19 迁库去 XAML 化后键引用改为代码 SetResourceReference（就在
+///     本地值层），ClearValue 连键引用一起清掉——Loaded 兜底对 null（绝大多数
+///     窗 XAML 未设 TitleBackground）无条件触发 → 51 窗标题条失去 Brush.HeaderGrad
+///     渐变、白底白字（2026-11-22 用户目检抓获，V0.9.74 沉库轮引入潜伏三天）。
+///     教训：ClearValue 语义=清本地值层一切条目，资源引用表达式也在其中。
 ///
 /// 【线程】UI 线程构造/使用（WPF 常规纪律）。
 /// </summary>
@@ -98,8 +105,9 @@ public class TitleBar : UserControl
     /// <summary>
     /// 标题条背景（缺省 null → 根 Border 走 Brush.HeaderGrad 键引用，主题热切换
     /// 随 DynamicResource 生效）。语义渐变定制（如 HJVision MBox 四态弹窗传
-    /// Ok/Warn/Err 渐变）传显式 Brush：回调打本地值压过键引用；null=ClearValue
-    /// 交还键引用（见类头【血泪随迁】死 DP 段）。
+    /// Ok/Warn/Err 渐变）传显式 Brush：回调打本地值压过键引用；null=重装键引用
+    /// （SetResourceReference；**禁用 ClearValue**——它会把键引用一并清掉，见
+    /// ApplyTitleBackground 注释与类头【血泪随迁】死 DP 段）。
     /// </summary>
     public static readonly DependencyProperty TitleBackgroundProperty =
         DependencyProperty.Register(nameof(TitleBackground), typeof(Brush), typeof(TitleBar),
@@ -114,12 +122,24 @@ public class TitleBar : UserControl
     private static void OnTitleBackgroundChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ApplyTitleBackground((TitleBar)d, e.NewValue as Brush);
 
-    /// <summary>把语义渐变刷到标题条根 Border（null=ClearValue 回到字典键）。</summary>
+    /// <summary>
+    /// 把语义渐变刷到标题条根 Border。
+    /// 【null 分支为什么是 SetResourceReference 而不是 ClearValue】（2026-11-22 血泪）：
+    /// ClearValue 清的是本地值层——而 BuildSkeleton 里 SetResourceReference 放置的
+    /// 资源引用表达式**就在本地值层**，ClearValue 会把 Brush.HeaderGrad 键引用一并
+    /// 清掉，Background 回落 null（透明）→ 标题条露出白卡片底色（宿主 51 窗白标题
+    /// 栏根因；2026-11-04 宿主 XAML Setter 时代此写法正确——键引用在样式层不受
+    /// ClearValue 影响，2026-11-19 迁库去 XAML 化改代码 SetResourceReference 后
+    /// 语义悄然变化）。修法：null 时显式把键引用装回去（幂等，Loaded 兜底反复
+    /// 触发也无害），显式 Brush 照旧打本地值压过键引用。
+    /// </summary>
     private static void ApplyTitleBackground(TitleBar bar, Brush? brush)
     {
         if (bar._titleRoot == null) return;   // InitializeComponent 未完成时留护栏
-        if (brush == null) bar._titleRoot.ClearValue(Border.BackgroundProperty);
-        else bar._titleRoot.Background = brush;
+        if (brush == null)
+            bar._titleRoot.SetResourceReference(Border.BackgroundProperty, "Brush.HeaderGrad");
+        else
+            bar._titleRoot.Background = brush;
     }
 
     /// <summary>副题（主标题右侧弱化小字；null/空 不占位）。</summary>
