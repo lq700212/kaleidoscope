@@ -10,7 +10,8 @@ using System.Windows.Threading;
 namespace Kaleidoscope.UI.Views;
 
 /// <summary>
-/// KxImageStage —— 取像"舞台"容器控件【V2.3.5 装饰，V2.3.6 内置帧显示管线】：相机画面
+/// KxImageStage —— 取像"舞台"容器控件【V2.3.5 装饰，V2.3.6 内置帧显示管线，
+/// V2.3.7 叠加画布可交互修复】：相机画面
 /// 显示区的主题舞台底 + 网格底纹 + 主色扫描光带动效（工业视觉的经典视觉语言），一行
 /// XAML 替换普通 Grid 即得；喂帧场景连 Image/空态/叠加画布都不用宿主装配（傻瓜式）。
 ///
@@ -40,6 +41,9 @@ namespace Kaleidoscope.UI.Views;
 /// 【叠加画布】public Canvas Overlay 取用（ZIndex=5：画面上、扫描带下），宿主
 ///   code-behind 在上面画检测框/标定框等；坐标换算用 Stage 实际尺寸（即本控件），
 ///   与 V2.3.5"控件即 Grid，ActualWidth/Height 零改动"口径一致。
+///   【V2.3.7 可交互口径】画布恒可见 + IsHitTestVisible=true——宿主可在上面放
+///   可交互元素（可拖拽 ROI 框/角手柄等，AIris 编辑页实踩需求）；画布自身无背景
+///   不拦截空白点击，"空白处按下"由宿主在画布上自挂事件判命中元素为空实现。
 ///
 /// 【三色可配置（复用核心）】StageBackground / GridLineBrush / ScanBrush 三个 Brush DP
 ///   默认 null → 构造期 SetResourceReference 到主题键（Brush.Shell.StageBg / StageGridLine /
@@ -251,13 +255,17 @@ public class KxImageStage : Grid
         _frame = new Image { IsHitTestVisible = false, Visibility = Visibility.Collapsed };
         _frame.SetBinding(Image.SourceProperty, new Binding(nameof(FrameSource)) { Source = this });
         _frame.SetBinding(Image.StretchProperty, new Binding(nameof(FrameStretch)) { Source = this });
-        _overlay = new Canvas { IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+        _overlay = new Canvas();    // V2.3.7：恒可见 + 可命中（宿主画可交互叠加件的前提——
+                                    // AIris 编辑页 ROI 拖拽实踩：Collapsed+不可命中时画上去的东西
+                                    // 既不显示也收不到鼠标；空画布无背景不拦截任何点击，监控台
+                                    // 纯画框用法行为不变，此前构造设 false 属库侧遗留缺陷）
         _idle = new TextBlock
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 13,
             Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,   // V2.3.7：空态文本不挡鼠标（否则居中文本区吞点击，宿主交互区开洞）
         };
         _idle.SetBinding(TextBlock.TextProperty, new Binding(nameof(IdleText)) { Source = this });
         _idle.SetResourceReference(TextBlock.ForegroundProperty, KeyFgDim);

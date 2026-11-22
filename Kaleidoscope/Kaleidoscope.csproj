@@ -35,6 +35,9 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <!-- 推理协议适配层（Infer，V2.4.0）：OpenAI/Anthropic/Ollama/自研契约/JEV Decisions
+         五协议 HTTP 调用——BCL HttpClient（System.Net.Http），零第三方依赖 -->
+    <Reference Include="System.Net.Http" />
     <!-- ADO.NET 基类（SQLiteConnection/Command 的继承基座，Stores 落库引擎） -->
     <Reference Include="System.Data" />
     <!-- 串口扫码枪（ScannerService） -->
@@ -94,6 +97,19 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <!-- 推理协议适配层（Infer，V2.4.0）：四视觉协议 transport + JEV Decisions 决策协议
+         + 框解析（BoxParser 0~1000 归一化、无置信度红线）+ 门面（InferClient）。 -->
+    <Compile Include="Infer\InferEndpoint.cs" />
+    <Compile Include="Infer\IInferTransport.cs" />
+    <Compile Include="Infer\InferTransportBase.cs" />
+    <Compile Include="Infer\Json.cs" />
+    <Compile Include="Infer\OpenAiTransport.cs" />
+    <Compile Include="Infer\AnthropicTransport.cs" />
+    <Compile Include="Infer\OllamaTransport.cs" />
+    <Compile Include="Infer\CustomJsonTransport.cs" />
+    <Compile Include="Infer\DecisionsTransport.cs" />
+    <Compile Include="Infer\BoxParser.cs" />
+    <Compile Include="Infer\InferClient.cs" />
     <Compile Include="Utils\LogHelper.cs" />
     <Compile Include="Utils\MockBridge.cs" />
     <Compile Include="Utils\SerialPortNameResolver.cs" />

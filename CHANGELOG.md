@@ -7,6 +7,52 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.0（2026-11-22）新增 Infer 推理协议适配层：四视觉协议 + JEV Decisions 决策协议（AIris 宿主反哺）
+
+> 宿主 AIris 引擎页调研定版：本地部署形态多元（vLLM / llama.cpp server / Ollama / 自研
+> FastAPI / 云端），差异只在"信封"（端点/头/传图字段/回包结构）——信封收口成协议层，
+> 上层门面统一，换部署形态只改下拉框。
+
+### Kaleidoscope（主库 V2.4.0，新目录 Infer\，命名空间 Kaleidoscope.Infer）
+
+- **零第三方依赖**：JSON 手拼/轻扫（Json.cs），HTTP 走 BCL System.Net.Http（TLS1.2 静态收口），
+  图像以 JPEG byte[] 过接口（不引 System.Drawing，WinForms/WPF 宿主通用）。
+- **协议传输器**（IInferTransport + InferTransportBase 共用基座，失败转 Ok=false 不抛异常）：
+  OpenAiTransport（/v1/chat/completions，image_url=data URI，Bearer）、
+  AnthropicTransport（/v1/messages，base64 source 块，x-api-key+anthropic-version，
+  system 顶层字段，content[].text 拼接）、OllamaTransport（/api/chat stream:false，
+  images=**裸 base64 数组**非 data URL）、CustomJsonTransport（POST /detect 自研契约框直出）、
+  DecisionsTransport（JEV 决策协议：choice/score/noul 三题型，兼容 TypeSafe 原生
+  /v1/systemone 与 OpenRouter /api/alpha/decisions 端点——云端文本决策模型，无图像输入，
+  供宿主可选语义决策通道，不进生产主链路）。
+- **BoxParser**：回包文本 → 0~1000 归一化框。策略①JSON bbox_2d 数组（Qwen2.5-VL grounding
+  默认形态，容 ```json 围栏）；②\<box\> 标签（LocateAnything 文本形态，两种写法都收）。
+  钳位/端点校正/零面积丢弃；**无置信度字段（宿主语义红线，全链路判定走 ROI-IoU）**。
+- **InferClient 门面**：DetectAsync（组三句式 grounding prompt → transport → BoxParser）、
+  ProbeAsync 探活（openai:/v1/models、ollama:/api/tags、custom:/health、anthropic:配置即就绪）。
+
+### 验证（宿主 AIris V0.1.7）
+
+- 编译 0 error；四协议组包格式对照官方文档逐字段核对；探活对无服务地址友好降级；
+  JEV Decisions 组包/解包单测口径（choice/noul 回包扫描）通过。
+
+## V2.3.7（2026-11-22）KxImageStage 叠加画布可交互修复（AIris 宿主 ROI 拖拽实踩）
+
+> 宿主 AIris 配方编辑页要在取像舞台上放**可鼠标拖拽的 ROI 框**（移动/四角缩放/拖画新框），
+> 发现内置 Overlay 画布构造为 `Collapsed + IsHitTestVisible=false` 且从未翻开——画上去的
+> 元素既不显示也收不到鼠标，属 V2.3.6 引入的库侧遗留缺陷（监控台此前画检测框实际也没显示出来）。
+
+### Kaleidoscope.UI（V2.3.7）
+
+- **Overlay 恒可见 + 可命中**：构造改 `new Canvas()`（默认 Visible + IsHitTestVisible=true）。
+  空画布无背景不拦截任何空白点击——监控台"纯画框"用法行为零变化；宿主可在画布上放
+  可交互元素（拖拽框/角手柄），"空白处按下"由宿主在画布上自挂事件判命中元素为空实现。
+- 类头注释补【V2.3.7 可交互口径】说明。
+
+### 验证（宿主 AIris V0.1.7）
+
+- 编译 0 error；监控台检测框叠加恢复显示；编辑页 ROI 拖拽三件（移动/缩放/画新框）实点验证通过。
+
 ## V2.3.6（2026-11-22）KxImageStage 内置帧显示管线：傻瓜式喂帧 + 扫描联动（AIris 宿主反哺）
 
 > 宿主 AIris 第八~九轮反馈：①取像控件要对标 HJVision VisionPreviewHost 的"傻瓜式
