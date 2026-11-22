@@ -324,6 +324,60 @@
     </Style.Triggers>
   </Style>
 
+  <!-- 圆角矩形档状态胶囊（V2.3.5，AIris 宿主反哺）：与 StatusChip 同 Tag 语义档/同默认底色，
+       唯一差异 = 形状 CornerRadius=7（KxLangButton/宿主顶栏胶囊同口径圆角矩形），非纯药丸。
+       【为什么两档并存】纯药丸（CapsuleRadiusConverter 半圆端）在矮胶囊上两端尖弧观感"太尖锐"
+       （AIris 用户实评 V0.1.1 否过顶栏、V0.1.4 否过页面标签），圆角矩形档是多数宿主首选；
+       HJVision 等药丸口径宿主继续用 StatusChip，互不强改。
+       用法：<Border Style="{DynamicResource KxChip}" Tag="Ng"><TextBlock Style="{DynamicResource KxChipText}" Tag="Ng" Text="判定 NG"/></Border>
+       （Border 目标 + Tag 语义档，宿主禁再手写 CornerRadius——AIris 曾 7 处手写 99 纯药丸漏改返工） -->
+  <Style x:Key="KxChip" TargetType="Border">
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="Padding" Value="9,3"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.Shell.HoverBg}"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Style.Triggers>
+      <Trigger Property="Tag" Value="Ok">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimOkBg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Warn">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimWarnBg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Ng">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimNgBg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Err">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimNgBg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Pri">
+        <Setter Property="Background" Value="{DynamicResource Brush.Shell.DimPriBg}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="KxChipText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.FgDim}"/>
+    <Style.Triggers>
+      <Trigger Property="Tag" Value="Ok">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.OkFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Warn">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.StatusWarnFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Ng">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Err">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.NgFg}"/>
+      </Trigger>
+      <Trigger Property="Tag" Value="Pri">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Shell.Primary}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
   <!-- ============ 标题条三钮（TitleBar 控件内部引用；keyed 供宿主手抄窗复用） ============ -->
 
   <Style x:Key="KxTitleCloseButton" TargetType="Button">

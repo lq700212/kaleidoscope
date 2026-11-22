@@ -39,6 +39,7 @@
                 StatusWarnFg / WarnFg / WarnRing / GridHeaderBg / GridEmptyBg /
                 GridSelBg / GridLine / GridRowAltBg / RowHoverBg / RowSelectBg /
                 MenuHoverBg / SwitchOffBg / SysBtnHover / SysBtnDisabled
+        取像舞台（V2.3.5，KxImageStage）：Brush.Shell.StageBg / StageGridLine / StageScan
         Fn/Fx：Fn.ShellRadius / Fn.ShellRadiusTop / Fn.ShellMenuRadius /
                 Fn.ShellTitleFontWeight、Fx.ShellPrimaryGlow / Fx.ShellPrimaryGlowHover /
                 Fx.ShellMenuShadow、Fx.WinShadow
@@ -143,6 +144,15 @@
     <SolidColorBrush x:Key="Brush.Shell.SwitchOffBg" Color="#D9E4EF"/>
     <SolidColorBrush x:Key="Brush.Shell.SysBtnHover" Color="#40FFFFFF"/>
     <SolidColorBrush x:Key="Brush.Shell.SysBtnDisabled" Color="#A0FFFFFF"/>
+    <!-- 取像舞台三键【V2.3.5】：KxImageStage（相机画面显示区的"舞台"三件——底/网格线/扫描光带）；
+         扫描带 = 各板主色 10% 透明度整面渐变（0.46 停靠最亮、92% 渐隐，设计稿 sScan 口径） -->
+    <SolidColorBrush x:Key="Brush.Shell.StageBg" Color="#E9EEF8"/>
+    <SolidColorBrush x:Key="Brush.Shell.StageGridLine" Color="#1A5064A0"/>
+    <LinearGradientBrush x:Key="Brush.Shell.StageScan" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#001E90FF" Offset="0"/>
+        <GradientStop Color="#1A1E90FF" Offset="0.46"/>
+        <GradientStop Color="#001E90FF" Offset="0.92"/>
+    </LinearGradientBrush>
     <!-- Fn/Fx -->
     <CornerRadius x:Key="Fn.ShellRadius">10</CornerRadius>
     <CornerRadius x:Key="Fn.ShellRadiusTop">10,10,0,0</CornerRadius>

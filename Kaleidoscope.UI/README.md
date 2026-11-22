@@ -34,7 +34,8 @@
 | 表单控件 | `Views/FormField.cs` 等 | **V2.1.0 迁入**：FormField（表单行）/NumericUpDownLite（数字微调）/PasswordInput（密码+眼睛）/EyeIconView（矢量眼） |
 | 转换器 | `Converters/UiConverters.cs` | `InverseBoolConverter` / `StringEqualsConverter` / `CapsuleRadiusConverter`（真胶囊）/ NullToVisibility / TrueToVisibility + 静态便捷单例 |
 | 圆角裁剪附加属性 | `Views/KxRoundedClip.cs` | **V2.3.1 新增**（宿主 ProductionStatistics 反哺）：任意 FrameworkElement 一行 XAML 挂圆角矩形裁剪 `ui:KxRoundedClip.Radius="12"`——`Border.CornerRadius` 只裁自身背景不裁子元素的补位（卡片里放 DataGrid/图片等自带方角背景的子元素、四角盖过圆弧时的标准解法）；Loaded/SizeChanged 按实际尺寸同步（几何实例按元素复用，缩放零分配），Radius=0 摘除恢复方角；语义同 `ChromeBorderlessWindow.UpdateRootClip`（元素自身坐标整体裁剪），与 `ChromeDialogWindow` 的"卡片内容内缘裁剪"是两种口径，按需选用 |
-| 缺省键板 | `Themes/DefaultLight.xaml` / `DefaultDark.xaml` | 全键集缺省值（V2.1.0 扩容：Fresh 36 键+Shell 族 45 键；**V2.3.0 补业务壳族 9 键**；**V2.3.1 补 `Fn.ShellRadiusBottom`（底缘圆角，与 ShellRadiusTop 成对）**，各板共 91 键、两板键集一致）；新宿主开箱即用 |
+| 缺省键板 | `Themes/DefaultLight.xaml` / `DefaultDark.xaml` | 全键集缺省值（V2.1.0 扩容：Fresh 36 键+Shell 族 45 键；**V2.3.0 补业务壳族 9 键**；**V2.3.1 补 `Fn.ShellRadiusBottom`（底缘圆角，与 ShellRadiusTop 成对）**；**V2.3.5 补取像舞台三键 `Brush.Shell.Stage*`**，两板键集一致）；新宿主开箱即用 |
+| 取像舞台控件 | `Views/KxImageStage.cs` | **V2.3.5 新增**（宿主 AIris 反哺）：相机画面显示区"舞台"三件（舞台底/网格底纹/主色扫描光带动效 4.2s 循环）一行 XAML 替换普通 Grid 即得；继承 Grid——宿主 XAML 子元素直接落 Children，code-behind 的 ActualWidth/Height、SizeChanged 用法零改动；三色可配置 DP `StageBackground`/`GridLineBrush`/`ScanBrush`（默认 null=主题键 `Brush.Shell.Stage*` 自动配色随深浅换肤，设本地值=项目自定义原色）+ `ScanEnabled`/`GridStep`(18)/`ScanDuration`(4.2s) 行为 DP；生命周期防空转（IsVisible=false/Unloaded 停动画）+ 库级总闸 `KxShellDefaults.EnableStageScanMotion`。**适用边界：纯 WPF 项目**（半透明画刷直写，无 HWND 合成丢 α 问题）；WinForms/HWND airspace 场景（ActiveX 等 HWND 盖住 WPF 元素）不适用——网格须 WinForms 侧自绘、半透明须预混实色（HJVision 口径） |
 
 **兄弟工程**：`../Kaleidoscope.UI.WinForms`（V1.0.0 骨架）——WinForms 侧双栈 UI 基类储备
 （`KxThemeTokens` 色板 Token 层 + `ShellDialogForm` 圆角自绘弹窗基类，零 SunnyUI 依赖，
@@ -60,7 +61,7 @@
 | 输入框 | `KxTextBox`（Kx 族）或 `FreshInput`（Fresh 族）；**两者 Padding 模板都已接管**——宿主元素级 Padding 不再生效或垂直内缩会裁文本（AIris 实训：`Padding="h,v"` 的 v>0 裁掉 PART_ContentHost 文本行），**禁设非零垂直 Padding**，居中交给 VerticalContentAlignment | |
 | 密码框 / 数字框 / 日期 | `FreshPwdInput` 或 `KxPasswordBox` / `NumericUpDownLite` 控件 / `KxDatePicker` / `KxComboBox`（+`FreshComboItem`） | 表单行组合用 `FormField` 控件（标签列+必填星标+ToolTip 整行） |
 | 下拉选择 | `KxComboBox` / `FreshCombo` | **SelectedItem 绑字符串时 Items 请给字符串集合**（绑 ComboBoxItem 集合会让 SelectedItem 永远对不上显示空——AIris 实训同款错误） |
-| 状态胶囊（OK/WARN/NG 徽标） | `StatusChip` + `StatusChipText`（Tag=Ok/Warn/Ng/Err/**Pri**） | 语义色走 Dim 键板，深浅主题自动跟随 |
+| 状态胶囊（OK/WARN/NG 徽标） | **形状两档**：圆角矩形档 `KxChip` + `KxChipText`（CornerRadius=7，多数宿主首选）；纯药丸档 `StatusChip` + `StatusChipText`（半圆端，HJVision 口径）——两档同 Tag 语义（Ok/Warn/Ng/Err/**Pri**），禁宿主手写 CornerRadius（AIris 曾 7 处手写 99"太尖锐"返工） | 语义色走 Dim 键板，深浅主题自动跟随 |
 | 状态灯圆点 / 提示框 | `KxStatusDot`（Tag 同上） / `KxInfoBox`（Tag=Ok/Warn/Ng/Pri） | |
 | 卡片 / KPI / 圆环 | `KxCard`（圆角+投影）/ `KpiCard`+`KpiLabel`+`KpiValue`+`KpiSub` / `KxRingBg`+`KxRingValue` / `KxIconBox` | 卡内放方角子元素（DataGrid/图片）配 `KxRoundedClip.Radius` 裁剪 |
 | 数据表格 | `BrandGridHeader`/`BrandGridRow`/`BrandGridCell` | ListView/GridView 列头+行样式 |
@@ -68,6 +69,7 @@
 | 开关 / 勾选 / 单选 | `KxSwitch` / `KxCheckBox` / `KxRadioButton` / `KxGridCheckBox` / `KxThemeSwitch`（深浅主题切换滑动轨道） | |
 | 细滚动条 | `KxSlimScrollBar`（隐式化由宿主 BasedOn 再造） | |
 | 顶栏容器 | `KxTopBar` | |
+| **相机画面显示区"舞台"（底 + 网格 + 扫描动效）** | `KxImageStage` 控件（替代普通 Grid，宿主子元素直接落 Children） | 纯 WPF 适用；三色/步距/时长可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；HWND airspace 场景不适用 |
 | 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter |
 
 **自绘三条件（不满足即回去查表/沉库）**：①先跑检索命令确认库内确无同职责控件；

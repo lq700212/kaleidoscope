@@ -96,4 +96,11 @@ public static class KxShellDefaults
     /// 相对；CenterOwner 在主窗偏角时会把小窗带偏，统一 CenterScreen）。
     /// </summary>
     public static WindowStartupLocation StartupLocation { get; set; } = WindowStartupLocation.Manual;
+
+    /// <summary>
+    /// 取像舞台（KxImageStage）扫描光带动效总闸（缺省 true=开）。宿主可一键关全局动效
+    /// （工控低配机/分层窗软件渲染性能受限场景兜底）；实例级另有 ScanEnabled DP，
+    /// 有效开关 = 本总闸 && ScanEnabled && IsVisible。宿主启动期赋值一次（静态只读口径）。
+    /// </summary>
+    public static bool EnableStageScanMotion { get; set; } = true;
 }

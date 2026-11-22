@@ -105,6 +105,15 @@
     <SolidColorBrush x:Key="Brush.Shell.SwitchOffBg" Color="#FF2A3C5E"/>
     <SolidColorBrush x:Key="Brush.Shell.SysBtnHover" Color="#40FFFFFF"/>
     <SolidColorBrush x:Key="Brush.Shell.SysBtnDisabled" Color="#80FFFFFF"/>
+    <!-- 取像舞台三键【V2.3.5】：键名契约见 DefaultLight.xaml 头注释清单；深色值口径=设计稿
+         相机舞台（底 #060B16 + 网格线主蓝灰 10%）+ 深色板主色 #2E8FE0 扫描光带 -->
+    <SolidColorBrush x:Key="Brush.Shell.StageBg" Color="#060B16"/>
+    <SolidColorBrush x:Key="Brush.Shell.StageGridLine" Color="#1A7E96BE"/>
+    <LinearGradientBrush x:Key="Brush.Shell.StageScan" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#002E8FE0" Offset="0"/>
+        <GradientStop Color="#1A2E8FE0" Offset="0.46"/>
+        <GradientStop Color="#002E8FE0" Offset="0.92"/>
+    </LinearGradientBrush>
     <!-- Fn/Fx -->
     <CornerRadius x:Key="Fn.ShellRadius">10</CornerRadius>
     <CornerRadius x:Key="Fn.ShellRadiusTop">9,9,0,0</CornerRadius>
