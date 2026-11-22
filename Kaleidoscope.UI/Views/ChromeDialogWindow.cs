@@ -2,6 +2,11 @@
 // ChromeDialogWindow：圆角自绘弹窗基类（V2.0.0 宿主 CureLine V0.0.109 反哺沉库；
 // V2.1.0 融合宿主 HJVision-WPF 的 SunnyDialog/ChromeDialog 两基类，二合一）
 //
+// 【宿主 UI 开工必读（人 + AI Agent 通用路标）】宿主写任何弹窗/控件前，先读
+//   Kaleidoscope.UI/README.md 的「控件复用索引（按场景查）」——弹窗壳/标题条/三窗钮/
+//   表单件全有现成封装，禁重复造轮子（库内有直接用 / 近似 BasedOn / 确无才自绘）。
+//   本类是宿主建弹窗的必经基类，在此设路标让任何工具的 Agent 都绕不开。
+//
 // 【干什么】把各宿主"每个弹窗手抄一遍"的圆角窗骨架收成一个 Window 基类——
 //   WindowStyle=None + WindowChrome（CaptionHeight 命中拖动 / 可缩放边）
 //   + 透明分层窗 + 根 Grid（投影留白 Margin，KxShellDefaults.ShadowMargin）

@@ -8,6 +8,11 @@
     通用段迁入并去 Sunny 化——"Sunny" 是原版 WinForms 第三方库 SunnyUI 的品牌致敬，
     WPF 侧全部自绘实现与该库无关，公司级控件库不带第三方库前缀，样式键统一 Kx 前缀）
 
+    【宿主 UI 开工必读（人 + AI Agent 通用路标）】宿主写任何界面控件/样式/窗之前，
+      先读 Kaleidoscope.UI/README.md 的「控件复用索引（按场景查）」——按钮六档/
+      状态胶囊/输入四件/开关/表格等全有现成封装，禁重复造轮子（库内有直接用 /
+      近似 BasedOn / 确无才自绘，自绘纪律见索引节）。
+
     【干什么】弹窗/页面通用控件样式一套：按钮六档（KxPrimaryButton 主渐变胶囊 /
       KxOkButton 确认实绿胶囊 / KxSecondaryButton 幽灵描边 / KxDangerButton 红描边 /
       KxWarnButton 琥珀描边 / KxSuccessButton 绿描边）、StatusChip 对（语义状态胶囊）、

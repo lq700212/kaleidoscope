@@ -7,6 +7,27 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.3.4（2026-11-22）UI 复用纪律多锚点沉淀：README 接入必读节 + 五字典/三基类类头路标（AIris 宿主实训反哺）
+
+> 宿主 AIris 主窗导航胶囊漏查库内 `KxLangButton`（自绘 ControlTemplate 还漏清 WPF
+> 默认焦点虚线框，"胶囊效果很奇怪"）。根因不是库缺控件，而是"开工先查索引"这个动作
+> 没有可靠触发点——宿主 AGENTS.md 绑定单一仓库、AI 工具记忆绑定单一工具，换工具或
+> 换宿主开发即失效。本版把路标埋进宿主接入库的**每一条必经之路**，任何 AI Agent
+> 工具、任何宿主项目都绕不开：clone 库先读 README → App.xaml 合并字典开五文件 →
+> 启动链设 KxShellDefaults → 建弹窗/主窗继承两个窗基类 → 查样式键 grep 五字典。
+
+### Kaleidoscope（V2.3.4，纯文档无代码改动）
+
+- **README.md** 新增「宿主项目 UI 接入必读（人 + AI Agent 通用）」节（快速开始之前，
+  仓库入口第一屏）；
+- **Themes/ 五字典**（DefaultLight / DefaultDark / ChromeStyles / FreshStyles /
+  ShellStyles）文件头注释加「宿主 UI 开工必读」路标段——宿主合并字典与查键 grep
+  的必经文件；
+- **Views/ 三类头**（KxShellDefaults / ChromeDialogWindow / ChromeBorderlessWindow）
+  注释加同款路标——宿主启动链与建窗的必经接触点；
+- 路标只负责把人和 Agent 引过去，细则本体仍是 `Kaleidoscope.UI/README.md`
+  「控件复用索引（按场景查）」节 + 仓库根 AGENTS.md 铁律 7。
+
 ## V2.3.3（2026-11-22）TitleBar 标题条渐变底被 Loaded 兜底 ClearValue 误杀——白标题栏根治（HJVision 宿主 51 窗目检抓获）
 
 > 宿主张 HJVision 用户目检：弹窗标题栏渐变蓝（Brush.HeaderGrad）变白、白字白底几乎不可读。

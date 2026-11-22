@@ -5,6 +5,11 @@
       =========================================================================
       FreshStyles.xaml：按钮/输入控件族 keyed 样式（宿主 CureLine V0.0.109 反哺沉库）
 
+      【宿主 UI 开工必读（人 + AI Agent 通用路标）】宿主写任何界面控件/样式/窗
+        之前，先读 Kaleidoscope.UI/README.md 的「控件复用索引（按场景查）」——
+        按钮族/输入族/表单件全有现成封装，禁重复造轮子（库内有直接用 /
+        近似 BasedOn / 确无才自绘，自绘纪律见索引节）。
+
       【干什么】弹窗表单控件族：GhostButton / PrimaryGhostButton（品牌顶栏胶囊钮）、
         FreshButton / FreshPrimaryButton / FreshDangerButton / FreshSuccessButton
         （浅底弹窗按钮四态）、FreshInput / FreshPwdInput / FreshCombo（表单输入三件）。

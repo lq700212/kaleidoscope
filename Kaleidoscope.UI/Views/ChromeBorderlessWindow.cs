@@ -2,6 +2,11 @@
 // ChromeBorderlessWindow：无边框圆角窗基类——纯行为骨架（V2.2.0 宿主
 // YoloDetector v2.10.2/v2.10.3 实测口径反哺沉库）
 //
+// 【宿主 UI 开工必读（人 + AI Agent 通用路标）】宿主写任何主窗/控件前，先读
+//   Kaleidoscope.UI/README.md 的「控件复用索引（按场景查）」——窗骨架/标题条/三窗钮/
+//   导航胶囊/表单件全有现成封装，禁重复造轮子（库内有直接用 / 近似 BasedOn /
+//   确无才自绘）。本类是宿主建主窗的必经基类，在此设路标让任何工具的 Agent 都绕不开。
+//
 // 【干什么】承接"主窗/自绘标题栏窗"形态的无边框骨架行为，与 ChromeDialogWindow
 //   （弹窗形态，键板视觉一体）并列成对：
 //     · WindowStyle=None + AllowsTransparency + Background=Transparent

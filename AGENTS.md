@@ -69,6 +69,15 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
 4. **不主动 commit/push**，除非用户明确要求；提交前先 `git status` + `git diff`。
 5. **UI 线程禁做网络 IO**：连接/读写一律服务后台线程；TCP 连接必须 `BeginConnect + WaitOne` 强制超时。
 6. **服务必须支持热更**：`Dispose` 干净（限时抢锁 + 锁外强断网）、惰性连接自动重连、状态集中在实例内无残留。`DeviceHub.ApplyConfig` 是热更唯一入口。
+7. **宿主 UI 开工先查控件复用索引，禁止重复造轮子**（2026-11-22 AIris 实训固化：主窗导航胶囊漏查
+   库内 `KxLangButton` 自绘 ControlTemplate，还漏清 WPF 焦点虚线框——库里明明有现成形态）：
+   - 宿主新建任何**控件/样式/转换器**前，先跑
+     `grep -o 'x:Key="[^"]*"' Kaleidoscope.UI/Themes/*.xaml` 对着
+     [Kaleidoscope.UI/README.md「控件复用索引（按场景查）」](Kaleidoscope.UI/README.md) 查一遍；
+   - 库内有对应物 → 直接用（样式键/控件类）；库内有近似形态 → BasedOn 再造（视觉随宿主键板换皮）；
+   - 确无对应物才允许自绘，且必须：①走宿主主题 Token 禁写死色值；②`FocusVisualStyle="{x:Null}"`；
+     ③登记到宿主 AGENTS.md 索引表，评审"该不该按[下沉纪律](Kaleidoscope.UI/README.md)沉进库"；
+   - **本库新增样式键/控件时，同步更新 README「控件复用索引」场景表**——索引不全 = 宿主必再踩。
 
 ## 代码约定
 

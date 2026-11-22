@@ -40,6 +40,51 @@
 （`KxThemeTokens` 色板 Token 层 + `ShellDialogForm` 圆角自绘弹窗基类，零 SunnyUI 依赖，
 对标宿主原版 ThemeDialogForm 口径；net472+net8.0-windows 多目标）。
 
+## 控件复用索引（按场景查——宿主 UI 开工先查这里，再决定自绘）
+
+> **立节缘由（2026-11-22 AIris 实训）**：AIris 主窗导航胶囊自绘了 ControlTemplate（还漏清
+> WPF 默认焦点虚线框），而库内 `KxLangButton` 本就是"语言单选胶囊"导航形态——**库里有对应物
+> 却没查**。教训固化为纪律：宿主新建任何控件/样式前，先跑本节末尾的检索命令对着场景表查一遍。
+> 本表按"我要做个 X"组织，`→` 后是推荐控件/样式键。
+
+| 场景（我要做个…） | 推荐控件 / 样式键 | 备注 |
+| --- | --- | --- |
+| 模态/非模态弹窗 | 继承 `ChromeDialogWindow`（XAML 根直接 `<ui:ChromeDialogWindow>`） | 圆角/标题条/三系统钮/ESC 全内置，宿主零自绘 |
+| 无边框主窗 / 自绘标题栏窗 | 继承 `ChromeBorderlessWindow` | 纯行为骨架（零键板），视觉宿主自绘；WindowChrome+最大化修正内置 |
+| 窗体标题条 | `TitleBar` 控件 或 `WinTitleBar`/`WinTitleText`/`WinSysBtn`/`WinSysClose` 样式 | 直连窗手抄用样式版 |
+| **窗体右上三系统钮（—/▢/✕）** | `KxTitleMinButton` / `KxTitleMaxButton` / `KxTitleCloseButton` | hover 内置（关闭=红底），glyph 由宿主 Content 给（—/▢·❐/✕）；勿自绘 |
+| **顶部/侧栏导航胶囊项** | `KxLangButton`（RadioButton 胶囊导航形态） | 选中态胶囊语言现成；宿主换主题键即换皮。AIris 曾漏查自绘（本节缘由） |
+| 页签/Tab | `BrandTabItem` + `BrandTabControl`；班次双行页签用 `KxShiftTab`（ToggleButton） | |
+| 右键/下拉菜单 | `WinContextMenu`/`WinMenuItem`/`WinMenuItemSub`/`WinMenuSeparator` | |
+| 普通按钮（主/次/成功/警告/危险/成功） | Kx 族：`KxPrimaryButton`/`KxSecondaryButton`/`KxOkButton`/`KxWarnButton`/`KxDangerButton`/`KxSuccessButton`；Fresh 族：`FreshPrimaryButton`/`FreshButton`/`FreshDangerButton`/`FreshSuccessButton`；幽灵钮：`GhostButton`/`PrimaryGhostButton` | 两族并存选择：同宿主视觉语言统一选一族，勿混用 |
+| 输入框 | `KxTextBox`（Kx 族）或 `FreshInput`（Fresh 族）；**两者 Padding 模板都已接管**——宿主元素级 Padding 不再生效或垂直内缩会裁文本（AIris 实训：`Padding="h,v"` 的 v>0 裁掉 PART_ContentHost 文本行），**禁设非零垂直 Padding**，居中交给 VerticalContentAlignment | |
+| 密码框 / 数字框 / 日期 | `FreshPwdInput` 或 `KxPasswordBox` / `NumericUpDownLite` 控件 / `KxDatePicker` / `KxComboBox`（+`FreshComboItem`） | 表单行组合用 `FormField` 控件（标签列+必填星标+ToolTip 整行） |
+| 下拉选择 | `KxComboBox` / `FreshCombo` | **SelectedItem 绑字符串时 Items 请给字符串集合**（绑 ComboBoxItem 集合会让 SelectedItem 永远对不上显示空——AIris 实训同款错误） |
+| 状态胶囊（OK/WARN/NG 徽标） | `StatusChip` + `StatusChipText`（Tag=Ok/Warn/Ng/Err/**Pri**） | 语义色走 Dim 键板，深浅主题自动跟随 |
+| 状态灯圆点 / 提示框 | `KxStatusDot`（Tag 同上） / `KxInfoBox`（Tag=Ok/Warn/Ng/Pri） | |
+| 卡片 / KPI / 圆环 | `KxCard`（圆角+投影）/ `KpiCard`+`KpiLabel`+`KpiValue`+`KpiSub` / `KxRingBg`+`KxRingValue` / `KxIconBox` | 卡内放方角子元素（DataGrid/图片）配 `KxRoundedClip.Radius` 裁剪 |
+| 数据表格 | `BrandGridHeader`/`BrandGridRow`/`BrandGridCell` | ListView/GridView 列头+行样式 |
+| 表单标签体系 | `FormLabel86`/`FormLabel118`/`RequiredMark`/`HintText`/`HintWarnText`/`SectionTitle` | 86/118=标签列宽两种口径 |
+| 开关 / 勾选 / 单选 | `KxSwitch` / `KxCheckBox` / `KxRadioButton` / `KxGridCheckBox` / `KxThemeSwitch`（深浅主题切换滑动轨道） | |
+| 细滚动条 | `KxSlimScrollBar`（隐式化由宿主 BasedOn 再造） | |
+| 顶栏容器 | `KxTopBar` | |
+| 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter |
+
+**自绘三条件（不满足即回去查表/沉库）**：①先跑检索命令确认库内确无同职责控件；
+②自绘必须走宿主主题 Token（禁写死色值）且 `FocusVisualStyle="{x:Null}"` 清焦点框；
+③自绘件登记到宿主 AGENTS.md 索引表——下一轮评审"该不该沉库"。
+
+**检索命令（宿主仓库根执行；开工先跑，改库后再跑防漂移）**：
+
+```powershell
+# 列出全部对外样式键（对着上面场景表查；支持 grep 语义词，如 Button/Chip/Tab/Title）
+grep -o 'x:Key="[^"]*"' ThirdParty/Kaleidoscope/Kaleidoscope.UI/Themes/ShellStyles.xaml | sort
+grep -o 'x:Key="[^"]*"' ThirdParty/Kaleidoscope/Kaleidoscope.UI/Themes/FreshStyles.xaml | sort
+grep -o 'x:Key="[^"]*"' ThirdParty/Kaleidoscope/Kaleidoscope.UI/Themes/ChromeStyles.xaml | sort
+# 看某键完整定义（模板结构/触发器/Tag 契约）
+grep -n -A 30 'x:Key="KxLangButton"' ThirdParty/Kaleidoscope/Kaleidoscope.UI/Themes/ShellStyles.xaml
+```
+
 ## 接入指南（两步）
 
 ### ① 合并字典（App.xaml）

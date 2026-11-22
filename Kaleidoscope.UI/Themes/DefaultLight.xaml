@@ -4,6 +4,11 @@
       =========================================================================
       DefaultLight.xaml：Kaleidoscope.UI 控件的缺省浅色键板（V2.1.0 全键集）
 
+      【宿主 UI 开工必读（人 + AI Agent 通用路标）】宿主写任何界面控件/样式/窗
+        之前，先读 Kaleidoscope.UI/README.md 的「控件复用索引（按场景查）」——
+        弹窗壳/三窗钮/导航胶囊/按钮/输入/状态胶囊/卡片/表格全有现成封装，禁重复
+        造轮子（库内有直接用 / 近似 BasedOn / 确无才自绘，自绘纪律见索引节）。
+
       【干什么】库内控件/样式（ChromeStyles + ChromeDialogWindow + FreshStyles +
         ShellStyles）引用的语义键缺省值——新宿主"零配置开箱"：App.xaml 合并
         本文件 + DefaultDark 即可跑起来。
