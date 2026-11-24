@@ -63,7 +63,7 @@ public class NumericUpDownLite : TextBox
     public override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        ContentPresenter host = GetTemplateChild("PART_SpinHost") as ContentPresenter;
+        ContentPresenter? host = GetTemplateChild("PART_SpinHost") as ContentPresenter;
         if (host != null && mSpin != null) host.Content = mSpin;
     }
 

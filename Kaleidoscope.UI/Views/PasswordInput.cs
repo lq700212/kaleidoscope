@@ -73,13 +73,13 @@ public class PasswordInput : UserControl
     }
 
     /// <summary>密码变化事件（外部 glue 用：登录窗回传 VM、授权码窗同步明文框）。</summary>
-    public event EventHandler PasswordChanged;
+    public event EventHandler? PasswordChanged;
 
     /// <summary>
     /// 内层输入框的 KeyDown 外抛（登录窗回车链用：密码框回车=登录 / 确认框回车=保存）。
     /// 明文态与密文态两个框都往外抛，调用方写法不变。
     /// </summary>
-    public event System.Windows.Input.KeyEventHandler PasswordKeyDown;
+    public event System.Windows.Input.KeyEventHandler? PasswordKeyDown;
 
     public PasswordInput()
     {
@@ -87,6 +87,12 @@ public class PasswordInput : UserControl
         // 此前写死 30，外层调高（登录窗 34）时内层仍是 30，眼睛与新框高不配套。
         _pwd = new PasswordBox { VerticalContentAlignment = VerticalAlignment.Center };
         _pwd.SetResourceReference(FrameworkElement.StyleProperty, "KxPasswordBox");
+
+        _show = new TextBox { VerticalContentAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+        _show.SetResourceReference(FrameworkElement.StyleProperty, "KxTextBox");
+
+        // 事件订阅放在两个内层框都构造完之后：密码框的回调要写 _show.Text，
+        // 若在上面挂订阅，编译器按字段赋值顺序判定 _show 可能为 null（CS8602）。
         _pwd.PasswordChanged += delegate
         {
             if (_syncing) return;
@@ -97,8 +103,6 @@ public class PasswordInput : UserControl
             RaisePasswordChanged();
         };
 
-        _show = new TextBox { VerticalContentAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-        _show.SetResourceReference(FrameworkElement.StyleProperty, "KxTextBox");
         _show.TextChanged += delegate
         {
             if (_syncing) return;
@@ -138,7 +142,7 @@ public class PasswordInput : UserControl
         };
         try
         {
-            object fg = Application.Current?.TryFindResource("Brush.Shell.FgDim");
+            object? fg = Application.Current?.TryFindResource("Brush.Shell.FgDim");
             if (fg is Brush b) _ph.Foreground = b;
         }
         catch { }
@@ -180,7 +184,7 @@ public class PasswordInput : UserControl
             _eye.ToolTip = shown ? "点击隐藏密码明文" : "点击显示密码明文";
             // 两态图标（原版 EyeIcon 语言）：形态 + 颜色双通道同步翻转。
             _eyeIcon.Shown = shown;
-            object key = Application.Current?.TryFindResource(shown ? "Brush.Shell.Primary" : "Brush.Shell.FgDim");
+            object? key = Application.Current?.TryFindResource(shown ? "Brush.Shell.Primary" : "Brush.Shell.FgDim");
             if (key is Brush b)
             {
                 _eyeIcon.GlyphBrush = b;
@@ -191,7 +195,7 @@ public class PasswordInput : UserControl
 
     private static void OnPasswordChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        PasswordInput c = d as PasswordInput;
+        PasswordInput? c = d as PasswordInput;
         if (c == null) return;
         string v = e.NewValue as string ?? "";
         if (c._syncing) return;
@@ -208,13 +212,13 @@ public class PasswordInput : UserControl
 
     private static void OnPlaceholderChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        PasswordInput c = d as PasswordInput;
+        PasswordInput? c = d as PasswordInput;
         if (c != null) c.ApplyState();
     }
 
     private static void OnIsShownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        PasswordInput c = d as PasswordInput;
+        PasswordInput? c = d as PasswordInput;
         if (c != null) c.ApplyState();
     }
 

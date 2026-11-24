@@ -121,7 +121,7 @@ public class FormField : ContentControl
     /// <summary>把 LabelWidth 同步到模板 Grid 的第一列（找不到模板就跳过，不抛异常）。</summary>
     private void SyncLabelColumnWidth()
     {
-        Grid layout = GetTemplateChild("PART_LayoutGrid") as Grid;
+        Grid? layout = GetTemplateChild("PART_LayoutGrid") as Grid;
         if (layout == null || layout.ColumnDefinitions.Count < 1)
         {
             return;

@@ -70,11 +70,30 @@
 | 细滚动条 | `KxSlimScrollBar`（隐式化由宿主 BasedOn 再造） | |
 | 顶栏容器 | `KxTopBar` | |
 | **相机画面显示区"舞台"（底 + 网格 + 扫描动效 + 喂帧）** | `KxImageStage` 控件（替代普通 Grid；喂帧用 `FrameSource` 绑定或 `ShowFrame()` 命令式，叠加取 `Overlay` 画） | 纯 WPF 适用；三色/步距/时长/空态文本/拉伸可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；有帧自动停扫描、空态自动恢复（内建联动）；HWND airspace 场景不适用 |
-| 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter |
+| **胶囊圆角（按钮/输入框/Chip/导航项/进度条/任意 Border 的"两端半圆"）** | **`KxCapsuleBorder` 控件（替代 `<Border>`，一行标签，V2.4.1）**；竖向窄条（滚动条 Thumb 等按宽度取半的）用 `Axis="Width"` | **禁写 `CornerRadius="99"`**：WPF 把横/纵半径分别钳到 宽/2、高/2，宽按钮会画成椭圆急收弧（HJVision/AIris/Sinan 三家宿主先后踩过）。控件构造即绑 `ActualHeight/2`，任意高度自动正确 |
+| 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter；胶囊优先用 `KxCapsuleBorder`，无法换标签（第三方模板内部）才用转换器 |
 
 **自绘三条件（不满足即回去查表/沉库）**：①先跑检索命令确认库内确无同职责控件；
 ②自绘必须走宿主主题 Token（禁写死色值）且 `FocusVisualStyle="{x:Null}"` 清焦点框；
 ③自绘件登记到宿主 AGENTS.md 索引表——下一轮评审"该不该沉库"。
+
+**圆角自检（V2.4.1，不再靠记性）**：宿主在 Debug 构建的首窗 `ContentRendered`、以及页面切换
+布局完成后调 `KxRadiusAudit.Scan(root, msg => logger.Warn(msg))`——遍历可视树（含 ControlTemplate
+内部展开的元素），把 `CornerRadius > min(宽,高)/2` 的 Border 逐条报出（尺寸、四角值、模板父）。
+返回命中数，可直接接测试断言 `Assert.Equal(0, ...)`；故意用超大半径画拱形的元素用
+`Tag="KxRadiusAudit.Skip"` 白名单。**"圆角太尖"从此是日志里的一条 WARN，而不是用户的一句抱怨。**
+
+> **V2.4.2 起自检器自动跳过 `KxCapsuleBorder`**：胶囊构造即绑半高，单字徽标（18×20）必然
+> "横向半径 > 宽/2"，但画出来正是胶囊该有的样子。不排除的话每块单字徽标都报一条 WARN，
+> 真问题会被噪音淹没（Sinan 实测一次 6 条全属此类）。
+
+**标题条副题颜色（V2.4.2）**：`ChromeDialogWindow.Subtitle` 的文字色默认取宿主键
+`Brush.Shell.TitleSubFg`，**取不到回落 72% 白色**（CureLine / HJVision 的深色渐变标题条口径）。
+宿主标题条是浅色时，在自己的 Light/Dark 键板各加一行即可，无需改库：
+
+```xml
+<SolidColorBrush x:Key="Brush.Shell.TitleSubFg" Color="#9A7B5A"/>
+```
 
 **检索命令（宿主仓库根执行；开工先跑，改库后再跑防漂移）**：
 

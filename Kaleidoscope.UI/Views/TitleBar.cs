@@ -234,7 +234,11 @@ public class TitleBar : UserControl
         _titleText = title;
         dock.Children.Add(title);
 
-        // —— 副题（可选）：弱化白 72% 9.5pt ——
+        // —— 副题（可选）：弱化 72% 9.5pt ——
+        // 【为什么不再写死白色（2026-11-24 Sinan 反哺）】原先硬编码 0xB8 白色，
+        // 只有"深色渐变标题条"（CureLine/HJVision 口径）看得见；Sinan 的标题条是
+        // 浅米色渐变，白字直接糊在浅底上（弹窗标题副行几乎不可读）。改为优先取宿主
+        // 键 Brush.Shell.TitleSubFg，取不到再回落到原来的白色——老宿主零改动。
         var subtitle = new TextBlock
         {
             FontSize = 9.5,
@@ -242,6 +246,7 @@ public class TitleBar : UserControl
             Margin = new Thickness(10, 1, 0, 0),
             Foreground = new SolidColorBrush(Color.FromArgb(0xB8, 0xFF, 0xFF, 0xFF)),
         };
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Shell.TitleSubFg");
         subtitle.SetBinding(TextBlock.TextProperty, new Binding(nameof(Subtitle)) { Source = this });
         subtitle.SetBinding(TextBlock.VisibilityProperty, new Binding(nameof(Subtitle))
         {
@@ -390,7 +395,7 @@ public class TitleBar : UserControl
     {
         try
         {
-            Window host = HostWindow();
+            Window? host = HostWindow();
             if (host != null && e.LeftButton == MouseButtonState.Pressed) host.DragMove();
         }
         catch { }
@@ -401,7 +406,7 @@ public class TitleBar : UserControl
     {
         try
         {
-            Window host = HostWindow();
+            Window? host = HostWindow();
             if (host != null) host.WindowState = WindowState.Minimized;
         }
         catch { }
@@ -412,7 +417,7 @@ public class TitleBar : UserControl
     {
         try
         {
-            Window host = HostWindow();
+            Window? host = HostWindow();
             if (host != null)
                 host.WindowState = host.WindowState == WindowState.Maximized
                     ? WindowState.Normal : WindowState.Maximized;
@@ -425,13 +430,13 @@ public class TitleBar : UserControl
     {
         try
         {
-            ICommand cmd = CloseCommand;
+            ICommand? cmd = CloseCommand;
             if (cmd != null && cmd.CanExecute(null))
             {
                 cmd.Execute(null);
                 return;
             }
-            Window host = HostWindow();
+            Window? host = HostWindow();
             if (host != null) host.Close();
         }
         catch { }

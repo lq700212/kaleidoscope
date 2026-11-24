@@ -7,6 +7,53 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.2（2026-11-24）标题条副题改走主题键 + 圆角自检不再误报胶囊（Sinan 宿主二次反哺）
+
+> 宿主 Sinan 补齐详情页弹窗时暴露两个库内缺陷：一个是"硬编码白色"在浅色标题条上不可读，
+> 一个是自检器把自己的正解当成了错。两个都属于"库替宿主做假设"的同类问题。
+
+### Kaleidoscope.UI（V2.4.2）
+
+- **`TitleBar` 副题颜色改走键 `Brush.Shell.TitleSubFg`**（`Views/TitleBar.cs`）：原先硬编码
+  `0xB8FFFFFF`，只有"深色渐变标题条"（CureLine / HJVision 口径）看得见；Sinan 的标题条是
+  浅米色渐变，白字几乎不可读。改为优先取宿主键，**取不到回落原白色**——老宿主零改动、
+  零键板变更。宿主想调副题颜色只需在自己的 Light/Dark 键板各加一行。
+- **`KxRadiusAudit` 排除 `KxCapsuleBorder`**（`Views/KxRadiusAudit.cs`）：胶囊控件构造即把
+  半径绑到 `ActualHeight/2`，当元素"比高还窄"（单字状态徽标 18×20，半径 10）时必然满足
+  "横向半径 > 宽/2"，但 WPF 把横向钳到 9 画出来**正是胶囊该有的样子**。不排除的话每块单字
+  徽标都报一条 WARN——Sinan 实测一次扫描 6 条全属此类，真问题会被噪音淹没。
+
+### 验证（宿主 Sinan）
+
+- 库单独 `dotnet build` 0 警告 0 错误；Sinan 全解决方案 0 警告 0 错误。
+- 修前日志：`[圆角自检·页面切换] 共 6 处会被画成椭圆`（全部是 `KxCapsuleBorder "Bd"`）；
+  修后：`[圆角自检·页面切换] 通过：未发现会被画成椭圆的圆角。`
+- 弹窗副题实机目检：浅色主题下 `P7391-027 · 接近开关动作节拍偏慢` 清晰可读。
+
+## V2.4.1（2026-11-24）胶囊圆角从"记得写对"变成"默认正确"：KxCapsuleBorder + KxRadiusAudit（Sinan 宿主反哺）
+
+> 宿主 Sinan 2026-11-24 再次复现"按钮圆角太尖锐"：设计稿 CSS `border-radius:99`，XAML 照抄
+> `CornerRadius="99"`。这是 HJVision（2026-10-30）、AIris（V0.1.12）、Sinan 第三次同款返工；
+> 库内早有 `CapsuleRadiusConverter` 和「禁手写 99」注释，但用法是一长串 Binding，新宿主查不到、
+> 想不到——纪律只写在文档里等于没落地。本轮把"正确写法"做成一行控件，把"错误写法"做成可执行审计。
+
+### Kaleidoscope.UI（V2.4.1）
+
+- **KxCapsuleBorder**（`Views/KxCapsuleBorder.cs`）：Border 子类，构造即把 `CornerRadius` 绑定到自身
+  `ActualHeight/2`（竖向窄条用 `Axis="Width"` 取宽度一半）；布局尺寸变化自动跟随，任意高度都是正圆端头。
+  继承 Border，宿主模板只需替换标签，既有样式/触发器/`x:Name` 不受影响。
+- **KxRadiusAudit**（`Views/KxRadiusAudit.cs`）：运行时圆角体检器，遍历可视树（含 ControlTemplate
+  内部展开的元素），把 `CornerRadius > min(宽,高)/2` 的 Border 逐条报出（尺寸/四角值/模板父/Name），
+  返回命中数；`failFast` 可抛异常接 CI，`Tag="KxRadiusAudit.Skip"` 白名单放行故意的大半径拱形。
+- **UiConverters** 补 `CapsuleRadius` 静态单例（README 宣称五个单例，此前漏了这一个）。
+- README「控件复用索引」新增胶囊圆角场景行 + 「圆角自检」接入说明。
+
+### 验证（宿主 Sinan）
+
+- 库单独 `dotnet build` 0 error；Sinan 全解决方案 0 warning / 0 error。
+- 反向验证：临时放一个 124×30 / `CornerRadius="99"` 的 Border，Debug 自检在日志报出
+  "124×30 的元素 CornerRadius=99，短边一半只有 15 → 会画成椭圆"；删除后复测 0 命中。
+
 ## V2.4.0（2026-11-22）新增 Infer 推理协议适配层：四视觉协议 + JEV Decisions 决策协议（AIris 宿主反哺）
 
 > 宿主 AIris 引擎页调研定版：本地部署形态多元（vLLM / llama.cpp server / Ollama / 自研

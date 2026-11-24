@@ -127,6 +127,9 @@ public sealed class TrueToVisibilityConverter : IValueConverter
 /// </summary>
 public static class UiConverters
 {
+    // README「控件复用索引」里宣称的五个单例，必须与类清单一一对应——
+    // 之前漏了 CapsuleRadius（V2.4.1 补），代码里构建胶囊绑定才不用各自 new。
     public static readonly IValueConverter NullToCollapsed = new NullToVisibilityConverter();
     public static readonly IValueConverter TrueToVisible = new TrueToVisibilityConverter();
+    public static readonly IValueConverter CapsuleRadius = new CapsuleRadiusConverter();
 }

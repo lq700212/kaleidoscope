@@ -172,9 +172,9 @@ public class KxImageStage : Grid
     public static readonly DependencyProperty FrameSourceProperty = DependencyProperty.Register(
         nameof(FrameSource), typeof(ImageSource), typeof(KxImageStage), new PropertyMetadata(null, OnFrameSourceChanged));
 
-    public ImageSource FrameSource
+    public ImageSource? FrameSource
     {
-        get => (ImageSource)GetValue(FrameSourceProperty);
+        get => (ImageSource?)GetValue(FrameSourceProperty);
         set => SetValue(FrameSourceProperty, value);
     }
 

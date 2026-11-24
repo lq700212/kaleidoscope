@@ -22,7 +22,8 @@
   WM_GETMINMAXINFO 最大化工作区修正；V2.2.1 两基类外壳构造与最大化修正收拢到共享
   静态类 KxShellInterop）/ 标题条
   TitleBar / 骨架与按钮族 keyed 样式（Fresh 族=CureLine 视觉、Kx 族=HJVision 视觉，
-  ShellStyles.xaml）/ 缺省键板 / 表单控件 FormField 等 / 通用转换器），SDK 风格
+  ShellStyles.xaml）/ 缺省键板 / 表单控件 FormField 等 / 通用转换器 / 胶囊圆角控件
+  KxCapsuleBorder + 圆角自检 KxRadiusAudit（V2.4.1）），SDK 风格
   `dotnet build` 独立编译，与主库（net472 老式 csproj）**并行各自版本线**（UI 库
   Version 独立从 2.0.0 起）。改 UI 库前必读其目录内 `README.md`（键名契约清单 +
   路线图 + 下沉纪律：口径来源明确的才收、隐式样式绝不做、零硬编码色）；键契约测试在
@@ -78,6 +79,11 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
    - 确无对应物才允许自绘，且必须：①走宿主主题 Token 禁写死色值；②`FocusVisualStyle="{x:Null}"`；
      ③登记到宿主 AGENTS.md 索引表，评审"该不该按[下沉纪律](Kaleidoscope.UI/README.md)沉进库"；
    - **本库新增样式键/控件时，同步更新 README「控件复用索引」场景表**——索引不全 = 宿主必再踩。
+   - **胶囊圆角一律 `KxCapsuleBorder`**（V2.4.1）：任何"两端半圆"元素（按钮/输入框/Chip/导航项/
+     进度条）禁止手写 `CornerRadius="99"`，也不要再手抄半高 Binding——WPF 按横/纵分别钳制会把
+     宽按钮画成椭圆（HJVision 2026-10-30 / AIris V0.1.12 / Sinan 2026-11-24 三次返工）。
+     竖向窄条（滚动条 Thumb 等按宽度取半的）用 `Axis="Width"`。宿主 Debug 期在首窗与页面切换后
+     调 `KxRadiusAudit.Scan(...)`，把"圆角太尖"变成日志 WARN，而不是用户的抱怨。
 
 ## 代码约定
 
