@@ -72,7 +72,7 @@
     <RootNamespace>Kaleidoscope.UI</RootNamespace>
     <AssemblyName>Kaleidoscope.UI</AssemblyName>
     <!-- 与主库 Kaleidoscope（net472）同仓独立版本线：UI 库按自身演进记 CHANGELOG -->
-    <Version>2.4.2</Version>
+    <Version>2.4.3</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

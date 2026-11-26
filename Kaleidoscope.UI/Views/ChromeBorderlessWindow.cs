@@ -135,6 +135,23 @@ public class ChromeBorderlessWindow : Window
         set => SetValue(FixMaximizedToWorkAreaProperty, value);
     }
 
+    /// <summary>
+    /// 【派生类钩子】是否使用分层透明窗（缺省 true=真圆角+窗口外柔影）。
+    /// 【为什么做成虚属性而不是 XAML DP】AllowsTransparency 必须在窗口句柄创建前
+    /// 定格（WPF 限制），XAML 属性要等 InitializeComponent 才赋值，晚于基类构造；
+    /// 只有虚属性能在基类构造期派发到派生类实现（口径与 ChromeDialogWindow.
+    /// UseLayeredWindow 一致）。
+    /// 【为什么需要关掉】WPF 分层窗口（WS_EX_LAYERED）的最终呈现面是 32bpp
+    /// ARGB 位图，ClearType 亚像素抗锯齿被系统强制关闭，整个窗口的文字退化为
+    /// 灰度抗锯齿——100% DPI 下 9~11px 中文会明显发虚。关掉分层后走
+    /// SetWindowRgn 物理圆角裁剪，文字恢复 ClearType；代价是圆角边缘为 1bit
+    /// 硬裁剪（无抗锯齿）且窗口外柔影被裁。
+    /// </summary>
+    protected virtual bool UseLayeredWindow => true;
+
+    /// <summary>构造期定格的分层模式（与 ChromeDialogWindow._layered 同口径）。</summary>
+    private readonly bool _layered;
+
     private static void OnChromeParamChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((ChromeBorderlessWindow)d).ApplyChrome();
 
@@ -152,9 +169,25 @@ public class ChromeBorderlessWindow : Window
     public ChromeBorderlessWindow()
     {
         // —— 分层真圆角三件套（构造期定格：AllowsTransparency 只能窗口初始化前设）——
+        _layered = UseLayeredWindow;
         WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;   // 四角透出桌面，视觉全部交给子类根 Border
+        if (_layered)
+        {
+            AllowsTransparency = true;
+            Background = Brushes.Transparent;   // 四角透出桌面，视觉全部交给子类根 Border
+        }
+        else
+        {
+            // 非分层分支：真圆角改走 SetWindowRgn 物理裁剪（含子 HWND、恢复
+            // ClearType）；窗口底色由子类根 Border/Window.Background 负责——
+            // 基类保持零键板依赖，不引宿主主题键。
+            Loaded += delegate { ApplyWindowRegion(); };
+            SizeChanged += delegate { ApplyWindowRegion(); };
+            StateChanged += delegate { ApplyWindowRegion(); };
+            // PerMonitorV2：跨屏拖动改变 DPI 时 Region 必须按新缩放重算
+            // （SizeChanged 不保证触发，窗口 DIP 尺寸可能不变）。
+            DpiChanged += delegate { ApplyWindowRegion(); };
+        }
 
         ApplyChrome();
 
@@ -232,6 +265,17 @@ public class ChromeBorderlessWindow : Window
         _rootClip.RadiusX = radius;
         _rootClip.RadiusY = radius;
         _rootFrame.Clip = _rootClip;
+    }
+
+    /// <summary>
+    /// 非分层窗的物理圆角裁剪（Loaded/SizeChanged/StateChanged 三入口）。
+    /// 复用 ChromeDialogWindow.ApplyRoundWindowRegion（同一份 Win32 口径：
+    /// DIP×DPI 转物理像素、圆角直径取 Fn.ShellRadius）；分层模式直接跳过。
+    /// </summary>
+    private void ApplyWindowRegion()
+    {
+        if (_layered) return;
+        ChromeDialogWindow.ApplyRoundWindowRegion(this);
     }
 
     // ============================================================

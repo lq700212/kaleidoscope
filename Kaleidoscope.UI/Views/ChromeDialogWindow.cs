@@ -337,6 +337,9 @@ public class ChromeDialogWindow : Window
             SetResourceReference(BackgroundProperty, "Brush.Fresh.WinBg");
             Loaded += delegate { ApplyRoundWindowRegion(this); };
             SizeChanged += delegate { ApplyRoundWindowRegion(this); };
+            // PerMonitorV2：跨屏拖动改变 DPI 时按新缩放重算物理 Region
+            //（SizeChanged 不保证触发，窗口 DIP 尺寸可能不变）。
+            DpiChanged += delegate { ApplyRoundWindowRegion(this); };
         }
         StateChanged += delegate { ApplyMaximizedShell(); };
         // 隐式样式兜底注入不放构造函数（V0.9.52 六窗 XamlParseException 同案，
@@ -434,7 +437,13 @@ public class ChromeDialogWindow : Window
         card.SetResourceReference(Border.BackgroundProperty, "Brush.Fresh.WinBg");
         card.SetResourceReference(Border.BorderBrushProperty, "Brush.Fresh.Border");
         card.SetResourceReference(Border.CornerRadiusProperty, "Fn.ShellRadius");
-        card.SetResourceReference(Border.EffectProperty, "Fx.WinShadow");
+        // 投影只给分层窗：分层窗的 Window 自身透明，柔影落在窗口外，观感成立；
+        // 非分层窗的投影会被 SetWindowRgn 物理裁掉（看不见），但 Effect 仍会把
+        // "卡片 + 整棵内容子树"先渲染到离屏位图 —— 位图面不支持 ClearType，
+        // 弹窗里所有文字会退化为灰度抗锯齿。非分层窗的取舍是"文字清晰优先"，
+        // 因此不挂 Effect（2026-11-25 司南实测：有 Effect 时卡片内文字亚像素色偏
+        // 指标 1.32，摘掉后 5.84）。
+        if (_layered) card.SetResourceReference(Border.EffectProperty, "Fx.WinShadow");
         _card = card;
 
         var dock = new DockPanel();
@@ -592,6 +601,15 @@ public class ChromeDialogWindow : Window
     {
         try
         {
+            IntPtr hwnd = new WindowInteropHelper(w).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            // 最大化必须恢复矩形：Region 圆角会把贴满工作区的四角再裁掉，
+            // 露出桌面/任务栏底色（还原时 StateChanged 会重新挂回圆角）。
+            if (w.WindowState == WindowState.Maximized)
+            {
+                SetWindowRgn(hwnd, IntPtr.Zero, true);
+                return;
+            }
             var dpiInfo = VisualTreeHelper.GetDpi(w);
             double r = 10;
             object? cr = Application.Current?.TryFindResource("Fn.ShellRadius");
@@ -601,8 +619,7 @@ public class ChromeDialogWindow : Window
             int ht = (int)Math.Ceiling(w.ActualHeight * dpi) + 1;
             int rr = Math.Max(2, (int)(r * dpi));
             IntPtr hRgn = CreateRoundRectRgn(0, 0, wd, ht, rr * 2, rr * 2);
-            IntPtr hwnd = new WindowInteropHelper(w).Handle;
-            if (hwnd != IntPtr.Zero) SetWindowRgn(hwnd, hRgn, true);
+            SetWindowRgn(hwnd, hRgn, true);
         }
         catch { }
     }

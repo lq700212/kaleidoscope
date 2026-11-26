@@ -7,6 +7,33 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.3（2026-11-25）无边框窗/弹窗支持"关分层保 ClearType"（Sinan 宿主反哺）
+
+> 宿主 Sinan 反馈"整窗文字发虚"：WPF 分层窗（`AllowsTransparency=True`，`WS_EX_LAYERED`）
+> 的最终呈现面是 32bpp ARGB 位图，系统会**强制关闭 ClearType**，9~11.5px 中文整窗退化为
+> 灰度抗锯齿。第二层是 `DropShadowEffect` 把"元素 + 整棵子树"位图化，卡片内文字再糊一次。
+> 本轮给两个基类补显式的非分层口径，宿主一行 override 即可切换，默认行为不变。
+
+### Kaleidoscope.UI（V2.4.3）
+
+- **`ChromeBorderlessWindow` 新增 `protected virtual bool UseLayeredWindow => true`**
+  （`Views/ChromeBorderlessWindow.cs`）：构造期定格（`AllowsTransparency` 只能窗口初始化前设，
+  XAML 属性太晚）。派生类 override 返回 `false` 即走非分层 + `SetWindowRgn` 物理圆角
+  （半径取 `Fn.ShellRadius`，DIP×DPI 转物理像素），恢复窗口 ClearType；
+  `Loaded/SizeChanged/StateChanged/DpiChanged` 四入口重裁（跨屏 DPI 变化必须重算）。
+  非分层窗 `Background` **必须由宿主设不透明主题底色**（四角/首帧不露系统白底）。
+- **`ChromeDialogWindow` 非分层分支补 `DpiChanged` 重算 Region**，且非分层时
+  **不再给骨架卡片挂 `Fx.WinShadow`**：投影本就被 Region 裁掉（看不见），挂着只会把
+  "卡片 + 整棵内容子树"位图化，弹窗文字退化为灰度抗锯齿（宿主实测亚像素色偏 1.32→5.84）。
+- `ApplyRoundWindowRegion` 口径不变（最大化 `SetWindowRgn(hwnd, IntPtr.Zero)` 清 Region，
+  还原时重挂），无边框窗与弹窗继续共用同一份 Win32 实现。
+
+### 验证（宿主 Sinan）
+
+- 库 `dotnet build` 0 error；Sinan 全解决方案 0 警告 0 错误，199 条测试全过；
+- 登录页 / 主窗 / 6 个业务弹窗实机目检：ClearType 恢复、Region 圆角正常、
+  最大化四角直角无白边、1280×800 布局无溢出；圆角自检 `[圆角自检·…]` 通过。
+
 ## V2.4.2（2026-11-24）标题条副题改走主题键 + 圆角自检不再误报胶囊（Sinan 宿主二次反哺）
 
 > 宿主 Sinan 补齐详情页弹窗时暴露两个库内缺陷：一个是"硬编码白色"在浅色标题条上不可读，
