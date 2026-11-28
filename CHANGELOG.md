@@ -7,6 +7,79 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.6（2026-11-28）KxFrameSurface 帧呈现面 + KxRenderPolicy 渲染策略 + RtspFrameCapturer 解码后下采样与限流修正（AIris/YoloDetector 双宿主视频卡顿与延时整改）
+
+> 两宿主此前各自手写"每帧新建 BitmapSource"或"自管 WriteableBitmap"预览链路，
+> 踩的坑一模一样：5MP 相机帧每帧 20~40MB 分配（GC/LOH 周期性卡顿）、每帧
+> Dispatcher.BeginInvoke 无背压（渲染慢于采集时队列无限积压、延迟越拖越大）、
+> 无条件软件渲染（叠加分层窗，视频缩放/合成全压 CPU）。本版把三条链路的解法
+> 收口成两个库件 + 两处控件增强，宿主只留"推帧"一行。
+
+### 新增 `Kaleidoscope.UI/Views/KxFrameSurface.cs`（帧呈现面）
+
+- **复用 WriteableBitmap**：分辨率/格式不变时零重建、零新对象，每帧原地 `WritePixels`。
+- **源格式直拷**：`PushFrame(IntPtr/byte[], w, h, stride, KxFramePixelFormat)`，
+  枚举三档（Bgr24 / Bgra32 / Pbgra32）与 GDI+、Skia、OpenCV 内存布局一一对应，
+  零格式转换（5MP 24bpp 实测 1~3ms）；支持负 stride（bottom-up）逐行翻转兜底。
+- **丢帧背压**：UI 未渲染完时新帧覆盖旧帧，Dispatcher 队列永不堆积（`DroppedFrames`
+  诊断计数）；多次推帧合并为一次 `DispatcherPriority.Render` 渲染。
+- **`SurfaceChanged` 事件**：首帧/换分辨率/换格式触发一次，宿主挂一次 `Image.Source` 即可；
+  `Clear()` 以 null 触发回空态；`MaxFps` 可选限流；`Dispose()` 幂等。
+- **alpha 语义红线**（类头注释）：GDI Format32bppArgb / Skia Bgra8888 → `Bgra32`
+  直通 alpha；Format32bppPArgb → `Pbgra32` 预乘；错配会让半透明像素爆白或发灰
+  （AIris V0.1.5 实测记录）。
+
+### 新增 `Kaleidoscope.UI/Rendering/KxRenderPolicy.cs`（进程渲染策略）
+
+- **默认硬件渲染**（`RenderMode.Default`：硬件优先、驱动异常自动回落，不强制 Hardware）。
+- **自动检测远程控制/串流软件**（进程名前缀匹配：GameViewer/向日葵/ToDesk/RustDesk/
+  TeamViewer/AnyDesk/贝锐）才切软件渲染——避免远程画面双指针（YoloDetector v2.10.3
+  现场结论的库化）。
+- **三态覆盖**：`Apply(bool? forceSoftware)`，宿主可从 INI/JSON 注入强制软件/硬件。
+- **`IsSoftwareRendering`** 供宿主主窗在基类构造期决定 `UseLayeredWindow`——
+  硬件渲染关分层（分层窗强制整窗软件渲染，视频无法走 GPU），软件渲染保分层。
+
+### `KxImageStage` 视频场景增强
+
+- **`GridVisibleWhenFrame` DP**（默认 true 保旧观感）：有帧时是否仍绘制网格底纹。
+  真机帧不透明，网格被完全遮挡却仍逐帧重绘（~500 tile/帧）；透明帧（Mock 空场）
+  宿主要网格当台面底纹时设 true。
+- **`FrameScalingMode` DP**（默认 `BitmapScalingMode.LowQuality` 双线性）：WPF 对缩小
+  默认 Fant 高质量重采样，5MP→1MP 软件渲染下单帧 10ms+；视频预览用双线性视觉差异
+  几乎不可见，静态大图可设 HighQuality。
+
+### `KxRadiusAudit` net472 兼容修复
+
+- `string.Contains(string, StringComparison)` 是 .NET Core 才有的重载，net472 编译
+  报错（CS1501）；改用 `IndexOf(..., StringComparison) >= 0`（语义等价）。
+
+### 新增 `RtspFrameCapturer.MaxPixelWidth`（解码后立即下采样，2026-11-28 追加）
+
+- **问题**：5MP/3MP 主码流（AIris 真机 2304×1296 HEVC @20fps）全尺寸往下传时，
+  订阅者每帧要多做三次大图操作：`Clone` 全尺寸 Mat（9MB）→ Mat→Bitmap（9MB）→
+  呈现面缩放；合计 10~15ms/帧。消费速率被压到相机生产速率之下时，RTSP 缓冲会
+  **永久积压**，画面延时随运行时间固定增大。
+- **改法**：`RtspFrameCapturer` 新增 `MaxPixelWidth` 属性（默认 **0 = 不下采样**，
+  对需要全尺寸的宿主零影响）。`>0` 时在 `ConvertToBgr` 之后立刻按宽度等比
+  `INTER_AREA` 缩放到目标宽（5MP→1600 实测 2~3ms），后续 Clone / 转换 / 推帧
+  全部只处理小图；`FrameWidth/FrameHeight` 报告下采样**之后**的尺寸，避免
+  "报告尺寸与实际帧不符"。
+- **为什么不放在 UI 层**：呈现面下采样发生在链路末端，前面的 Clone/转换已经付过
+  大图成本；放在解码输出处一次搞定，整条链路都受益。
+- **验证（AIris 真机）**：`cvprobe readstat` 实测 Read 返回间隔 48.2ms（相机帧间隔
+  50ms）、立即返回占比 0.0% → 无积压；pair 对比（直连最新帧 vs 屏幕 OSD）14 对
+  秒数零偏差 → 呈现层零额外延时。宿主显示帧率 9fps → 20fps（跑满相机）。
+
+### 验证
+
+- `dotnet build Kaleidoscope.UI.csproj`：net472 / net8.0-windows 双目标 0 error；
+  `dotnet build Vision/Detection/Kaleidoscope.Detection.csproj`：net472/netstandard2.0
+  双目标 0 error。
+- 库验收：`run-smoke.ps1` PASS=173 FAIL=0（SKIP=3 为无 HSL 授权环境跳过）。
+- 宿主侧：AIris V0.1.19（监控台 + 编辑页接入，单核 63.4%→45.3%；
+  放开限流后 20fps 口径 185.9%）、YoloDetector v2.11.4（预览链路接入，
+  真机 + YOLO 检测正常；`MaxPixelWidth` 默认 0，其全尺寸检测路径不受影响）。
+
 ## V2.4.5（2026-11-28）Infer 层两处真实模型链路修复（AIris 接入 Ollama qwen2.5vl:3b 实测）
 
 > 宿主 AIris V0.1.17 首次用真实视觉模型（Ollama 原生 /api/chat）跑通引擎页，暴露两处

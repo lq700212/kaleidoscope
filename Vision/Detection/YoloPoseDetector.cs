@@ -81,7 +81,10 @@ namespace YoloDetection
             var sessionOptions = new SessionOptions
             {
                 LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
-                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
+                // 线程上限：口径同 YoloV26Detector（双模型同帧跑时默认线程数会把整机打满，
+                // 8 核实测 1241% 单核%；取一半核数让预览/UI 有富余）。
+                IntraOpNumThreads = Math.Max(2, Environment.ProcessorCount / 2)
             };
 
             try

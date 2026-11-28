@@ -83,6 +83,24 @@ namespace YoloDetection
 
         public int FrameHeight { get; private set; }
 
+        /// <summary>
+        /// 解码后立即下采样的目标宽度（0 = 不下采样，默认；YoloDetector 等需要全尺寸的宿主保持 0）。
+        ///
+        /// 【为什么要在这一层下采样（2026-11-28 延时/CPU 优化）】
+        /// 相机主码流常见 5MP/3MP（AIris 实测 2304×1296 HEVC @20fps），而 UI 呈现与检测
+        /// 通常只需要 1280~1600 宽。若保持全尺寸往下传，每一帧都要多做三次大图操作：
+        ///   Clone 全尺寸 Mat（9MB）、Mat→Bitmap（9MB）、呈现面 box filter 下采样；
+        /// 三者合计 10~15ms/帧。5MP@20fps 时这段开销把消费速率压到 10fps 以下，
+        /// 低于相机生产速率 → RTSP 缓冲永久积压 → 画面延时随运行时间固定增大（实测 789ms）。
+        /// 在解码输出处一次性 resize 到目标宽（INTER_AREA，5MP→1600 约 2~3ms），
+        /// 后续链路全部只处理小图，既降 CPU 也把消费速率拉回生产速率之上。
+        ///
+        /// 【线程契约】Start 前设置；运行期改动只影响后续帧（int 赋值原子，无需锁）。
+        /// 【分辨率口径】FrameWidth/FrameHeight 报告的是下采样<b>之后</b>的尺寸
+        /// （订阅者拿到的 Mat 就是这么大，避免"报告尺寸与实际帧不符"）。
+        /// </summary>
+        public int MaxPixelWidth { get; set; }
+
         public event EventHandler<Mat> FrameReady;
 
         /// <summary>
@@ -324,6 +342,20 @@ namespace YoloDetection
                     }
 
                     bgrFrame = ConvertToBgr(frame);
+
+                    // 解码后立即下采样（MaxPixelWidth>0 时）：后续 Clone / Mat→Bitmap /
+                    // 呈现面缩放全部只处理小图，省 8~10ms/帧（见 MaxPixelWidth 属性注释）。
+                    // 下采样产生新 Mat 时，旧的中间产物立即释放；若是 src 直通则交给 finally。
+                    Mat scaled = DownscaleIfNeeded(bgrFrame);
+                    if (!ReferenceEquals(scaled, bgrFrame))
+                    {
+                        if (!ReferenceEquals(bgrFrame, frame))
+                        {
+                            bgrFrame.Dispose();
+                        }
+                        bgrFrame = scaled;
+                    }
+
                     _frameCount++;
 
                     if (_frameCount == 1)
@@ -453,6 +485,31 @@ namespace YoloDetection
             }
 
             return bgr;
+        }
+
+        /// <summary>
+        /// 按 <see cref="MaxPixelWidth"/> 下采样；无需下采样时原样返回 src（零拷贝）。
+        ///
+        /// 【为什么用 INTER_AREA】缩小场景下 INTER_AREA 是面积平均，等效于抗锯齿的 box filter，
+        /// 不会像 INTER_LINEAR 那样在细纹理上产生摩尔纹；5MP→1600 实测 2~3ms。
+        /// 【宽高比】按宽度等比缩放（高度四舍五入，至少 1 像素），不裁不拉，保持画面几何不变。
+        /// 【所有权】返回新 Mat 时调用方负责 Dispose；返回 src 时所有权不变。
+        /// </summary>
+        private Mat DownscaleIfNeeded(Mat src)
+        {
+            int maxW = MaxPixelWidth;
+            if (maxW <= 0 || src == null || src.Empty() || src.Cols <= maxW)
+            {
+                return src;
+            }
+
+            int w = maxW;
+            int h = (int)Math.Round(src.Rows * (double)maxW / src.Cols);
+            if (h < 1) h = 1;
+
+            var dst = new Mat();
+            Cv2.Resize(src, dst, new OpenCvSharp.Size(w, h), 0, 0, InterpolationFlags.Area);
+            return dst;
         }
     }
 }

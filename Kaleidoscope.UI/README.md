@@ -69,7 +69,9 @@
 | 开关 / 勾选 / 单选 | `KxSwitch` / `KxCheckBox` / `KxRadioButton` / `KxGridCheckBox` / `KxThemeSwitch`（深浅主题切换滑动轨道） | |
 | 细滚动条 | `KxSlimScrollBar`（隐式化由宿主 BasedOn 再造） | |
 | 顶栏容器 | `KxTopBar` | |
-| **相机画面显示区"舞台"（底 + 网格 + 扫描动效 + 喂帧）** | `KxImageStage` 控件（替代普通 Grid；喂帧用 `FrameSource` 绑定或 `ShowFrame()` 命令式，叠加取 `Overlay` 画） | 纯 WPF 适用；三色/步距/时长/空态文本/拉伸可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；有帧自动停扫描、空态自动恢复（内建联动）；HWND airspace 场景不适用 |
+| **相机画面显示区"舞台"（底 + 网格 + 扫描动效 + 喂帧）** | `KxImageStage` 控件（替代普通 Grid；喂帧用 `FrameSource` 绑定或 `ShowFrame()` 命令式，叠加取 `Overlay` 画） | 纯 WPF 适用；三色/步距/时长/空态文本/拉伸可配 DP，默认主题键 `Brush.Shell.Stage*` 自动配色；有帧自动停扫描、空态自动恢复（内建联动）；HWND airspace 场景不适用。**视频场景另设 `GridVisibleWhenFrame=false`（真机帧不透明，省网格重绘）+ `FrameScalingMode=LowQuality`（双线性比默认 Fant 快数倍，视觉差异几乎不可见）** |
+| **高频相机帧呈现（RTSP/USB 视频流，任意源像素格式）** | **`KxFrameSurface`（V2.4.6，替代宿主手写"每帧 new BitmapSource"或自管 WriteableBitmap）** | 复用 WriteableBitmap + 源格式直拷（`KxFramePixelFormat.Bgr24/Bgra32/Pbgra32`，零格式转换）+ 丢帧背压（UI 慢时只保留最新帧，队列零积压）+ 合并调度；`PushFrame(IntPtr/byte[], w, h, stride, fmt)` 任意线程可调、返回即像素已拷走；`SurfaceChanged` 里挂一次 `Image.Source` 即可。**alpha 语义红线见类头注释**（直通 alpha 错配 Pbgra32 会爆白） |
+| **进程渲染模式（GPU/CPU）/ 远程串流双指针** | **`KxRenderPolicy.Apply(bool? forceSoftware)`（V2.4.6）** | 默认硬件渲染；自动检测 UU远程/向日葵/ToDesk/RustDesk/TeamViewer/AnyDesk/贝锐 才切软件渲染（避免远程双指针）；宿主主窗用 `UseLayeredWindow => !KxRenderPolicy.IsSoftwareRendering` 联动（分层窗强制整窗软件渲染，硬件环境必须关）。**必须在任何 Window 创建前调用** |
 | **胶囊圆角（按钮/输入框/Chip/导航项/进度条/任意 Border 的"两端半圆"）** | **`KxCapsuleBorder` 控件（替代 `<Border>`，一行标签，V2.4.1）**；竖向窄条（滚动条 Thumb 等按宽度取半的）用 `Axis="Width"` | **禁写 `CornerRadius="99"`**：WPF 把横/纵半径分别钳到 宽/2、高/2，宽按钮会画成椭圆急收弧（HJVision/AIris/Sinan 三家宿主先后踩过）。控件构造即绑 `ActualHeight/2`，任意高度自动正确 |
 | 布尔/等值/胶囊半径转换器 | `UiConverters` 静态单例（InverseBool/StringEquals/NullToVisibility/TrueToVisibility/CapsuleRadius） | 勿再手写同款 IValueConverter；胶囊优先用 `KxCapsuleBorder`，无法换标签（第三方模板内部）才用转换器 |
 

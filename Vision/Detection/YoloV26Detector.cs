@@ -59,7 +59,14 @@ namespace YoloDetection
             var sessionOptions = new SessionOptions
             {
                 LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
-                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+                GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
+                // 推理线程上限（2026-11-28 实测固化）：默认 = 物理核数，而本域常见场景是
+                // "检测模型 + ESD 姿态模型"双模型同帧跑（YoloDetector 2304×1296 @23fps），
+                // 8 核机器实测 CPU 1241%（单核%）= 整机超载，预览/UI 被抢 CPU 而卡顿。
+                // 取物理核数一半（下限 2）：单次推理约慢 1.5x，但总 CPU 降到约一半，
+                // 预览线程与系统交互有富余；纯检测场景（只跑一个模型）也够用。
+                // 需要极限吞吐时可改为 Environment.ProcessorCount，但宿主必须自行限帧。
+                IntraOpNumThreads = Math.Max(2, Environment.ProcessorCount / 2)
             };
 
             try

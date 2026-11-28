@@ -69,6 +69,10 @@
     <!-- net472 TFM 的 MSBuild 缺省 LangVersion 是 7.3——本库代码用 C#10+
          文件范围命名空间等语法，必须显式解锁（见文件头【多目标坑位】）。 -->
     <LangVersion>12</LangVersion>
+    <!-- 帧下采样（KxFrameSurface 的 2x/3x box filter）用指针逐像素平均：
+         5MP→1.3MP 托管数组版 5~15ms/帧，指针版 2~4ms/帧，相机线程 8fps 预算 125ms
+         下必须走指针；仅本文件内部使用，不对外暴露 unsafe API。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Kaleidoscope.UI</RootNamespace>
     <AssemblyName>Kaleidoscope.UI</AssemblyName>
     <!-- 与主库 Kaleidoscope（net472）同仓独立版本线：UI 库按自身演进记 CHANGELOG -->

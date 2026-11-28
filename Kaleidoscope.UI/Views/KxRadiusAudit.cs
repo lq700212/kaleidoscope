@@ -101,7 +101,7 @@ public static class KxRadiusAudit
     private static bool Check(Border border, Action<string> report)
     {
         if (border.Tag is string tag &&
-            tag.Contains(SkipTag, StringComparison.OrdinalIgnoreCase))
+            tag.IndexOf(SkipTag, StringComparison.OrdinalIgnoreCase) >= 0)
             return false;
 
         // 【为什么不查 KxCapsuleBorder（2026-11-24 Sinan 实测）】

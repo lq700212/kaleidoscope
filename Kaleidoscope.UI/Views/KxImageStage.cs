@@ -199,6 +199,50 @@ public class KxImageStage : Grid
         set => SetValue(FrameStretchProperty, value);
     }
 
+    /// <summary>
+    /// 帧图缩放插值模式（默认 <see cref="BitmapScalingMode.LowQuality"/> = 双线性）。
+    /// 【为什么要可调（V2.4.6 视频卡顿整改）】WPF 对缩小默认走 Fant/高质量重采样：
+    /// 5MP 相机帧缩到 ~1MP 显示区，软件渲染（分层窗/远程串流）下单帧缩放就要 10ms+，
+    /// 8fps 即吃掉近一个 CPU 核——画面"能看但卡"。LowQuality（双线性）在视频预览上
+    /// 视觉差异几乎不可见，缩放耗时降到约 1/3；静态大图展示可设 HighQuality，
+    /// 极端降载可设 NearestNeighbor（有明显锯齿，仅诊断用）。
+    /// </summary>
+    public static readonly DependencyProperty FrameScalingModeProperty = DependencyProperty.Register(
+        nameof(FrameScalingMode), typeof(BitmapScalingMode), typeof(KxImageStage),
+        new PropertyMetadata(BitmapScalingMode.LowQuality, OnFrameScalingModeChanged));
+
+    public BitmapScalingMode FrameScalingMode
+    {
+        get => (BitmapScalingMode)GetValue(FrameScalingModeProperty);
+        set => SetValue(FrameScalingModeProperty, value);
+    }
+
+    /// <summary>DP 变化 → 应用到帧 Image 的附加属性（构造早期 _frame 未建时跳过，
+    /// BuildDecorations 建好后按当前 DP 值补应用一次）。</summary>
+    private static void OnFrameScalingModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var stage = (KxImageStage)d;
+        if (stage._frame != null)
+            RenderOptions.SetBitmapScalingMode(stage._frame, (BitmapScalingMode)e.NewValue);
+    }
+
+    /// <summary>
+    /// 有帧时是否仍绘制网格底纹（默认 true = 保持旧观感）。
+    /// 【为什么要能关】真机帧不透明，网格被完全遮挡却仍逐帧重绘；软件渲染
+    /// （分层窗/远程串流）下 ~500 个 tile/帧是固定开销，AIris 5MP 预览实测可见。
+    /// 【什么时候该关】真机相机预览（帧不透明）；【什么时候必须开】宿主喂"透明帧"
+    /// 且希望网格透出来当台面底纹（AIris Mock 空场的观感口径）。
+    /// </summary>
+    public static readonly DependencyProperty GridVisibleWhenFrameProperty = DependencyProperty.Register(
+        nameof(GridVisibleWhenFrame), typeof(bool), typeof(KxImageStage),
+        new PropertyMetadata(true, OnFrameSourceChanged));
+
+    public bool GridVisibleWhenFrame
+    {
+        get => (bool)GetValue(GridVisibleWhenFrameProperty);
+        set => SetValue(GridVisibleWhenFrameProperty, value);
+    }
+
     private static void OnFrameSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((KxImageStage)d).UpdateFrameVisibility();
 
@@ -242,6 +286,10 @@ public class KxImageStage : Grid
         bool has = FrameSource != null;
         _frame.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
         _idle.Visibility = has || string.IsNullOrEmpty(IdleText) ? Visibility.Collapsed : Visibility.Visible;
+        // 【性能护栏·V2.4.6】有帧时收起网格底纹：真机帧不透明，网格被完全盖住却仍参与
+        // 每帧重绘（软件渲染下 ~500 个 tile/帧的固定开销，远程串流/分层窗场景实测可观）。
+        // 透明帧（AIris Mock 空场）由宿主自行决定是否要网格观感——见 GridVisibleWhenFrame。
+        _mesh.Visibility = has && !GridVisibleWhenFrame ? Visibility.Collapsed : Visibility.Visible;
         StartScan();    // 有效开关内含 FrameSource==null 判断：有帧=停，清帧=自动恢复
     }
 
@@ -253,6 +301,8 @@ public class KxImageStage : Grid
         _mesh = new Rectangle { IsHitTestVisible = false };
         // 帧显示三内置件（V2.3.6）：不喂帧时全 Collapsed，纯装饰用法零破坏
         _frame = new Image { IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+        // 帧缩放插值：按 DP 当前值应用（默认双线性；XAML 显式设 HighQuality 也在此生效）
+        RenderOptions.SetBitmapScalingMode(_frame, FrameScalingMode);
         _frame.SetBinding(Image.SourceProperty, new Binding(nameof(FrameSource)) { Source = this });
         _frame.SetBinding(Image.StretchProperty, new Binding(nameof(FrameStretch)) { Source = this });
         _overlay = new Canvas();    // V2.3.7：恒可见 + 可命中（宿主画可交互叠加件的前提——
