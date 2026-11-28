@@ -7,6 +7,80 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.8（2026-11-28）KxBackground 后台执行门面：异常必达 + 有界并发 + UI 封送（AIris 启动卡顿事故沉淀）
+
+> 宿主 AIris 重启时窗口"鼠标转圈"假死 30 秒，根因是两处**同步网络 IO 跑在 UI 线程**：
+> `HttpDetectionEngine.Load` 的 `ProbeAsync(...).GetAwaiter().GetResult()`（Magpie 卡超时 30s）
+> 和 `RtspCameraSource.Start` 的 `cap.Start(url)`（RTSP 握手阻塞到 TCP 超时）。
+> 这类错误的共同形态是"耗时操作没有离开 UI 线程"——缺的不是线程池，而是**统一出口**。
+
+### Kaleidoscope（主库 V2.4.8，Threading\）
+
+- **新增 `Threading/KxBackground.cs`**（静态门面，零第三方依赖）：
+  - `Run(name, work)`：fire-and-forget，工作体异常**必达** `ErrorSink`（裸 Task 的异常
+    没人 await 就被静默吞掉，是线上最难查的一类问题）；
+  - `RunAsync<T>(name, func)`：要结果的链路，异常正常抛给 await 方；
+  - `RunBounded(key, maxConcurrency, name, work)`：同 key 共享 `SemaphoreSlim`，
+    超出并发**排队**而不是拒绝（多引擎探活限 2、缩略图生成限核数、设备重连限 1）；
+  - `Post(action)`：后台结果回 UI 线程，优先宿主注入的 `UiPost`，其次
+    `SynchronizationContext`，都没有才直接执行——库不引用 WPF，可跨 UI 框架复用；
+  - `ErrorSink` / `UiPost` 两个注入点，宿主启动时接线（AIris 接到 AppLog 与 Dispatcher）。
+- **线程池选型（2026-11-28 调研，勿再重复选型）**：
+  | 候选 | Star | 状态 | 结论 |
+  | --- | --- | --- | --- |
+  | dotnet/runtime 自带 ThreadPool | 18.5k | 微软维护、每日更新 | ✅ `Task.Run` 底层就是它 |
+  | Hangfire | 10.2k | 活跃，但定位是持久化作业调度（要存储/服务端） | ❌ 桌面单机过重 |
+  | SmartThreadPool | 509 | 最后更新 2023-11，已停更 | ❌ 不维护 |
+  | PowerThreadPool | 新项目 | .NET Foundation seed，太年轻 | ❌ 风险高 |
+  结论：**线程池用 .NET 内置的（最稳、零依赖），`KxBackground` 只补"异常必达 /
+  有界并发 / UI 封送"三件事**，不重复造调度器。
+- **AGENTS.md 铁律 5 扩写**：从"UI 线程禁做网络 IO"升级为"UI 线程禁做任何耗时操作"，
+  明确禁止 `.GetAwaiter().GetResult()` / `.Wait()` / `.Result` 出现在 UI 线程可达路径，
+  并写明第三方线程池调研结论（防后来者重复踩坑选型）。
+
+## V2.4.7（2026-11-28）Infer 模型目录发现：ListModelsAsync + InferModelCatalog（"服务上有哪些模型"变成一次调用，AIris 反哺）
+
+> 宿主 AIris 接入 Magpie 反代网关（yetone/magpie，OpenAI 兼容，本机 127.0.0.1:3425）时，
+> 模型名是一长串 id（`workbuddy/deepseek-v4.1-flash`、`trae-cn/glm-5.3-flash-max`…），
+> 手抄极易拼错（错一字符就是 404/400），且用户需要频繁在不同提供方的同名模型间切换。
+> 各家服务其实都提供模型列表端点，缺的只是"统一解析 + 图像能力识别"这一层——故沉库。
+
+### Kaleidoscope（主库 V2.4.7，Infer\）
+
+- **`InferClient.BuildGroundingPrompt`：纯中文类目被模型忽略 + label 照抄示例**——实测
+  DeepSeek V4.1 Flash 在 prompt 只列中文目标（"杯子 / 手机"）时，回包框是鼠标键盘等
+  无关物、label 直接照抄示例里的 `"name"`。两处修正：
+  ① 补一句中英同义词提示（"If a target name is Chinese, also consider its common
+  English equivalent (e.g. 杯子=cup, 手机=cell phone)"）——弱模型的视觉锚点更依赖英文词；
+  ② 明确要求 `label` 必须是给定目标原名（"The label must be the target name exactly as
+  given"）——否则宿主 `JudgeEngine` 按 label 匹配永远数不到件。
+- **新增 `Infer/InferModelCatalog.cs`**：
+  - `ParseOpenAi(json)`：解析 OpenAI 兼容 `GET /v1/models`（vLLM / llama.cpp server /
+    LMDeploy / Magpie 反代网关通用），取 `id` / `display_name` / `owned_by` /
+    `modalities.input`（含 `"image"` 即支持图像）；
+  - `ParseOllamaTags(json)`：解析 Ollama `GET /api/tags`，视觉能力按模型名启发式猜测
+    （vl / vision / llava / minicpm-v / moondream / gemma3 …）；
+  - **图像能力三态**：`InferModelInfo.ImageSupportKnown` 区分"服务声明确定"与"服务未声明只能猜"
+    ——UI 不要把"未知"误标成"纯文本"把可用模型挡掉；
+  - 视觉模型优先排序（确定支持 → 未知 → 确定不支持，同档按 id 字典序）；
+  - 自写括号深度切分（跳过字符串字面量）替代第三方 JSON 依赖，容忍各家网关字段差异。
+- **新增 DTO `InferModelInfo`**：`Id` / `DisplayName` / `Owner` / `SupportsImage` /
+  `ImageSupportKnown` + 两个展示文案 `Label`（下拉长文案，带图像/纯文本前缀）与
+  `ChipLabel`（胶囊短文案，带 owner 区分同名模型的不同提供方）。
+- **`InferClient.ListModelsAsync(ep, ct)`**：按协议选端点——OpenAI 兼容 `/v1/models`、
+  Ollama `/api/tags`、Anthropic `/v1/models`、CustomJson 直接返回失败（无标准端点）；
+  ApiKey 非空按协议带 `Authorization: Bearer` / `x-api-key + anthropic-version`；
+  **失败不抛异常**（网络/超时/回包无模型一律 `Ok=false + Error`），超时沿用探活口径 ≤3s。
+- **`InferTransportBase`**：`GetAsync` 增加回包文本读取（模型目录要解析 body；探活语义不变），
+  新增 `internal GetCoreAsync(ep, url, setHeaders, ct)` 供门面转发，避免上层绕过 InferClient。
+
+### 验证（宿主 AIris）
+
+- 探针：`ListModelsAsync` 对 Magpie 38ms 返回 12 个模型，图像能力标记与排序全对
+  （11 个确认支持图像 + 1 个纯文本 `opencode-zen-free/deepseek-v4.1-flash-free` 沉底）；
+- 宿主引擎页「Magpie 模型」按钮点开 → 胶囊列表 → 点选即回填协议/地址/模型名全表单；
+- 添加引擎弹窗「⟳ 拉取模型」→ 下拉选择 → 名称/许可证/协议/地址/模型名一次填好。
+
 ## V2.4.6（2026-11-28）KxFrameSurface 帧呈现面 + KxRenderPolicy 渲染策略 + RtspFrameCapturer 解码后下采样与限流修正（AIris/YoloDetector 双宿主视频卡顿与延时整改）
 
 > 两宿主此前各自手写"每帧新建 BitmapSource"或"自管 WriteableBitmap"预览链路，

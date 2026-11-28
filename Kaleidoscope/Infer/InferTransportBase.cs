@@ -94,6 +94,15 @@ namespace Kaleidoscope.Infer
             return GetAsync(ep, url, null, CancellationToken.None);
         }
 
+        /// <summary>GET 任意端点并带回包文本（模型目录发现用）。
+        /// 与探活共用同一超时口径（≤3s）；鉴权头由调用方按协议组装
+        /// （OpenAI=Bearer / Anthropic=x-api-key+anthropic-version）。
+        /// internal：只给同程序集的 InferClient 用，避免上层绕过门面。</summary>
+        internal Task<InferReply> GetCoreAsync(InferEndpoint ep, string url, Action<HttpRequestMessage> setHeaders, CancellationToken ct)
+        {
+            return GetAsync(ep, url, setHeaders, ct);
+        }
+
         /// <summary>GET 探活（各协议 health 端点；状态码 2xx 即视为在线）。
         /// 超时从紧（≤3s），同样走每请求 CTS（不改 HttpClient.Timeout，见构造函数注释）。</summary>
         protected async Task<InferReply> GetAsync(InferEndpoint ep, string url, Action<HttpRequestMessage> setHeaders, CancellationToken ct)
@@ -111,10 +120,13 @@ namespace Kaleidoscope.Infer
                         if (setHeaders != null) setHeaders(msg);
                         using (var resp = await _http.SendAsync(msg, cts.Token).ConfigureAwait(false))
                         {
+                            // 读文本：探活不看内容，但模型目录（/v1/models、/api/tags）要解析回包
+                            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
                             reply.HttpStatus = (int)resp.StatusCode;
                             reply.LatencyMs = sw.ElapsedMilliseconds;
                             reply.Ok = (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 300;
-                            if (!reply.Ok) reply.Error = "HTTP " + (int)resp.StatusCode;
+                            if (!reply.Ok) reply.Error = "HTTP " + (int)resp.StatusCode + "：" + Truncate(text, 200);
+                            else reply.Text = text;
                             return reply;
                         }
                     }

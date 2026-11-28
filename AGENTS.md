@@ -68,7 +68,17 @@ ModbusRtuBarometerReader/ModbusTcpIoController/FanControllerClient/MockXxx）不
    - 2026-08 复盘：HSL 授权码曾差点因"只加了规则没复查实体文件位置"产生遗漏——规则与实体要两头验证。
 3. **改动后必须构建验证**：MSBuild 编译 Kaleidoscope.csproj，禁止提交编译不过的代码。
 4. **不主动 commit/push**，除非用户明确要求；提交前先 `git status` + `git diff`。
-5. **UI 线程禁做网络 IO**：连接/读写一律服务后台线程；TCP 连接必须 `BeginConnect + WaitOne` 强制超时。
+5. **UI 线程禁做任何耗时操作**（2026-11-28 AIris 启动卡顿复盘：`HttpDetectionEngine.Load`
+   同步探活 + `RtspCameraSource.Start` 同步 RTSP 握手都在 UI 线程，窗口"鼠标转圈" 30 秒）：
+   - 网络 / 磁盘 / 模型推理 / 相机握手 / 串口等待 —— 一律走 `Threading/KxBackground`；
+   - 禁止 `.GetAwaiter().GetResult()` / `.Wait()` / `.Result` 出现在 UI 线程可达路径；
+   - fire-and-forget 用 `KxBackground.Run(name, work)`（异常必达 `ErrorSink`，不静默）；
+     要结果用 `RunAsync<T>`（异常抛给 await 方）；并发要有界用 `RunBounded(key, max, ...)`；
+   - 后台结果改 UI 绑定：`KxBackground.Post(...)`，不要直接碰控件；
+   - **线程池本身用 .NET 内置 `Task.Run`（coreclr 维护），不引入第三方线程池**——
+     2026-11-28 调研：Hangfire 是作业调度（要存储，过重）、SmartThreadPool 停更 2023-11、
+     PowerThreadPool 太年轻；`KxBackground` 只补"异常必达 / 有界并发 / UI 封送"三件事；
+   - TCP 连接必须 `BeginConnect + WaitOne` 强制超时。
 6. **服务必须支持热更**：`Dispose` 干净（限时抢锁 + 锁外强断网）、惰性连接自动重连、状态集中在实例内无残留。`DeviceHub.ApplyConfig` 是热更唯一入口。
 7. **宿主 UI 开工先查控件复用索引，禁止重复造轮子**（2026-11-22 AIris 实训固化：主窗导航胶囊漏查
    库内 `KxLangButton` 自绘 ControlTemplate，还漏清 WPF 焦点虚线框——库里明明有现成形态）：

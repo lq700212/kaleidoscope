@@ -110,6 +110,7 @@
     <Compile Include="Infer\DecisionsTransport.cs" />
     <Compile Include="Infer\BoxParser.cs" />
     <Compile Include="Infer\InferClient.cs" />
+    <Compile Include="Infer\InferModelCatalog.cs" />
     <Compile Include="Utils\LogHelper.cs" />
     <Compile Include="Utils\MockBridge.cs" />
     <Compile Include="Utils\SerialPortNameResolver.cs" />
@@ -117,6 +118,8 @@
     <Compile Include="Utils\SerialPortHelper.cs" />
     <Compile Include="Utils\IoMapBuilder.cs" />
     <Compile Include="Utils\HslAuthorization.cs" />
+    <!-- 后台执行门面（2026-11-28 AIris 启动卡顿沉淀）：Task.Run 统一出口 + 异常必达 + 有界并发 -->
+    <Compile Include="Threading\KxBackground.cs" />
     <Compile Include="Models\PlcConfig.cs" />
     <Compile Include="Models\CameraConfig.cs" />
     <Compile Include="Models\ScanConfig.cs" />

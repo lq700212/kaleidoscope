@@ -227,10 +227,53 @@ hub.ApplyConfig(newConfig);
 
 各设备的寄存器地址、指令协议与百分百细节见 [`docs/通讯接入.md`](docs/通讯接入.md) 与 [`使用说明.md`](./使用说明.md)。
 
+## 推理服务接入（`Infer/`，多协议 + 模型目录发现）
+
+> 换模型 / 换推理框架只改 `InferEndpoint`（协议 + 地址 + 模型名），调用代码零改动。
+
+| 能力 | 入口 | 说明 |
+| --- | --- | --- |
+| 检测一帧 | `InferClient.DetectAsync(ep, 图, prompts)` | 组 grounding prompt → 协议 transport → `BoxParser`，出 0~1000 归一化框 |
+| 探活 | `InferClient.ProbeAsync(ep)` | 各协议 health 端点，2xx 即在线，返回耗时 |
+| **模型目录发现** | `InferClient.ListModelsAsync(ep, ct)` | OpenAI 兼容 `GET /v1/models`（vLLM / llama.cpp / LMDeploy / Magpie 反代网关）、Ollama `GET /api/tags`、Anthropic `/v1/models`；回包统一解析为 `InferModelInfo`（id / 展示名 / owner / 图像能力三态），视觉模型自动排前 |
+
+**为什么要有模型目录发现**：接新服务时模型名常是一长串 id（`workbuddy/deepseek-v4.1-flash`、
+`Qwen/Qwen3-VL-8B-Instruct`），手抄极易拼错；UI 直接拉列表点选即可，也支撑用户频繁换模型。
+
+**图像能力三态**（`InferModelInfo.ImageSupportKnown`）：Magpie 的 `/v1/models` 会声明
+`modalities.input`，可确定是否支持图像；OpenAI 官方 / Ollama 不声明 → 只能标"能力未知"，
+**UI 不要误显示成"纯文本"**，否则会把可用模型挡掉。
+
+**协议族**：`OpenAi`（/v1/chat/completions，vLLM / llama.cpp server / LMDeploy / Magpie 反代）/
+`Anthropic`（/v1/messages）/ `Ollama`（/api/chat，裸 base64 图）/ `CustomJson`（自研 FastAPI
+检测契约，框直出）。失败一律 `Ok=false + Error` 返回，不抛异常，UI 就地提示。
+
+## 后台执行门面（`Threading/KxBackground`，V2.4.8）
+
+> **耗时操作离开 UI 线程的统一出口**。线程池本身用 .NET 内置 `Task.Run`（coreclr 维护，
+> 最稳、零依赖）；本门面只补裸 Task 缺的三件事：异常必达、有界并发、UI 封送。
+
+| 场景 | 调用 | 异常语义 |
+| --- | --- | --- |
+| 纯副作用后台任务（探活/连设备/写文件） | `KxBackground.Run("engine.probe", work)` | 异常送 `ErrorSink`，不静默 |
+| 要结果的后台任务 | `await KxBackground.RunAsync<T>("名字", func)` | 异常抛给 await 方 |
+| 有界并发（同 key 排队） | `KxBackground.RunBounded("probe", 2, "名字", work)` | 同 Run |
+| 后台结果回 UI 绑定 | `KxBackground.Post(() => vm.Refresh())` | 走宿主注入的 `UiPost` |
+
+**宿主接线（启动时一次）**：
+
+```csharp
+KxBackground.ErrorSink = (name, ex) => AppLog.Error("后台任务失败：" + name, ex);
+KxBackground.UiPost   = action => Dispatcher.BeginInvoke(action);   // WPF；WinForms 用 control.BeginInvoke
+```
+
+**红线**：`.GetAwaiter().GetResult()` / `.Wait()` / `.Result` 禁止出现在 UI 线程可达路径——
+2026-11-28 AIris 启动假死 30 秒就是同步探活 + 同步 RTSP 握手造成的。
+
 ## 通用红线（内置在库行为里，接入方配合遵守）
 
-1. **UI 线程禁做网络 IO**：所有连接/读写都在服务后台线程执行；
-2. **事件在工作线程触发**：订阅方操作控件前必须 `Invoke` 回 UI 线程；
+1. **UI 线程禁做任何耗时操作**：网络/磁盘/模型推理/相机握手/串口等待一律走 `KxBackground`；
+2. **事件在工作线程触发**：订阅方操作控件前必须 `Invoke` 回 UI 线程（或用 `KxBackground.Post`）；
 3. **图片一律后台解码 + 缩略图**：工业相机原图尺寸较大，直接全尺寸赋值会卡界面；
 4. **业务层不补连接管理**：服务已内置惰性建连 + 自动重连 + 节流日志，上层只调公开方法。
 
