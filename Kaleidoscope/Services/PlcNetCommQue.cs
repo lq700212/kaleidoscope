@@ -1192,6 +1192,27 @@ namespace Kaleidoscope.Services
                 delegate(FlashPlcWRDataInfo item) { item.WriteDataFloat = new float[] { value }; }, timeoutMs);
         }
 
+        /// <summary>
+        /// 同步写 Float 数组（连续 Float 块写，三区上报用：一次事务写满整区 100 字，
+        /// 替代逐项单值写 150 次往返——2026-11-26 ST10 尺寸超时实锤瓶颈）。
+        /// 字序/字节布局完全由 HSL 的 Write(address, float[]) 决定，与 PlcSyncWriteFloat
+        /// 单值写同走 DataTypeWR.IsFloat 分支，现场已验证的字序自动继承，不做手工拆字。
+        /// values 入队前 Clone：调用方数组写后可能复用，避免消费线程读到改过的内容。
+        /// 语义同 PlcSyncWriteInt32（失败已触发重连，调用方本轮放弃）。
+        /// </summary>
+        public static bool PlcSyncWriteFloats(int devID, string address, float[] values, int timeoutMs = 5000)
+        {
+            if (devID < 0 || string.IsNullOrEmpty(address) || values == null || values.Length == 0) return false;
+            if (MockBridge.IsEnabled)
+            {
+                MockBridge.FakePlcWrite(devID, address,
+                    string.Join(",", Array.ConvertAll(values, delegate(float x) { return x.ToString("G9", System.Globalization.CultureInfo.InvariantCulture); })));
+                return true;
+            }
+            return SyncWriteOnce(devID, address, DataTypeWR.IsFloat,
+                delegate(FlashPlcWRDataInfo item) { item.WriteDataFloat = (float[])values.Clone(); }, timeoutMs);
+        }
+
         /// <summary>同步写 Int16 数组（内容区定长打包字串用，调用方先 PackAsciiToWords）。</summary>
         public static bool PlcSyncWriteWords(int devID, string address, short[] words, int timeoutMs = 5000)
         {

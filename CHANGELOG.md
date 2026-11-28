@@ -7,6 +7,36 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.4（2026-11-28）PlcSyncWriteFloats 批量浮点写——三区回写 150 次 PLC 事务降为 3 次（HJVision 尺寸站完成超时治本）
+
+> 宿主张 HJVision 现场实锤（2026-11-26 09:30 L型连接器 ST10 尺寸1"检测超时"）：PLC 人机屏
+> 按自身 10s 完成窗判定，VPP 本地实测仅 0.79s，但 `WriteZoneAll` 逐项 `StepAddr(+2)` 逐 Float 写，
+> 50 项 × 3 区 = 150 次独立 PLC 事务；ST10-1/ST13 两组并发共享 `PlcNetComm_Que` 单消费线程，
+> 队列被灌满后单件回写段实测 4~7 秒（空闲单次写 10~14ms、拥塞 40~50ms），叠加消费延迟即超窗。
+
+### 改动
+
+- **`Kaleidoscope/Services/PlcNetCommQue.cs` 新增 `PlcSyncWriteFloats(devID, address, float[], timeoutMs=5000)`**：
+  一次事务写连续 Float 块（三区各 50 项 = 100 字），复用既有 `DataTypeWR.IsFloat` 消费分支
+  （`_PlcDevices[devID].Write(address, float[])`），字序/字节布局与单值 `PlcSyncWriteFloat` 同源，
+  不做手工拆字；入队前 `Clone` 数组，防调用方复用缓冲区被消费线程读到改过的内容；
+  参数校验（devID<0/地址空/数组空回 false）；Mock 分支逗号拼接 `FakePlcWrite`；失败语义同
+  `PlcSyncWriteInt32`（已触发重连，调用方本轮放弃）。
+- **为什么放在库而不是宿主**：批量浮点写是"PLC 队列 + HSL 同一 float[] 写分支"的通用能力，
+  任何宿主做多区回写都会遇到同款事务风暴；放库内与 `PlcSyncWriteWords`（定长字块）成对，
+  宿主脚本只负责组数组 + 重试策略。
+- **宿主侧配套（HJVision）**：`RunScript_欧姆龙PLC.cs` 的 `WriteZoneAll` 改三份
+  `float[SizeZonePlcPack.MaxItems]` 定长数组 + `WriteZoneBlock`（每区一次块写 + 3 轮重试，
+  名单外槽位写 0 顺带清残留），"三区上报"日志行尾追加 `块写=XXms`（改造前 4000~7000ms，
+  预期 <100ms）。
+
+### 验证
+
+- 主库 MSBuild 构建 0 error；acceptance-test 冒烟 `PASS=173 FAIL=0 SKIP=3`（SKIP=HSL 授权无环境）。
+- HJVision 侧：主工程构建 0 error；一键回归 24 批全 PASS；现场首件按点表复核
+  D3000/D4000/D5000（ST10）与 D3200/D4200/D5200（ST13）浮点值与 `块写=` 毫秒数
+  （字序由 HSL 同一 float[] 写分支保证，首次上机仍按点表核对一遍）。
+
 ## V2.4.3（2026-11-25）无边框窗/弹窗支持"关分层保 ClearType"（Sinan 宿主反哺）
 
 > 宿主 Sinan 反馈"整窗文字发虚"：WPF 分层窗（`AllowsTransparency=True`，`WS_EX_LAYERED`）
