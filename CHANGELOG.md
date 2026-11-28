@@ -7,6 +7,31 @@
 > 存图清理防误删 V2.14.12 等）已沉淀在 `AGENTS.md`「已知通讯关键点」（位于仓库根），需要
 > 原始完整记录时查原 CommandCenter 项目的 CHANGELOG.md。
 
+## V2.4.5（2026-11-28）Infer 层两处真实模型链路修复（AIris 接入 Ollama qwen2.5vl:3b 实测）
+
+> 宿主 AIris V0.1.17 首次用真实视觉模型（Ollama 原生 /api/chat）跑通引擎页，暴露两处
+> "探活能过、检测必挂 / 判定必 NG"的库侧缺陷。
+
+### Kaleidoscope（主库 V2.4.5，Infer\）
+
+- **InferTransportBase：HttpClient.Timeout 二次修改异常**——.NET Framework 的 HttpClient
+  在发出过第一个请求后禁止再改 `Timeout`（抛 InvalidOperationException："此实例已经启动了
+  一个或多个请求。只能在发送第一个请求之前修改属性"）。旧实现每次请求都按 `ep.TimeoutMs`
+  改 Timeout，而宿主调用顺序恰好是 ProbeAsync（GET /api/tags）→ DetectAsync（POST /api/chat），
+  **第二个请求必炸**，表现为"探活在线、检测永远降级"。改为
+  `HttpClient.Timeout = InfiniteTimeSpan`，PostJsonAsync / GetAsync 各自用
+  `CancellationTokenSource.CreateLinkedTokenSource(ct)` + `CancelAfter` 控超时（探活仍 ≤3s）。
+- **BoxParser：JSON bbox_2d 丢 label**——旧实现 `BuildBox(..., "")` 把模型返回的 label 丢掉，
+  而宿主 `JudgeEngine.CountMatched` 明确跳过空 Label 框 → 真实模型即使出框正确也永远
+  "缺件 NG"。新增 `FindLabelOfBox`：在 bbox_2d 所在 JSON 对象片段内取 label
+  （字段前后顺序都兼容，只扫当前对象不串相邻框）。
+
+### 验证（宿主 AIris V0.1.17）
+
+- `InferClient` 探针：Ollama `/api/tags` 35ms 探活 → 800×600 图检测 22.1s，
+  解析出 `blue rectangle (257,194)-(520,394)`，`LABEL_PARSED=True`；
+- 宿主引擎页「测试连接」4ms 绿胶囊；监控台真实引擎出框（2592×1944 帧 39.3s），不再回落 Mock。
+
 ## V2.4.4（2026-11-28）PlcSyncWriteFloats 批量浮点写——三区回写 150 次 PLC 事务降为 3 次（HJVision 尺寸站完成超时治本）
 
 > 宿主张 HJVision 现场实锤（2026-11-26 09:30 L型连接器 ST10 尺寸1"检测超时"）：PLC 人机屏

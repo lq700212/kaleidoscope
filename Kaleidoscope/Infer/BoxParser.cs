@@ -25,6 +25,11 @@ namespace Kaleidoscope.Infer
     ///  ②&lt;box&gt; 标签文本：LocateAnything 文本形态（&lt;box&gt;(x1,y1),(x2,y2)&lt;/box&gt; 与
     ///    逗号直排 x1,y1,x2,y2 两种写法都收）
     /// 统一收口：钳位 0~1000、x1&lt;x2 / y1&lt;y2 校正、零面积丢弃。
+    ///
+    /// 【label 必须带出来（2026-11-28 接入 Ollama qwen2.5vl:3b 实测）】JudgeEngine 的
+    /// CountMatched 会直接丢弃 Label 为空的框（无法确认框属于哪个零件）——只解坐标不解 label，
+    /// 真实模型即使出框正确也会被判成"缺件 NG"。旧实现 BuildBox(..., "") 正是这个坑，
+    /// 本次补齐：在 bbox_2d 所在 JSON 对象片段内取 label（前后顺序都兼容）。
     /// </summary>
     public static class BoxParser
     {
@@ -59,12 +64,29 @@ namespace Kaleidoscope.Infer
                 int[] arr = Json.FindIntArray(t.Substring(i), "bbox_2d");
                 if (arr != null && arr.Length >= 4)
                 {
-                    var b = BuildBox(arr[0], arr[1], arr[2], arr[3], "");
+                    // label 与 bbox_2d 同属一个框对象；模型两种字段顺序都可能输出，
+                    // 故取"bbox_2d 前后最近的 { }"包成的对象片段再找 label。
+                    var b = BuildBox(arr[0], arr[1], arr[2], arr[3], FindLabelOfBox(t, i));
                     if (b != null) boxes.Add(b);
                     i += 9;
                 }
                 else break;     // 解析推进失败防死循环
             }
+        }
+
+        /// <summary>
+        /// 取 bbox_2d 所在框对象的 label（找不到返回空串）。
+        /// 向前找最近 '{'、向后找最近 '}' 得到对象片段——bbox_2d 与 label 谁在前都覆盖；
+        /// 只扫当前对象，不会串到相邻框的 label。
+        /// </summary>
+        private static string FindLabelOfBox(string text, int bboxPos)
+        {
+            int start = text.LastIndexOf('{', bboxPos);
+            if (start < 0) return "";
+            int end = text.IndexOf('}', bboxPos);
+            if (end < 0) return "";
+            string obj = text.Substring(start, end - start + 1);
+            return Json.FindString(obj, "label") ?? "";
         }
 
         // —— 策略②：&lt;box&gt; 标签（LocateAnything 文本形态） ——
